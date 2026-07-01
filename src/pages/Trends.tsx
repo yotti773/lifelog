@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
+import BodyFatChart from "../components/BodyFatChart";
 import CalorieChart from "../components/CalorieChart";
 import GoalBar from "../components/GoalBar";
 import WeightChart from "../components/WeightChart";
@@ -94,6 +95,11 @@ export default function Trends() {
       <section className="rounded-card bg-white p-4 shadow-soft">
         <h2 className="mb-3 text-sm font-medium text-muted">体重推移</h2>
         <WeightChart records={weightChartRecords} goalWeightKg={settings.goalWeightKg} />
+      </section>
+
+      <section className="rounded-card bg-white p-4 shadow-soft">
+        <h2 className="mb-3 text-sm font-medium text-muted">体脂肪率推移</h2>
+        <BodyFatChart records={weightChartRecords} />
       </section>
 
       <section className="rounded-card bg-white p-4 shadow-soft">

@@ -1,5 +1,6 @@
-import { useState, type SubmitEvent } from "react";
+import { useState, type ChangeEvent, type SubmitEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { judgeMealPhoto, type MealJudgment } from "../api/judgeMeal";
 import { addMealRecord } from "../db/mealRecords";
 import { nearestMealType, toDatetimeLocalValue } from "../lib/date";
 import type { MealType } from "../types";
@@ -22,10 +23,36 @@ export default function MealRecordPage() {
   const [carbsG, setCarbsG] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const [isJudging, setJudging] = useState(false);
+  const [judgeError, setJudgeError] = useState<string | null>(null);
+  const [aiJudgment, setAiJudgment] = useState<MealJudgment | null>(null);
+
   const parsedKcal = Number(kcal);
   const parsedProteinG = Number(proteinG);
   const parsedFatG = Number(fatG);
   const parsedCarbsG = Number(carbsG);
+
+  const handlePhotoSelected = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setJudging(true);
+    setJudgeError(null);
+    try {
+      const judgment = await judgeMealPhoto(file, mealType);
+      setAiJudgment(judgment);
+      setName(judgment.dishName);
+      setKcal(String(Math.round(judgment.kcal)));
+      setProteinG(String(Math.round(judgment.proteinG)));
+      setFatG(String(Math.round(judgment.fatG)));
+      setCarbsG(String(Math.round(judgment.carbsG)));
+    } catch (err) {
+      setJudgeError(err instanceof Error ? err.message : "食事の判定に失敗しました");
+    } finally {
+      setJudging(false);
+    }
+  };
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -51,6 +78,11 @@ export default function MealRecordPage() {
       confirmedFatG: parsedFatG,
       confirmedCarbsG: parsedCarbsG,
       timestamp: new Date(dateTime).toISOString(),
+      aiEstimatedName: aiJudgment?.dishName,
+      aiEstimatedKcal: aiJudgment?.kcal,
+      aiEstimatedProteinG: aiJudgment?.proteinG,
+      aiEstimatedFatG: aiJudgment?.fatG,
+      aiEstimatedCarbsG: aiJudgment?.carbsG,
     });
     navigate("/");
   };
@@ -58,6 +90,27 @@ export default function MealRecordPage() {
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
       <h1 className="font-rounded text-xl font-bold text-ink">食事を記録</h1>
+
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
+        <label className="cursor-pointer rounded-card bg-secondary px-4 py-3 text-center font-medium text-white">
+          {isJudging ? "判定中..." : "写真から判定する"}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoSelected}
+            disabled={isJudging}
+            className="hidden"
+          />
+        </label>
+        {judgeError && <p className="text-sm text-primary">{judgeError}</p>}
+        {aiJudgment?.isMixedOrUncertain && (
+          <p className="text-xs text-muted">
+            複数の料理が写っている、または判定に自信が低いため、誤差が大きい場合があります。下の内容を確認・修正してください。
+          </p>
+        )}
+      </section>
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-soft">
         <div className="flex flex-col gap-1 text-sm text-ink">
           区分
@@ -146,7 +199,6 @@ export default function MealRecordPage() {
           保存する
         </button>
       </form>
-      <p className="text-center text-xs text-muted">写真からのAI自動判定は今後のステップで対応予定です</p>
     </div>
   );
 }

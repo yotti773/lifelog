@@ -3,6 +3,13 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  server: {
+    // `npm run worker:dev` (wrangler dev, port 8787) を別途起動して
+    // /api/* をそちらに転送する(フロントはViteのHMRを保ったまま)
+    proxy: {
+      "/api": "http://localhost:8787",
+    },
+  },
   plugins: [
     react(),
     VitePWA({

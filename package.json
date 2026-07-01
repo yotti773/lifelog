@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "typecheck:worker": "tsc -p worker/tsconfig.json",
+    "worker:dev": "wrangler dev"
   },
   "dependencies": {
     "dexie": "^4.4.4",
@@ -19,6 +21,7 @@
     "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260701.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",

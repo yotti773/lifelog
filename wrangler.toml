@@ -1,6 +1,8 @@
 name = "lifelog"
 compatibility_date = "2026-07-01"
+main = "worker/index.ts"
 
 [assets]
 directory = "dist"
 not_found_handling = "single-page-application"
+binding = "ASSETS"

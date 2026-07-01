@@ -17,6 +17,7 @@ interface JudgeMealRequestBody {
   imageBase64: string;
   mimeType: string;
   mealType: string;
+  note?: string;
 }
 
 const RESPONSE_SCHEMA = {
@@ -44,19 +45,25 @@ async function judgeMeal(
   imageBase64: string,
   mimeType: string,
   mealType: string,
+  note: string | undefined,
 ): Promise<MealJudgment> {
   const model = env.GEMINI_MODEL || "gemini-2.5-flash";
   const mealLabel = MEAL_TYPE_LABELS[mealType] ?? mealType;
 
+  const noteSection =
+    note && note.trim() !== ""
+      ? `\nユーザーからの補足情報: 「${note.trim()}」。写真だけでは判別しにくい料理名・分量・複数品目の内訳などは、この補足情報を優先して判定に反映してください。`
+      : "";
+
   const prompt = `この写真は${mealLabel}の食事です。写っている料理を判定し、以下の項目をJSONで返してください。
-- dishName: 料理名(日本語、簡潔に)
-- kcal: 推定カロリー(kcal、数値のみ)
-- proteinG: 推定たんぱく質(g、数値のみ)
-- fatG: 推定脂質(g、数値のみ)
-- carbsG: 推定炭水化物(g、数値のみ)
+- dishName: 料理名(日本語、簡潔に。複数品目がある場合はまとめて1つの名前にする)
+- kcal: 推定カロリー(kcal、数値のみ。複数品目がある場合は合計値)
+- proteinG: 推定たんぱく質(g、数値のみ。複数品目がある場合は合計値)
+- fatG: 推定脂質(g、数値のみ。複数品目がある場合は合計値)
+- carbsG: 推定炭水化物(g、数値のみ。複数品目がある場合は合計値)
 - isMixedOrUncertain: 複数の料理が写っている、または量や内容の判定に自信が低い場合はtrue
 
-一般的な日本の家庭料理・外食の分量を前提に、常識的な範囲で推定してください。`;
+一般的な日本の家庭料理・外食の分量を前提に、常識的な範囲で推定してください。${noteSection}`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -102,7 +109,7 @@ export default {
         if (!body.imageBase64 || !body.mimeType) {
           return Response.json({ error: "imageBase64とmimeTypeは必須です" }, { status: 400 });
         }
-        const judgment = await judgeMeal(env, body.imageBase64, body.mimeType, body.mealType ?? "");
+        const judgment = await judgeMeal(env, body.imageBase64, body.mimeType, body.mealType ?? "", body.note);
         return Response.json(judgment);
       } catch (error) {
         const message = error instanceof Error ? error.message : "判定に失敗しました";

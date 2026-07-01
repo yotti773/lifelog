@@ -23,6 +23,7 @@ export default function MealRecordPage() {
   const [carbsG, setCarbsG] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const [note, setNote] = useState("");
   const [isJudging, setJudging] = useState(false);
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [aiJudgment, setAiJudgment] = useState<MealJudgment | null>(null);
@@ -40,7 +41,7 @@ export default function MealRecordPage() {
     setJudging(true);
     setJudgeError(null);
     try {
-      const judgment = await judgeMealPhoto(file, mealType);
+      const judgment = await judgeMealPhoto(file, mealType, note);
       setAiJudgment(judgment);
       setName(judgment.dishName);
       setKcal(String(Math.round(judgment.kcal)));
@@ -92,6 +93,16 @@ export default function MealRecordPage() {
       <h1 className="font-rounded text-xl font-bold text-ink">食事を記録</h1>
 
       <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
+        <label className="flex flex-col gap-1 text-sm text-ink">
+          補足情報(任意)
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="例: 唐揚げ弁当、ご飯少なめ / サラダとスープも別皿である"
+            className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
+          />
+        </label>
         <label className="cursor-pointer rounded-card bg-secondary px-4 py-3 text-center font-medium text-white">
           {isJudging ? "判定中..." : "写真から判定する"}
           <input

@@ -61,6 +61,11 @@ export default function Home() {
           <div className="flex items-baseline gap-2">
             <span className="text-xs text-muted">{formatTime(weight.timestamp)}</span>
             <span className="font-rounded text-3xl font-bold text-ink">{weight.weightKg}kg</span>
+            {weight.bodyFatPercent !== undefined && (
+              <span className="font-rounded text-lg font-bold text-ink">
+                体脂肪 {weight.bodyFatPercent}%
+              </span>
+            )}
           </div>
         ) : (
           <p className="text-muted">未記録</p>

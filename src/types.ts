@@ -5,6 +5,7 @@ export interface WeightRecord {
   date: string; // YYYY-MM-DD, 1日1件のキー
   timestamp: string; // ISO8601, 最後に保存した時刻
   weightKg: number;
+  bodyFatPercent?: number; // 体脂肪率(%)。任意入力
   note?: string;
   synced: boolean; // スプレッドシートへの同期済みフラグ
 }

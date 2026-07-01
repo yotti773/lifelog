@@ -62,3 +62,11 @@ Charts (`WeightChart.tsx`, `CalorieChart.tsx`) are hand-rolled SVG, not a charti
 ### PWA
 
 `vite-plugin-pwa` (see `vite.config.ts`) generates the manifest and service worker at build time — nothing to maintain by hand except icons (`public/icons/`, generated once from the design guide's primary color, not hand-drawn).
+
+### Deployment
+
+Hosted on Cloudflare Workers (Git-integrated, not the classic separate "Pages" product) at https://lifelog.tatu1228.workers.dev/, auto-deploying from `main` on push. Build command `npm run build`, deploy command `npx wrangler deploy`, driven by `wrangler.toml`'s `[assets]` block (`directory = "dist"`, `not_found_handling = "single-page-application"` for SPA routing).
+
+**Don't add a `public/_redirects` file** — combining it with `not_found_handling = "single-page-application"` makes Cloudflare reject the deploy as an infinite redirect loop (both try to handle the SPA fallback). The `[assets]` config alone is sufficient and is what's currently deployed.
+
+`npm run deploy` runs the same build+deploy locally, but requires `wrangler login` first (not set up in this sandboxed dev environment — assume it isn't authenticated unless told otherwise).

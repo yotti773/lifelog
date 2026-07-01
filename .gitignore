@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+dev-dist
+*.tsbuildinfo
+.claude/settings.local.json
+
+# 個人の体重・食事データを含む既存スプレッドシート(参照用ローカルファイル、Git管理外)
+docs/ライフログ.xlsx

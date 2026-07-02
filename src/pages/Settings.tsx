@@ -30,6 +30,7 @@ export default function Settings() {
   const [goalWeightKg, setGoalWeightKg] = useState("");
   const [goalDate, setGoalDate] = useState("");
   const [dailyCalorieTarget, setDailyCalorieTarget] = useState("");
+  const [baselineDate, setBaselineDate] = useState("");
   const [saved, setSaved] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [isSyncing, setSyncing] = useState(false);
@@ -40,6 +41,7 @@ export default function Settings() {
     setGoalWeightKg(String(settings.goalWeightKg));
     setGoalDate(settings.goalDate);
     setDailyCalorieTarget(String(settings.dailyCalorieTarget));
+    setBaselineDate(settings.baselineDate ?? "");
   }, [settings]);
 
   const handleSave = async (e: SubmitEvent<HTMLFormElement>) => {
@@ -48,6 +50,7 @@ export default function Settings() {
       goalWeightKg: Number(goalWeightKg),
       goalDate,
       dailyCalorieTarget: Number(dailyCalorieTarget),
+      baselineDate: baselineDate || undefined,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -116,6 +119,16 @@ export default function Settings() {
             onChange={(e) => setGoalDate(e.target.value)}
             className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
           />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-ink">
+          基準日(進捗バーの起点)
+          <input
+            type="date"
+            value={baselineDate}
+            onChange={(e) => setBaselineDate(e.target.value)}
+            className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
+          />
+          <span className="text-xs text-muted">未設定の場合、一番古い体重記録を起点にします</span>
         </label>
         <label className="flex flex-col gap-1 text-sm text-ink">
           1日の目標摂取カロリー(kcal)

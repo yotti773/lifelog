@@ -32,4 +32,5 @@ export interface Settings {
   goalDate: string; // ISO8601 date
   dailyCalorieTarget: number;
   lastSyncedAt?: string; // ISO8601, 最終同期日時
+  baselineDate?: string; // YYYY-MM-DD, 進捗バーの起点日。未設定時は一番古い体重記録を起点とする
 }

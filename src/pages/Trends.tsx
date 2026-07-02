@@ -6,7 +6,7 @@ import WeightChart from "../components/WeightChart";
 import { db } from "../db/db";
 import { getDailyCalorieTotals } from "../db/mealRecords";
 import { getSettings } from "../db/settings";
-import { getAllWeightRecords, getWeightRecordsByDateRange } from "../db/weightRecords";
+import { getAllWeightRecords, getWeightRecord, getWeightRecordsByDateRange } from "../db/weightRecords";
 import { dateStringDaysAgo, todayDateString } from "../lib/date";
 
 type Period = "week" | "month" | "all";
@@ -31,6 +31,11 @@ export default function Trends() {
     () => db.weightRecords.orderBy("date").last().then((v) => v ?? null),
     [],
   );
+  // 基準日に記録がない(または基準日未設定の)場合は一番古い記録を起点にフォールバックする
+  const baselineWeightRecord = useLiveQuery(
+    () => (settings?.baselineDate ? getWeightRecord(settings.baselineDate).then((v) => v ?? null) : Promise.resolve(null)),
+    [settings?.baselineDate],
+  );
 
   const weightChartRecords = useLiveQuery(() => {
     if (period === "all") return getAllWeightRecords();
@@ -53,11 +58,15 @@ export default function Trends() {
     settings === undefined ||
     firstWeightRecord === undefined ||
     lastWeightRecord === undefined ||
+    baselineWeightRecord === undefined ||
     weightChartRecords === undefined ||
     calorieDailyTotals === undefined
   ) {
     return <div className="p-6 text-center text-sm text-muted">読み込み中...</div>;
   }
+
+  const startWeightKg =
+    baselineWeightRecord?.weightKg ?? firstWeightRecord?.weightKg ?? lastWeightRecord?.weightKg;
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-28 pt-6">
@@ -65,7 +74,7 @@ export default function Trends() {
 
       {lastWeightRecord ? (
         <GoalBar
-          startWeightKg={firstWeightRecord?.weightKg ?? lastWeightRecord.weightKg}
+          startWeightKg={startWeightKg ?? lastWeightRecord.weightKg}
           currentWeightKg={lastWeightRecord.weightKg}
           goalWeightKg={settings.goalWeightKg}
           goalDate={settings.goalDate}

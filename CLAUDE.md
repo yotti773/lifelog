@@ -1,80 +1,85 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+このファイルは、このリポジトリで作業する Claude Code (claude.ai/code) 向けのガイドです。
 
-## What this is
+## 言語
 
-A local-first PWA (React + Vite + TypeScript) for tracking daily weight and meals (calories + PFC), built from the specs in `docs/`:
+- **このファイル(CLAUDE.md)を含め、リポジトリ内のドキュメントは日本語で記述する。**
+- **PRの説明文・コメント、Issueのコメントなど、GitHub上でのやり取りも基本的に日本語で書く。** コード中の識別子・コメントや、既存の英語表記(コマンド名など)はそのままでよい。
 
-- `docs/ライフログアプリ_要件定義書.md` — requirements (goals, MVP scope, tech stack rationale)
-- `docs/ライフログアプリ_画面設計書.md` — screen specs, data model, sync flow
-- `docs/ライフログアプリ_デザインガイド.md` — color palette, typography, layout rules
+## これは何か
 
-Read these before making product/UX decisions — they're the source of truth, not this file.
+体重と食事(カロリー・PFC)を記録するローカルファーストPWA(React + Vite + TypeScript)。`docs/` 配下の仕様書をもとに作られている:
 
-## Commands
+- `docs/ライフログアプリ_要件定義書.md` — 要件定義(目的、MVPスコープ、技術選定の理由)
+- `docs/ライフログアプリ_画面設計書.md` — 画面仕様、データモデル、同期フロー
+- `docs/ライフログアプリ_デザインガイド.md` — カラーパレット、タイポグラフィ、レイアウトルール
+
+プロダクト/UXに関わる判断をする前にこれらを読むこと。真実の情報源はこれらの仕様書であり、このファイルではない。
+
+## コマンド
 
 ```
-npm run dev       # start Vite dev server (localhost:5173)
-npm run build     # tsc -b && vite build (also generates the PWA service worker)
-npm run test      # vitest run (all tests)
-npx vitest run src/db/__tests__/weightRecords.test.ts   # single test file
-npm run preview   # serve the production build (needed to inspect real PWA/install behavior)
+npm run dev       # Vite開発サーバーを起動(localhost:5173)
+npm run build     # tsc -b && vite build(PWAのService Workerも生成される)
+npm run test      # vitest run(全テスト実行)
+npx vitest run src/db/__tests__/weightRecords.test.ts   # 単一テストファイルの実行
+npm run preview   # 本番ビルドをローカルで配信(実際のPWA/インストール動作の確認に必要)
 ```
 
-`npm run lint` is defined in package.json but ESLint isn't actually installed/configured yet — don't rely on it.
+`npm run lint` は package.json に定義されているが、ESLintは実際にはインストール・設定されていない — 当てにしないこと。
 
-There is no browser test runner wired into the repo. To visually verify UI changes, run `npm run dev` and drive it with Playwright (`npm install playwright` + `npx playwright install chromium` in a scratch dir) — there's no in-repo helper script for this.
+このリポジトリにはブラウザ用のテストランナーが組み込まれていない。UI変更を目視確認するには `npm run dev` を起動し、Playwright(スクラッチディレクトリで `npm install playwright` + `npx playwright install chromium`)で操作すること — リポジトリ内にヘルパースクリプトは無い。
 
-## Workflow
+## 開発フロー
 
-Work is tracked as GitHub Issues, not a separate backlog doc — the repo's Issues tab is the source of truth for what's outstanding. Each issue links back to the relevant section of `docs/` (requirements/screen-design doc) it comes from.
+作業は別のバックログドキュメントではなく GitHub Issue で管理する — リポジトリの Issues タブが「何が残っているか」の唯一の情報源。各Issueは、元になった `docs/`(要件定義書・画面設計書)の該当箇所にリンクしている。
 
-- **File an issue before starting non-trivial work**, even when you're the only one working on it. It keeps `docs/` decisions traceable to the code that implements them, and gives later sessions (human or Claude) the "why" without re-reading the spec.
-- Implement on a branch, verify with `npm run test` / `npm run build` and (for UI changes) a manual Playwright pass per the Commands section above.
-- **Open a PR when the issue is done**, with the PR body referencing the issue (e.g. `Closes #6`) so merging auto-closes it. Don't merge straight to `main` without a PR — it's the record of what changed and why.
+- **非自明な作業は着手前にIssueを立てる。** 自分一人で作業する場合でも同様。`docs/` での意思決定とそれを実装したコードの対応関係をたどれるようにし、後続のセッション(人間・Claudeどちらも)が仕様書を読み直さなくても「なぜ」を把握できるようにするため。
+- ブランチ上で実装し、`npm run test` / `npm run build` で検証、UI変更であれば上記コマンド節の通りPlaywrightで手動確認する。
+- **Issueが完了したらPRを作成する。** PR本文で該当Issueを参照し(例: `Closes #6`)、マージ時に自動クローズされるようにする。PRを介さず `main` へ直接マージしない — PRは「何を・なぜ変更したか」の記録になる。
 
-## Architecture
+## アーキテクチャ
 
-### Data layer (`src/db/`)
+### データ層(`src/db/`)
 
-Dexie wraps IndexedDB. `db.ts` defines the schema; one file per entity (`weightRecords.ts`, `mealRecords.ts`, `settings.ts`) exports plain async CRUD functions — no repository classes, no ORM abstraction beyond Dexie itself.
+DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し、エンティティごとに1ファイル(`weightRecords.ts`、`mealRecords.ts`、`settings.ts`)がプレーンな非同期CRUD関数をexportする — リポジトリクラスやDexie自体を超えたORM的な抽象化はない。
 
-Key modeling choices that aren't obvious from the types alone:
-- **`WeightRecord` uses `date` (YYYY-MM-DD) as the Dexie primary key.** This is what makes "one record per day, last-write-wins" work automatically — `saveWeightRecord` just calls `.put()`, no manual overwrite logic needed.
-- **`MealRecord` uses a generated UUID as its key**, since multiple entries per `mealType` per day are allowed (e.g. two snacks).
-- **Every record has a `synced: boolean`.** `saveWeightRecord`/`updateWeightRecord`/`updateMealRecord` all reset it to `false` whenever the record's content changes, so edits after a sync are picked up again. Never hand-set `synced: true` outside of `markWeightRecordsSynced`/`markMealRecordsSynced`.
-- **`getUnsyncedWeightRecords`/`getUnsyncedMealRecords` filter in JS (`.filter()`), not via a Dexie index** — IndexedDB can't index booleans as keys, and record counts here are small enough (single user, a handful of rows/day) that this is fine. Don't "optimize" this into an index.
-- `getDailyCalorieTotals(startDate, endDate)` backfills every day in the range with `0kcal` even if there's no meal record — this is what makes the calorie trend chart show gaps instead of a misleadingly compressed line.
+型だけからは分かりにくい、モデリング上の重要な選択:
+- **`WeightRecord` は `date`(YYYY-MM-DD)をDexieの主キーにしている。** これにより「1日1件、後勝ち」が自動的に成立する — `saveWeightRecord` は `.put()` を呼ぶだけで、手動の上書きロジックは不要。
+- **`MealRecord` は生成したUUIDをキーにしている。** 同じ日の同じ `mealType` に複数件の記録が許されるため(例: 間食を2回記録するなど)。
+- **すべてのレコードが `synced: boolean` を持つ。** `saveWeightRecord`/`updateWeightRecord`/`updateMealRecord` は、レコードの内容が変わるたびにこれを `false` にリセットする。これにより、同期後の編集も再度拾われる。`markWeightRecordsSynced`/`markMealRecordsSynced` 以外の場所で `synced: true` を直接セットしないこと。
+- **`getUnsyncedWeightRecords`/`getUnsyncedMealRecords` はDexieのインデックスではなくJS側の `.filter()` で絞り込んでいる** — IndexedDBはbooleanをインデックスのキーにできないことと、レコード件数がこの規模(単一ユーザー、1日あたり数件)では十分軽いため、これで問題ない。これをインデックス化して「最適化」しないこと。
+- `getDailyCalorieTotals(startDate, endDate)` は、食事記録が無い日でも範囲内の全日を `0kcal` で埋める — これにより、カロリー推移グラフが記録の空白を誤魔化して圧縮された線ではなく、隙間として表示される。
 
-Tests use `fake-indexeddb/auto` (see `src/db/__tests__/setup.ts`, wired via `vitest.config.ts`'s `setupFiles`) so the whole data layer is tested in Node with no browser. `beforeEach` clears tables directly (`db.weightRecords.clear()` etc.) — there's no shared test-DB-reset helper, each test file clears what it uses.
+テストは `fake-indexeddb/auto`(`src/db/__tests__/setup.ts` を参照。`vitest.config.ts` の `setupFiles` で組み込まれている)を使っており、データ層全体をブラウザ無しでNode上でテストしている。`beforeEach` で各テーブルを直接クリアする(`db.weightRecords.clear()` など)— 共通のテストDBリセットヘルパーは無く、各テストファイルが自分の使うテーブルをクリアする。
 
-### Sync engine (`src/sync/`)
+### 同期エンジン(`src/sync/`)
 
-`runSync()` (in `syncEngine.ts`) is transport-agnostic: it pulls unsynced records, calls `SyncTransport.push()`, and only marks records synced that the transport reports as succeeded (partial success is expected and handled). On any thrown error, nothing is marked synced and the error surfaces to the caller — that's the retry mechanism, there's no separate retry queue.
+`runSync()`(`syncEngine.ts` 内)はトランスポート非依存: 未同期のレコードを取得し、`SyncTransport.push()` を呼び、トランスポートが成功を報告したレコードだけを同期済みにする(部分的な成功は想定内で、ハンドリングされている)。何らかのエラーがthrowされた場合、何も同期済みにされず、エラーは呼び出し元に伝播する — これがリトライの仕組みであり、別途リトライキューは存在しない。
 
-`notConfiguredTransport` is the current (default) transport — it always throws. **The actual Cloudflare Worker → Google Sheets integration hasn't been built yet.** To wire it up: implement `SyncTransport` (see `types.ts`) against the Worker endpoint, then swap the `transport` passed into `runSync()` in `App.tsx` (auto-sync on launch) and `Settings.tsx` (manual "今すぐ同期" button). Per `画面設計書` 7章, the target is the user's *existing* spreadsheet (already used as a manual DB substitute), not a new one.
+`notConfiguredTransport` が現在(デフォルト)のトランスポートで、常にthrowするだけのプレースホルダー。**実際のCloudflare Worker → Google Sheets連携はまだ実装されていない。** 実装する際は: `SyncTransport`(`types.ts` 参照)をWorkerエンドポイントに対して実装し、`App.tsx`(起動時の自動同期)と `Settings.tsx`(「今すぐ同期」ボタン)に渡している `transport` を差し替える。`画面設計書` 7章の通り、同期先は新規シートではなく、ユーザーが既に(手動DB代わりに)使っている既存のスプレッドシート。
 
-### UI (`src/pages/`, `src/components/`)
+### UI(`src/pages/`、`src/components/`)
 
-Client state comes from `dexie-react-hooks`' `useLiveQuery`, not React state + manual refetching — pages re-render automatically when the underlying IndexedDB tables change.
+クライアントの状態は、React state + 手動再取得ではなく `dexie-react-hooks` の `useLiveQuery` から得ている — IndexedDBのテーブルが変化すると、ページは自動的に再レンダリングされる。
 
-**Gotcha:** `useLiveQuery` cannot distinguish "still loading" from "resolved to `undefined`". Since `.first()`/`.last()` on an empty Dexie table resolve to `undefined`, a query like `db.weightRecords.orderBy("date").first()` will make the component hang on its loading branch forever for a brand-new user with zero records — the query silently never signals completion. The fix used throughout this codebase is to coerce those results to `null` before returning them from the query function (see `Trends.tsx`), and only treat `undefined` as "not yet loaded". Apply the same pattern for any new `useLiveQuery` call whose query can legitimately resolve to "nothing found."
+**注意点:** `useLiveQuery` は「まだロード中」と「`undefined` に解決した」を区別できない。空のDexieテーブルに対する `.first()`/`.last()` は `undefined` に解決するため、`db.weightRecords.orderBy("date").first()` のようなクエリは、記録が1件も無い新規ユーザーの場合、ローディング分岐から永久に抜け出せなくなる — クエリが「完了した」というシグナルを一切出さないまま止まる。このコードベース全体で使われている対処法は、クエリ関数からの戻り値を返す前にそれらの結果を `null` に正規化し(`Trends.tsx` を参照)、`undefined` だけを「まだロードされていない」として扱うこと。「見つからない」に正当に解決しうる新しい `useLiveQuery` 呼び出しには同じパターンを適用すること。
 
-Charts (`WeightChart.tsx`, `CalorieChart.tsx`) are hand-rolled SVG, not a charting library — this is deliberate, to keep exact control over the design guide's palette rather than fighting a library's defaults.
+グラフ(`WeightChart.tsx`、`CalorieChart.tsx`)はチャートライブラリではなく、手書きのSVG — これは意図的なもので、ライブラリのデフォルトと戦うのではなく、デザインガイドのパレットを厳密にコントロールするため。
 
-### Design system constraint
+### デザインシステム上の制約
 
-`tailwind.config.js` registers the design guide's palette as named colors (`background`, `primary`, `secondary`, `accent`, `ink`, `muted`) and fonts (`font-rounded` = M PLUS Rounded 1c for numbers/headings, `font-body` = Noto Sans JP). **`accent` (yellow) is reserved for "moment of achievement" celebrations only** (goal reached, streak, etc.) per the design guide — it must not be used for static/always-visible UI like reference lines or badges. Chart target/goal lines use muted gray for exactly this reason; don't change them to accent without re-reading the design guide's rationale.
+`tailwind.config.js` はデザインガイドのパレットを名前付きカラー(`background`、`primary`、`secondary`、`accent`、`ink`、`muted`)として、フォントを(`font-rounded` = 数字・見出し用のM PLUS Rounded 1c、`font-body` = Noto Sans JP)として登録している。**`accent`(黄色)はデザインガイドにおいて「達成の瞬間」の演出(目標達成、連続記録など)専用に予約されている** — 基準線やバッジのような常時表示の静的UIに使ってはならない。グラフの目標線がまさにこの理由でミュートグレーになっている。デザインガイドの根拠を読み直さずにaccentへ変更しないこと。
 
 ### PWA
 
-`vite-plugin-pwa` (see `vite.config.ts`) generates the manifest and service worker at build time — nothing to maintain by hand except icons (`public/icons/`, generated once from the design guide's primary color, not hand-drawn).
+`vite-plugin-pwa`(`vite.config.ts` を参照)がビルド時にマニフェストとService Workerを生成する — アイコン(`public/icons/`、デザインガイドのプライマリカラーから一度生成したもので手描きではない)以外、手作業でメンテナンスするものはない。
 
-### Deployment
+### デプロイ
 
-Hosted on Cloudflare Workers (Git-integrated, not the classic separate "Pages" product) at https://lifelog.tatu1228.workers.dev/, auto-deploying from `main` on push. Build command `npm run build`, deploy command `npx wrangler deploy`, driven by `wrangler.toml`'s `[assets]` block (`directory = "dist"`, `not_found_handling = "single-page-application"` for SPA routing).
+Cloudflare Workers(クラシックな別サービスの「Pages」ではなく、Git連携版)上で https://lifelog.tatu1228.workers.dev/ にホストされており、`main` へのpushで自動デプロイされる。ビルドコマンドは `npm run build`、デプロイコマンドは `npx wrangler deploy` で、`wrangler.toml` の `[assets]` ブロック(`directory = "dist"`、SPAルーティング用に `not_found_handling = "single-page-application"`)で駆動されている。
 
-**Don't add a `public/_redirects` file** — combining it with `not_found_handling = "single-page-application"` makes Cloudflare reject the deploy as an infinite redirect loop (both try to handle the SPA fallback). The `[assets]` config alone is sufficient and is what's currently deployed.
+**`public/_redirects` ファイルを追加しないこと** — `not_found_handling = "single-page-application"` と組み合わせると、CloudflareはSPAフォールバックの処理をどちらも試みるものとみなし、無限リダイレクトループとしてデプロイを拒否する。`[assets]` の設定だけで十分であり、現在デプロイされているのもこの構成。
 
-`npm run deploy` runs the same build+deploy locally, but requires `wrangler login` first (not set up in this sandboxed dev environment — assume it isn't authenticated unless told otherwise).
+`npm run deploy` はローカルで同じbuild+deployを実行するが、事前に `wrangler login` が必要(このサンドボックス化された開発環境ではセットアップされていない — 特に指示が無い限り未認証だと想定すること)。

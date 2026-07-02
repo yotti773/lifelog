@@ -1,9 +1,12 @@
 import { useState, type ChangeEvent, type SubmitEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLiveQuery } from "dexie-react-hooks";
 import { judgeMealPhoto, type MealJudgment } from "../api/judgeMeal";
+import FoodMasterPicker from "../components/FoodMasterPicker";
+import { addFoodMasterItem, getAllFoodMasterItems } from "../db/foodMaster";
 import { addMealRecord } from "../db/mealRecords";
 import { nearestMealType, toDatetimeLocalValue } from "../lib/date";
-import type { MealType } from "../types";
+import type { FoodMasterItem, MealType } from "../types";
 
 const MEAL_OPTIONS: { type: MealType; label: string }[] = [
   { type: "breakfast", label: "朝食" },
@@ -27,6 +30,9 @@ export default function MealRecordPage() {
   const [isJudging, setJudging] = useState(false);
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [aiJudgment, setAiJudgment] = useState<MealJudgment | null>(null);
+  const [registerToMaster, setRegisterToMaster] = useState(false);
+
+  const foodMasterItems = useLiveQuery(() => getAllFoodMasterItems(), []);
 
   const parsedKcal = Number(kcal);
   const parsedProteinG = Number(proteinG);
@@ -53,6 +59,15 @@ export default function MealRecordPage() {
     } finally {
       setJudging(false);
     }
+  };
+
+  const handleSelectMaster = (item: FoodMasterItem) => {
+    setAiJudgment(null);
+    setName(item.name);
+    setKcal(String(item.kcal));
+    setProteinG(String(item.proteinG));
+    setFatG(String(item.fatG));
+    setCarbsG(String(item.carbsG));
   };
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
@@ -85,12 +100,26 @@ export default function MealRecordPage() {
       aiEstimatedFatG: aiJudgment?.fatG,
       aiEstimatedCarbsG: aiJudgment?.carbsG,
     });
+    if (registerToMaster) {
+      await addFoodMasterItem({
+        name: name.trim(),
+        kcal: parsedKcal,
+        proteinG: parsedProteinG,
+        fatG: parsedFatG,
+        carbsG: parsedCarbsG,
+      });
+    }
     navigate("/");
   };
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
       <h1 className="font-rounded text-xl font-bold text-ink">食事を記録</h1>
+
+      <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
+        <h2 className="text-sm font-medium text-muted">よく食べるものから選ぶ</h2>
+        <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
+      </section>
 
       <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
         <label className="flex flex-col gap-1 text-sm text-ink">
@@ -205,6 +234,15 @@ export default function MealRecordPage() {
             />
           </label>
         </div>
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={registerToMaster}
+            onChange={(e) => setRegisterToMaster(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          この内容をマスタに登録する(次回から選んで入力できるようになります)
+        </label>
         {error && <p className="text-sm text-primary">{error}</p>}
         <button type="submit" className="rounded-card bg-primary px-4 py-3 font-medium text-white">
           保存する

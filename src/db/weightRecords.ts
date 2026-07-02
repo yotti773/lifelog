@@ -4,6 +4,7 @@ import type { WeightRecord } from "../types";
 export interface SaveWeightRecordInput {
   date: string; // YYYY-MM-DD
   weightKg: number;
+  bodyFatPercent?: number;
   note?: string;
   timestamp?: string; // 省略時は現在時刻
 }
@@ -15,6 +16,7 @@ export async function saveWeightRecord(input: SaveWeightRecordInput): Promise<We
     date: input.date,
     timestamp: input.timestamp ?? new Date().toISOString(),
     weightKg: input.weightKg,
+    bodyFatPercent: input.bodyFatPercent,
     note: input.note,
     synced: false,
   };
@@ -39,7 +41,7 @@ export async function getWeightRecordsByDateRange(
 
 export async function updateWeightRecord(
   date: string,
-  patch: Partial<Pick<WeightRecord, "weightKg" | "note">>,
+  patch: Partial<Pick<WeightRecord, "weightKg" | "bodyFatPercent" | "note">>,
 ): Promise<WeightRecord> {
   const existing = await db.weightRecords.get(date);
   if (!existing) {

@@ -24,6 +24,20 @@ describe("weightRecords", () => {
     expect(record?.weightKg).toBe(72.1);
   });
 
+  it("saves and retrieves an optional body fat percent", async () => {
+    await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1, bodyFatPercent: 24.5 });
+
+    const record = await getWeightRecord("2026-07-01");
+    expect(record?.bodyFatPercent).toBe(24.5);
+  });
+
+  it("leaves body fat percent undefined when not provided", async () => {
+    await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1 });
+
+    const record = await getWeightRecord("2026-07-01");
+    expect(record?.bodyFatPercent).toBeUndefined();
+  });
+
   it("overwrites the same date instead of creating a second record (last-write-wins)", async () => {
     await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1 });
     await saveWeightRecord({ date: "2026-07-01", weightKg: 71.8, note: "筋トレ後" });
@@ -59,6 +73,13 @@ describe("weightRecords", () => {
     const updated = await updateWeightRecord("2026-07-01", { note: "飲み会翌日" });
     expect(updated.weightKg).toBe(72.1);
     expect(updated.note).toBe("飲み会翌日");
+  });
+
+  it("updates the body fat percent on an existing record", async () => {
+    await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1 });
+
+    const updated = await updateWeightRecord("2026-07-01", { bodyFatPercent: 23.8 });
+    expect(updated.bodyFatPercent).toBe(23.8);
   });
 
   it("throws when updating a record that doesn't exist", async () => {

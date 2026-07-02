@@ -9,6 +9,7 @@ export default function WeightRecordPage() {
   const navigate = useNavigate();
   const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [weightKg, setWeightKg] = useState("");
+  const [bodyFatPercent, setBodyFatPercent] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -22,15 +23,22 @@ export default function WeightRecordPage() {
   const diff =
     previous && weightKg !== "" && !Number.isNaN(parsedWeight) ? parsedWeight - previous.weightKg : null;
 
+  const parsedBodyFatPercent = Number(bodyFatPercent);
+
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (weightKg === "" || Number.isNaN(parsedWeight)) {
       setError("体重を入力してください");
       return;
     }
+    if (bodyFatPercent !== "" && Number.isNaN(parsedBodyFatPercent)) {
+      setError("体脂肪率は数値で入力してください");
+      return;
+    }
     await saveWeightRecord({
       date: selectedDate,
       weightKg: parsedWeight,
+      bodyFatPercent: bodyFatPercent !== "" ? parsedBodyFatPercent : undefined,
       note: note.trim() || undefined,
       timestamp: new Date(dateTime).toISOString(),
     });
@@ -67,6 +75,18 @@ export default function WeightRecordPage() {
               {diff.toFixed(1)}kg
             </span>
           )}
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-ink">
+          体脂肪率(%・任意)
+          <input
+            type="number"
+            step="0.1"
+            inputMode="decimal"
+            value={bodyFatPercent}
+            onChange={(e) => setBodyFatPercent(e.target.value)}
+            placeholder="24.5"
+            className="rounded-card border border-black/10 px-3 py-2 font-rounded text-2xl focus:border-primary focus:outline-none"
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm text-ink">
           メモ(任意)

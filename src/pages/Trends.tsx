@@ -1,39 +1,35 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useNavigate } from "react-router-dom";
-import BodyFatChart from "../components/BodyFatChart";
-import CalorieChart from "../components/CalorieChart";
+import { useLocation, useNavigate } from "react-router-dom";
 import GoalBar from "../components/GoalBar";
-import WeightChart from "../components/WeightChart";
+import WeightHistoryList from "../components/WeightHistoryList";
+import WeightTrendCharts, { type Period } from "../components/WeightTrendCharts";
 import { db } from "../db/db";
 import { getDailyCalorieTotals } from "../db/mealRecords";
 import { getSettings } from "../db/settings";
-import { getAllWeightRecords, getWeightRecord, getWeightRecordsByDateRange } from "../db/weightRecords";
+import {
+  getAllWeightRecords,
+  getAllWeightRecordsDesc,
+  getWeightRecord,
+  getWeightRecordsByDateRange,
+} from "../db/weightRecords";
 import { dateStringDaysAgo, todayDateString } from "../lib/date";
+import type { WeightRecord } from "../types";
 
-type Period = "week" | "month" | "all";
 type ViewMode = "chart" | "history";
-
-const PERIOD_LABELS: Record<Period, string> = {
-  week: "週",
-  month: "月",
-  all: "全期間",
-};
 
 const VIEW_MODE_LABELS: Record<ViewMode, string> = {
   chart: "グラフ",
   history: "履歴",
 };
 
-function formatHistoryDate(date: string) {
-  const [, month, day] = date.split("-");
-  return `${Number(month)}/${Number(day)}`;
-}
-
 export default function Trends() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [period, setPeriod] = useState<Period>("month");
-  const [viewMode, setViewMode] = useState<ViewMode>("chart");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => (location.state as { viewMode?: ViewMode } | null)?.viewMode ?? "chart",
+  );
 
   const settings = useLiveQuery(() => getSettings(), []);
   // .first()/.last()は記録が1件もないとundefinedを返すが、useLiveQueryは
@@ -69,10 +65,11 @@ export default function Trends() {
     return getDailyCalorieTotals(dateStringDaysAgo(days), endDate);
   }, [period]);
 
-  // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書9章、詳細は今後検討)
+  // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書9章、詳細は今後検討)。
+  // 履歴タブを開いていない間はDexieへ問い合わせない(グラフ表示中の無駄なフルスキャンを避ける)
   const historyRecords = useLiveQuery(
-    () => getAllWeightRecords().then((records) => [...records].reverse()),
-    [],
+    () => (viewMode === "history" ? getAllWeightRecordsDesc() : Promise.resolve<WeightRecord[]>([])),
+    [viewMode],
   );
 
   if (
@@ -123,66 +120,19 @@ export default function Trends() {
       </div>
 
       {viewMode === "chart" ? (
-        <>
-          <div className="flex justify-end gap-1 rounded-full bg-white p-1 shadow-soft">
-            {(Object.keys(PERIOD_LABELS) as Period[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setPeriod(key)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  period === key ? "bg-primary text-white" : "text-muted"
-                }`}
-              >
-                {PERIOD_LABELS[key]}
-              </button>
-            ))}
-          </div>
-
-          <section className="rounded-card bg-white p-4 shadow-soft">
-            <h2 className="mb-3 text-sm font-medium text-muted">体重推移</h2>
-            <WeightChart records={weightChartRecords} goalWeightKg={settings.goalWeightKg} />
-          </section>
-
-          <section className="rounded-card bg-white p-4 shadow-soft">
-            <h2 className="mb-3 text-sm font-medium text-muted">体脂肪率推移</h2>
-            <BodyFatChart records={weightChartRecords} />
-          </section>
-
-          <section className="rounded-card bg-white p-4 shadow-soft">
-            <h2 className="mb-3 text-sm font-medium text-muted">カロリー推移</h2>
-            <CalorieChart data={calorieDailyTotals} targetKcal={settings.dailyCalorieTarget} />
-          </section>
-        </>
+        <WeightTrendCharts
+          period={period}
+          onPeriodChange={setPeriod}
+          weightChartRecords={weightChartRecords}
+          calorieDailyTotals={calorieDailyTotals}
+          goalWeightKg={settings.goalWeightKg}
+          dailyCalorieTarget={settings.dailyCalorieTarget}
+        />
       ) : (
-        <section className="rounded-card bg-white p-2 shadow-soft">
-          {historyRecords.length === 0 ? (
-            <p className="p-4 text-center text-sm text-muted">記録がありません</p>
-          ) : (
-            <ul className="divide-y divide-black/5">
-              {historyRecords.map((record) => (
-                <li key={record.id}>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/record/weight?date=${record.date}`)}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left"
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-xs text-muted">{formatHistoryDate(record.date)}</span>
-                      {record.note && <span className="text-xs text-muted">{record.note}</span>}
-                    </div>
-                    <div className="flex items-baseline gap-3 font-rounded">
-                      <span className="text-lg font-bold text-ink">{record.weightKg}kg</span>
-                      <span className="w-12 text-right text-sm text-muted">
-                        {record.bodyFatPercent !== undefined ? `${record.bodyFatPercent}%` : "-"}
-                      </span>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <WeightHistoryList
+          records={historyRecords}
+          onSelect={(date) => navigate(`/record/weight?date=${date}`)}
+        />
       )}
     </div>
   );

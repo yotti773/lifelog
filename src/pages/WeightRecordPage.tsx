@@ -5,11 +5,14 @@ import { db } from "../db/db";
 import { getWeightRecord, saveWeightRecord } from "../db/weightRecords";
 import { toDatetimeLocalValue } from "../lib/date";
 
+type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
+
 export default function WeightRecordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // 履歴確認画面(Trends)の行タップから ?date=YYYY-MM-DD 付きで遷移してきた場合は編集モードになる
   const editDate = searchParams.get("date");
+  const [loadStatus, setLoadStatus] = useState<LoadStatus>(editDate ? "loading" : "idle");
   const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [weightKg, setWeightKg] = useState("");
   const [bodyFatPercent, setBodyFatPercent] = useState("");
@@ -17,16 +20,30 @@ export default function WeightRecordPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!editDate) return;
+    if (!editDate) {
+      setLoadStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setLoadStatus("loading");
     void getWeightRecord(editDate).then((record) => {
-      if (!record) return;
+      if (cancelled) return;
+      if (!record) {
+        setLoadStatus("not-found");
+        return;
+      }
       setDateTime(toDatetimeLocalValue(record.timestamp));
       setWeightKg(String(record.weightKg));
       setBodyFatPercent(record.bodyFatPercent !== undefined ? String(record.bodyFatPercent) : "");
       setNote(record.note ?? "");
+      setLoadStatus("loaded");
     });
+    return () => {
+      cancelled = true;
+    };
   }, [editDate]);
 
+  const isEditing = loadStatus === "loaded";
   const selectedDate = dateTime.slice(0, 10);
   const previous = useLiveQuery(
     () => db.weightRecords.where("date").below(selectedDate).last(),
@@ -56,12 +73,34 @@ export default function WeightRecordPage() {
       note: note.trim() || undefined,
       timestamp: new Date(dateTime).toISOString(),
     });
-    navigate(editDate ? "/trends" : "/");
+    navigate(editDate ? "/trends" : "/", editDate ? { state: { viewMode: "history" } } : undefined);
   };
+
+  if (loadStatus === "loading") {
+    return <div className="p-6 text-center text-sm text-muted">読み込み中...</div>;
+  }
+
+  if (loadStatus === "not-found") {
+    return (
+      <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
+        <h1 className="font-rounded text-xl font-bold text-ink">記録が見つかりません</h1>
+        <p className="rounded-card bg-white p-4 text-sm text-muted shadow-soft">
+          指定された日付の体重記録は見つかりませんでした。別の端末で削除された可能性があります。
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/trends", { state: { viewMode: "history" } })}
+          className="rounded-card bg-primary px-4 py-3 font-medium text-white"
+        >
+          履歴に戻る
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
-      <h1 className="font-rounded text-xl font-bold text-ink">{editDate ? "体重を編集" : "体重を記録"}</h1>
+      <h1 className="font-rounded text-xl font-bold text-ink">{isEditing ? "体重を編集" : "体重を記録"}</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-soft">
         <label className="flex flex-col gap-1 text-sm text-ink">
           日時
@@ -69,8 +108,10 @@ export default function WeightRecordPage() {
             type="datetime-local"
             value={dateTime}
             onChange={(e) => setDateTime(e.target.value)}
-            className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
+            disabled={isEditing}
+            className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none disabled:bg-background disabled:text-muted"
           />
+          {isEditing && <span className="text-xs text-muted">日時は編集できません</span>}
         </label>
         <label className="flex flex-col gap-1 text-sm text-ink">
           体重(kg)

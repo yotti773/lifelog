@@ -3,6 +3,7 @@ import { db } from "../db";
 import {
   deleteWeightRecord,
   getAllWeightRecords,
+  getAllWeightRecordsDesc,
   getUnsyncedWeightRecords,
   getWeightRecord,
   getWeightRecordsByDateRange,
@@ -55,6 +56,15 @@ describe("weightRecords", () => {
 
     const all = await getAllWeightRecords();
     expect(all.map((r) => r.date)).toEqual(["2026-07-01", "2026-07-02", "2026-07-03"]);
+  });
+
+  it("lists all records sorted by date descending", async () => {
+    await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1 });
+    await saveWeightRecord({ date: "2026-07-03", weightKg: 71.5 });
+    await saveWeightRecord({ date: "2026-07-02", weightKg: 71.9 });
+
+    const all = await getAllWeightRecordsDesc();
+    expect(all.map((r) => r.date)).toEqual(["2026-07-03", "2026-07-02", "2026-07-01"]);
   });
 
   it("filters records by date range", async () => {

@@ -1,17 +1,31 @@
-import { useState, type SubmitEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, type SubmitEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db/db";
-import { saveWeightRecord } from "../db/weightRecords";
+import { getWeightRecord, saveWeightRecord } from "../db/weightRecords";
 import { toDatetimeLocalValue } from "../lib/date";
 
 export default function WeightRecordPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // 履歴確認画面(Trends)の行タップから ?date=YYYY-MM-DD 付きで遷移してきた場合は編集モードになる
+  const editDate = searchParams.get("date");
   const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [weightKg, setWeightKg] = useState("");
   const [bodyFatPercent, setBodyFatPercent] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editDate) return;
+    void getWeightRecord(editDate).then((record) => {
+      if (!record) return;
+      setDateTime(toDatetimeLocalValue(record.timestamp));
+      setWeightKg(String(record.weightKg));
+      setBodyFatPercent(record.bodyFatPercent !== undefined ? String(record.bodyFatPercent) : "");
+      setNote(record.note ?? "");
+    });
+  }, [editDate]);
 
   const selectedDate = dateTime.slice(0, 10);
   const previous = useLiveQuery(
@@ -42,12 +56,12 @@ export default function WeightRecordPage() {
       note: note.trim() || undefined,
       timestamp: new Date(dateTime).toISOString(),
     });
-    navigate("/");
+    navigate(editDate ? "/trends" : "/");
   };
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
-      <h1 className="font-rounded text-xl font-bold text-ink">体重を記録</h1>
+      <h1 className="font-rounded text-xl font-bold text-ink">{editDate ? "体重を編集" : "体重を記録"}</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-soft">
         <label className="flex flex-col gap-1 text-sm text-ink">
           日時

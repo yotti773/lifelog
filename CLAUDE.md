@@ -26,6 +26,14 @@ npm run preview   # serve the production build (needed to inspect real PWA/insta
 
 There is no browser test runner wired into the repo. To visually verify UI changes, run `npm run dev` and drive it with Playwright (`npm install playwright` + `npx playwright install chromium` in a scratch dir) — there's no in-repo helper script for this.
 
+## Workflow
+
+Work is tracked as GitHub Issues, not a separate backlog doc — the repo's Issues tab is the source of truth for what's outstanding. Each issue links back to the relevant section of `docs/` (requirements/screen-design doc) it comes from.
+
+- **File an issue before starting non-trivial work**, even when you're the only one working on it. It keeps `docs/` decisions traceable to the code that implements them, and gives later sessions (human or Claude) the "why" without re-reading the spec.
+- Implement on a branch, verify with `npm run test` / `npm run build` and (for UI changes) a manual Playwright pass per the Commands section above.
+- **Open a PR when the issue is done**, with the PR body referencing the issue (e.g. `Closes #6`) so merging auto-closes it. Don't merge straight to `main` without a PR — it's the record of what changed and why.
+
 ## Architecture
 
 ### Data layer (`src/db/`)

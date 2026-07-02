@@ -23,4 +23,11 @@ describe("settings", () => {
     expect(settings.goalWeightKg).toBe(63);
     expect(settings.goalDate).toBe("2026-10-31");
   });
+
+  it("persists a baseline date for the progress bar's starting point", async () => {
+    await updateSettings({ baselineDate: "2026-05-01" });
+
+    const settings = await getSettings();
+    expect(settings.baselineDate).toBe("2026-05-01");
+  });
 });

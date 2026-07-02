@@ -40,6 +40,12 @@ export function dateStringDaysAgo(days: number, from: Date = new Date()): string
   return formatDate(d);
 }
 
+/** YYYY-MM-DD形式の日付文字列をM/D形式(例: 7/1)に変換する。グラフのX軸ラベルや履歴一覧の日付表示で共通利用する */
+export function formatMonthDay(date: string): string {
+  const [, month, day] = date.split("-");
+  return `${Number(month)}/${Number(day)}`;
+}
+
 const MEAL_TYPE_HOUR: Record<MealType, number> = {
   breakfast: 7,
   lunch: 12,

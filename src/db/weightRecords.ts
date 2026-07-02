@@ -32,6 +32,11 @@ export async function getAllWeightRecords(): Promise<WeightRecord[]> {
   return db.weightRecords.orderBy("date").toArray();
 }
 
+/** 履歴確認画面用: 日付降順(新しい記録が先頭)で全件取得する */
+export async function getAllWeightRecordsDesc(): Promise<WeightRecord[]> {
+  return db.weightRecords.orderBy("date").reverse().toArray();
+}
+
 export async function getWeightRecordsByDateRange(
   startDate: string,
   endDate: string,

@@ -1,25 +1,35 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import BodyFatChart from "../components/BodyFatChart";
-import CalorieChart from "../components/CalorieChart";
+import { useLocation, useNavigate } from "react-router-dom";
 import GoalBar from "../components/GoalBar";
-import WeightChart from "../components/WeightChart";
+import WeightHistoryList from "../components/WeightHistoryList";
+import WeightTrendCharts, { type Period } from "../components/WeightTrendCharts";
 import { db } from "../db/db";
 import { getDailyCalorieTotals } from "../db/mealRecords";
 import { getSettings } from "../db/settings";
-import { getAllWeightRecords, getWeightRecord, getWeightRecordsByDateRange } from "../db/weightRecords";
+import {
+  getAllWeightRecords,
+  getAllWeightRecordsDesc,
+  getWeightRecord,
+  getWeightRecordsByDateRange,
+} from "../db/weightRecords";
 import { dateStringDaysAgo, todayDateString } from "../lib/date";
+import type { WeightRecord } from "../types";
 
-type Period = "week" | "month" | "all";
+type ViewMode = "chart" | "history";
 
-const PERIOD_LABELS: Record<Period, string> = {
-  week: "週",
-  month: "月",
-  all: "全期間",
+const VIEW_MODE_LABELS: Record<ViewMode, string> = {
+  chart: "グラフ",
+  history: "履歴",
 };
 
 export default function Trends() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [period, setPeriod] = useState<Period>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => (location.state as { viewMode?: ViewMode } | null)?.viewMode ?? "chart",
+  );
 
   const settings = useLiveQuery(() => getSettings(), []);
   // .first()/.last()は記録が1件もないとundefinedを返すが、useLiveQueryは
@@ -55,13 +65,21 @@ export default function Trends() {
     return getDailyCalorieTotals(dateStringDaysAgo(days), endDate);
   }, [period]);
 
+  // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書9章、詳細は今後検討)。
+  // 履歴タブを開いていない間はDexieへ問い合わせない(グラフ表示中の無駄なフルスキャンを避ける)
+  const historyRecords = useLiveQuery(
+    () => (viewMode === "history" ? getAllWeightRecordsDesc() : Promise.resolve<WeightRecord[]>([])),
+    [viewMode],
+  );
+
   if (
     settings === undefined ||
     firstWeightRecord === undefined ||
     lastWeightRecord === undefined ||
     baselineWeightRecord === undefined ||
     weightChartRecords === undefined ||
-    calorieDailyTotals === undefined
+    calorieDailyTotals === undefined ||
+    historyRecords === undefined
   ) {
     return <div className="p-6 text-center text-sm text-muted">読み込み中...</div>;
   }
@@ -86,35 +104,36 @@ export default function Trends() {
         </div>
       )}
 
-      <div className="flex justify-end gap-1 rounded-full bg-white p-1 shadow-soft">
-        {(Object.keys(PERIOD_LABELS) as Period[]).map((key) => (
+      <div className="flex gap-1 rounded-full bg-white p-1 shadow-soft">
+        {(Object.keys(VIEW_MODE_LABELS) as ViewMode[]).map((key) => (
           <button
             key={key}
             type="button"
-            onClick={() => setPeriod(key)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              period === key ? "bg-primary text-white" : "text-muted"
+            onClick={() => setViewMode(key)}
+            className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              viewMode === key ? "bg-primary text-white" : "text-muted"
             }`}
           >
-            {PERIOD_LABELS[key]}
+            {VIEW_MODE_LABELS[key]}
           </button>
         ))}
       </div>
 
-      <section className="rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-3 text-sm font-medium text-muted">体重推移</h2>
-        <WeightChart records={weightChartRecords} goalWeightKg={settings.goalWeightKg} />
-      </section>
-
-      <section className="rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-3 text-sm font-medium text-muted">体脂肪率推移</h2>
-        <BodyFatChart records={weightChartRecords} />
-      </section>
-
-      <section className="rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-3 text-sm font-medium text-muted">カロリー推移</h2>
-        <CalorieChart data={calorieDailyTotals} targetKcal={settings.dailyCalorieTarget} />
-      </section>
+      {viewMode === "chart" ? (
+        <WeightTrendCharts
+          period={period}
+          onPeriodChange={setPeriod}
+          weightChartRecords={weightChartRecords}
+          calorieDailyTotals={calorieDailyTotals}
+          goalWeightKg={settings.goalWeightKg}
+          dailyCalorieTarget={settings.dailyCalorieTarget}
+        />
+      ) : (
+        <WeightHistoryList
+          records={historyRecords}
+          onSelect={(date) => navigate(`/record/weight?date=${date}`)}
+        />
+      )}
     </div>
   );
 }

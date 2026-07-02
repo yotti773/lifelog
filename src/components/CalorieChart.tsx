@@ -1,4 +1,5 @@
 import type { DailyCalorieTotal } from "../db/mealRecords";
+import { formatMonthDay } from "../lib/date";
 
 interface CalorieChartProps {
   data: DailyCalorieTotal[];
@@ -34,11 +35,6 @@ export default function CalorieChart({ data, targetKcal }: CalorieChartProps) {
   const yScale = (kcal: number) => PADDING.top + plotHeight - (kcal / maxKcal) * plotHeight;
   const targetY = yScale(targetKcal);
 
-  const formatLabel = (date: string) => {
-    const [, month, day] = date.split("-");
-    return `${Number(month)}/${Number(day)}`;
-  };
-
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full" role="img" aria-label="カロリー推移グラフ">
       <line
@@ -72,10 +68,10 @@ export default function CalorieChart({ data, targetKcal }: CalorieChartProps) {
       })}
 
       <text x={PADDING.left} y={HEIGHT - 4} fontSize={9} fill={COLORS.label}>
-        {formatLabel(data[0].date)}
+        {formatMonthDay(data[0].date)}
       </text>
       <text x={WIDTH - PADDING.right} y={HEIGHT - 4} textAnchor="end" fontSize={9} fill={COLORS.label}>
-        {formatLabel(data[data.length - 1].date)}
+        {formatMonthDay(data[data.length - 1].date)}
       </text>
     </svg>
   );

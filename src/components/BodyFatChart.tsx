@@ -1,3 +1,4 @@
+import { formatMonthDay } from "../lib/date";
 import type { WeightRecord } from "../types";
 
 interface BodyFatChartProps {
@@ -62,11 +63,6 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
   }
   if (current.length > 0) segments.push(current);
 
-  const formatLabel = (date: string) => {
-    const [, month, day] = date.split("-");
-    return `${Number(month)}/${Number(day)}`;
-  };
-
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full" role="img" aria-label="体脂肪率推移グラフ">
       {segments.map((segment, i) => (
@@ -94,10 +90,10 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
       ))}
 
       <text x={PADDING.left} y={HEIGHT - 4} fontSize={9} fill={COLORS.label}>
-        {formatLabel(sorted[0].date)}
+        {formatMonthDay(sorted[0].date)}
       </text>
       <text x={WIDTH - PADDING.right} y={HEIGHT - 4} textAnchor="end" fontSize={9} fill={COLORS.label}>
-        {formatLabel(sorted[sorted.length - 1].date)}
+        {formatMonthDay(sorted[sorted.length - 1].date)}
       </text>
     </svg>
   );

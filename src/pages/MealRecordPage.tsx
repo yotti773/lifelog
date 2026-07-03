@@ -15,6 +15,20 @@ const MEAL_OPTIONS: { type: MealType; label: string }[] = [
   { type: "snack", label: "間食" },
 ];
 
+interface PendingMealItem {
+  name: string;
+  kcal: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+  aiEstimatedName?: string;
+  aiEstimatedKcal?: number;
+  aiEstimatedProteinG?: number;
+  aiEstimatedFatG?: number;
+  aiEstimatedCarbsG?: number;
+  registerToMaster: boolean;
+}
+
 export default function MealRecordPage() {
   const navigate = useNavigate();
   const [mealType, setMealType] = useState<MealType>(() => nearestMealType());
@@ -31,6 +45,7 @@ export default function MealRecordPage() {
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [aiJudgment, setAiJudgment] = useState<MealJudgment | null>(null);
   const [registerToMaster, setRegisterToMaster] = useState(false);
+  const [pendingItems, setPendingItems] = useState<PendingMealItem[]>([]);
 
   const foodMasterItems = useLiveQuery(() => getAllFoodMasterItems(), []);
 
@@ -70,44 +85,92 @@ export default function MealRecordPage() {
     setCarbsG(String(item.carbsG));
   };
 
-  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const isCurrentItemFilled =
+    name.trim() !== "" && kcal !== "" && proteinG !== "" && fatG !== "" && carbsG !== "";
+
+  const buildCurrentItem = (): PendingMealItem | null => {
     if (
-      name.trim() === "" ||
-      kcal === "" ||
-      proteinG === "" ||
-      fatG === "" ||
-      carbsG === "" ||
+      !isCurrentItemFilled ||
       Number.isNaN(parsedKcal) ||
       Number.isNaN(parsedProteinG) ||
       Number.isNaN(parsedFatG) ||
       Number.isNaN(parsedCarbsG)
     ) {
-      setError("料理名・カロリー・PFC(たんぱく質/脂質/炭水化物)を入力してください");
-      return;
+      return null;
     }
-    await addMealRecord({
-      mealType,
-      confirmedName: name.trim(),
-      confirmedKcal: parsedKcal,
-      confirmedProteinG: parsedProteinG,
-      confirmedFatG: parsedFatG,
-      confirmedCarbsG: parsedCarbsG,
-      timestamp: new Date(dateTime).toISOString(),
+    return {
+      name: name.trim(),
+      kcal: parsedKcal,
+      proteinG: parsedProteinG,
+      fatG: parsedFatG,
+      carbsG: parsedCarbsG,
       aiEstimatedName: aiJudgment?.dishName,
       aiEstimatedKcal: aiJudgment?.kcal,
       aiEstimatedProteinG: aiJudgment?.proteinG,
       aiEstimatedFatG: aiJudgment?.fatG,
       aiEstimatedCarbsG: aiJudgment?.carbsG,
-    });
-    if (registerToMaster) {
-      await addFoodMasterItem({
-        name: name.trim(),
-        kcal: parsedKcal,
-        proteinG: parsedProteinG,
-        fatG: parsedFatG,
-        carbsG: parsedCarbsG,
+      registerToMaster,
+    };
+  };
+
+  const resetItemFields = () => {
+    setName("");
+    setKcal("");
+    setProteinG("");
+    setFatG("");
+    setCarbsG("");
+    setNote("");
+    setAiJudgment(null);
+    setRegisterToMaster(false);
+  };
+
+  const handleAddToList = () => {
+    const item = buildCurrentItem();
+    if (!item) {
+      setError("料理名・カロリー・PFC(たんぱく質/脂質/炭水化物)を入力してください");
+      return;
+    }
+    setPendingItems((prev) => [...prev, item]);
+    resetItemFields();
+    setError(null);
+  };
+
+  const handleRemovePending = (index: number) => {
+    setPendingItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const currentItem = buildCurrentItem();
+    const items = currentItem ? [...pendingItems, currentItem] : pendingItems;
+    if (items.length === 0) {
+      setError("料理名・カロリー・PFC(たんぱく質/脂質/炭水化物)を入力してください");
+      return;
+    }
+    for (const item of items) {
+      await addMealRecord({
+        mealType,
+        confirmedName: item.name,
+        confirmedKcal: item.kcal,
+        confirmedProteinG: item.proteinG,
+        confirmedFatG: item.fatG,
+        confirmedCarbsG: item.carbsG,
+        timestamp: new Date(dateTime).toISOString(),
+        aiEstimatedName: item.aiEstimatedName,
+        aiEstimatedKcal: item.aiEstimatedKcal,
+        aiEstimatedProteinG: item.aiEstimatedProteinG,
+        aiEstimatedFatG: item.aiEstimatedFatG,
+        aiEstimatedCarbsG: item.aiEstimatedCarbsG,
       });
+      if (item.registerToMaster) {
+        await addFoodMasterItem({
+          name: item.name,
+          kcal: item.kcal,
+          proteinG: item.proteinG,
+          fatG: item.fatG,
+          carbsG: item.carbsG,
+        });
+      }
     }
     navigate("/");
   };
@@ -219,7 +282,6 @@ export default function MealRecordPage() {
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               onChange={handlePhotoSelected}
               disabled={isJudging}
               className="hidden"
@@ -238,6 +300,31 @@ export default function MealRecordPage() {
           <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
         </section>
 
+        {pendingItems.length > 0 && (
+          <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
+            <h2 className="text-sm font-medium text-muted">今回まとめて記録する品目({pendingItems.length}件)</h2>
+            <ul className="flex flex-col gap-1">
+              {pendingItems.map((item, index) => (
+                <li
+                  key={index}
+                  className="flex items-center justify-between gap-2 rounded-card bg-background px-3 py-2 text-sm text-ink"
+                >
+                  <span>
+                    {item.name}({item.kcal}kcal)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePending(index)}
+                    className="text-xs text-primary"
+                  >
+                    削除
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <section className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-soft">
           <label className="flex items-center gap-2 text-sm text-ink">
             <input
@@ -249,8 +336,17 @@ export default function MealRecordPage() {
             この内容をマスタに登録する(次回から選んで入力できるようになります)
           </label>
           {error && <p className="text-sm text-primary">{error}</p>}
+          <button
+            type="button"
+            onClick={handleAddToList}
+            className="rounded-card border border-primary px-4 py-3 font-medium text-primary"
+          >
+            この品目をリストに追加してもう1品記録する
+          </button>
           <button type="submit" className="rounded-card bg-primary px-4 py-3 font-medium text-white">
-            保存する
+            {pendingItems.length > 0
+              ? `まとめて保存する(${pendingItems.length + (isCurrentItemFilled ? 1 : 0)}件)`
+              : "保存する"}
           </button>
         </section>
       </form>

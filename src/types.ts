@@ -28,6 +28,17 @@ export interface MealRecord {
   synced: boolean; // スプレッドシートへの同期済みフラグ
 }
 
+export interface FoodMasterItem {
+  id: string;
+  name: string;
+  kcal: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+  source?: string; // 出典(公式栄養成分表のURL等)。事前登録の数値検証用、任意
+  createdAt: string; // ISO8601
+}
+
 export interface Settings {
   goalWeightKg: number;
   goalDate: string; // ISO8601 date

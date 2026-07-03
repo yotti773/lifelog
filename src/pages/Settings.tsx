@@ -1,7 +1,8 @@
 import { useEffect, useState, type ChangeEvent, type SubmitEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { exportBackupData, importBackupData, type BackupData } from "../db/backup";
-import { deleteFoodMasterItem, getAllFoodMasterItems, updateFoodMasterItem } from "../db/foodMaster";
+import { bulkAddFoodMasterItems, deleteFoodMasterItem, getAllFoodMasterItems, updateFoodMasterItem } from "../db/foodMaster";
+import { foodMasterSeedData } from "../db/foodMasterSeedData";
 import { getUnsyncedMealRecords } from "../db/mealRecords";
 import { getSettings, updateSettings } from "../db/settings";
 import { getUnsyncedWeightRecords } from "../db/weightRecords";
@@ -45,6 +46,8 @@ export default function Settings() {
   const [editProteinG, setEditProteinG] = useState("");
   const [editFatG, setEditFatG] = useState("");
   const [editCarbsG, setEditCarbsG] = useState("");
+  const [isSeeding, setSeeding] = useState(false);
+  const [seedMessage, setSeedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!settings) return;
@@ -98,6 +101,19 @@ export default function Settings() {
   };
 
   const cancelEditMaster = () => setEditingMasterId(null);
+
+  const handleSeedMaster = async () => {
+    setSeeding(true);
+    setSeedMessage(null);
+    try {
+      const count = await bulkAddFoodMasterItems(foodMasterSeedData);
+      setSeedMessage(
+        count > 0 ? `${count}件を登録しました` : "追加できる新しい品目はありませんでした(すべて登録済みです)",
+      );
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const saveEditMaster = async () => {
     if (!editingMasterId) return;
@@ -200,6 +216,15 @@ export default function Settings() {
 
       <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-soft">
         <h2 className="text-sm font-medium text-muted">食事マスタ(よく食べるもの)</h2>
+        <button
+          type="button"
+          onClick={handleSeedMaster}
+          disabled={isSeeding}
+          className="rounded-card border border-primary px-4 py-3 font-medium text-primary disabled:opacity-60"
+        >
+          {isSeeding ? "登録中..." : "モスバーガー・ミスタードーナツ・コンビニの定番メニューを登録"}
+        </button>
+        {seedMessage && <p className="text-sm text-muted">{seedMessage}</p>}
         {foodMasterItems === undefined ? (
           <p className="text-sm text-muted">読み込み中...</p>
         ) : foodMasterItems.length === 0 ? (

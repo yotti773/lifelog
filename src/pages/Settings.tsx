@@ -23,6 +23,7 @@ import { getAllFoodMasterItems, bulkAddFoodMasterItems } from "@/db/foodMaster";
 import { foodMasterSeedData } from "@/db/foodMasterSeedData";
 import { getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getSettings, updateSettings } from "@/db/settings";
+import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWeightRecords } from "@/db/weightRecords";
 import { formatDateTime } from "@/lib/date";
 import { runSync, type SyncOutcome } from "@/sync/syncEngine";
@@ -116,9 +117,15 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export default function Settings() {
   const navigate = useNavigate();
   const settings = useLiveQuery(() => getSettings(), []);
+  // 未同期件数には未送信レコードに加え、削除待ちのトゥームストーンも含める(Issue #30)
   const unsyncedCount = useLiveQuery(async () => {
-    const [weights, meals] = await Promise.all([getUnsyncedWeightRecords(), getUnsyncedMealRecords()]);
-    return weights.length + meals.length;
+    const [weights, meals, weightDeletions, mealDeletions] = await Promise.all([
+      getUnsyncedWeightRecords(),
+      getUnsyncedMealRecords(),
+      getPendingDeletionIds("weight"),
+      getPendingDeletionIds("meal"),
+    ]);
+    return weights.length + meals.length + weightDeletions.length + mealDeletions.length;
   }, []);
   const foodMasterCount = useLiveQuery(async () => (await getAllFoodMasterItems()).length, []);
 

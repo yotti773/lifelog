@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/db";
 import { addMealRecord, getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
-import { getUnsyncedWeightRecords, saveWeightRecord } from "@/db/weightRecords";
+import { getPendingDeletionIds } from "@/db/syncDeletions";
+import { deleteWeightRecord, getUnsyncedWeightRecords, saveWeightRecord } from "@/db/weightRecords";
 import { runSync } from "@/sync/syncEngine";
 import { SyncNotConfiguredError } from "@/sync/notConfiguredTransport";
 import type { SyncPushPayload, SyncPushResult, SyncTransport } from "@/sync/types";
@@ -11,6 +12,7 @@ beforeEach(async () => {
   await db.weightRecords.clear();
   await db.mealRecords.clear();
   await db.settings.clear();
+  await db.syncDeletions.clear();
 });
 
 function fakeTransport(push: (payload: SyncPushPayload) => Promise<SyncPushResult>): SyncTransport {
@@ -91,6 +93,43 @@ describe("runSync", () => {
 
     const unsynced = await getUnsyncedWeightRecords();
     expect(unsynced.map((r) => r.date)).toEqual(["2026-07-02"]);
+  });
+
+  it("保留中の削除だけでも同期対象になり、確定した削除のトゥームストーンが消える", async () => {
+    await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1 });
+    await deleteWeightRecord("2026-07-01"); // 未同期レコードは消え、削除トゥームストーンが残る
+
+    let received: SyncPushPayload | null = null;
+    const push = vi.fn(async (payload: SyncPushPayload): Promise<SyncPushResult> => {
+      received = payload;
+      return {
+        syncedWeightDates: [],
+        syncedMealIds: [],
+        deletedWeightIds: payload.deletedWeightIds,
+        deletedMealIds: [],
+      };
+    });
+
+    const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
+
+    expect(received!.deletedWeightIds).toEqual(["2026-07-01"]);
+    expect(outcome).toEqual({ status: "success", syncedCount: 1 });
+    expect(await getPendingDeletionIds("weight")).toEqual([]);
+  });
+
+  it("Workerが確定しなかった削除はトゥームストーンを残して次回再試行する", async () => {
+    await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1 });
+    await deleteWeightRecord("2026-07-01");
+
+    const push = vi.fn(async (): Promise<SyncPushResult> => ({
+      syncedWeightDates: [],
+      syncedMealIds: [],
+      // 削除の確定を返さない(部分失敗を想定)
+    }));
+
+    await runSync({ transport: fakeTransport(push), isOnline: () => true });
+
+    expect(await getPendingDeletionIds("weight")).toEqual(["2026-07-01"]);
   });
 
   it("defaults to the not-configured transport, surfacing a clear message", async () => {

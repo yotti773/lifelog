@@ -1,7 +1,25 @@
-import { useEffect, useState, type ChangeEvent, type SubmitEvent } from "react";
+import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { exportBackupData, importBackupData, type BackupData } from "../db/backup";
-import { bulkAddFoodMasterItems, deleteFoodMasterItem, getAllFoodMasterItems, updateFoodMasterItem } from "../db/foodMaster";
+import { useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import ButtonBase from "@mui/material/ButtonBase";
+import Card from "@mui/material/Card";
+import Drawer from "@mui/material/Drawer";
+import IconButton from "@mui/material/IconButton";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import {
+  IconCalendar,
+  IconChevronRight,
+  IconClock,
+  IconFork,
+  IconDownload,
+  IconPerson,
+  IconSun,
+  IconSync,
+} from "../components/icons";
+import { getAllFoodMasterItems, bulkAddFoodMasterItems } from "../db/foodMaster";
 import { foodMasterSeedData } from "../db/foodMasterSeedData";
 import { getUnsyncedMealRecords } from "../db/mealRecords";
 import { getSettings, updateSettings } from "../db/settings";
@@ -9,7 +27,16 @@ import { getUnsyncedWeightRecords } from "../db/weightRecords";
 import { formatDateTime } from "../lib/date";
 import { runSync, type SyncOutcome } from "../sync/syncEngine";
 import { workerSheetsTransport } from "../sync/workerSheetsTransport";
-import type { FoodMasterItem } from "../types";
+import { fontRounded, tokens } from "../theme";
+
+type EditTarget = "weight" | "goalDate" | "baseline" | "calories";
+
+const EDIT_LABELS: Record<EditTarget, string> = {
+  weight: "目標体重",
+  goalDate: "目標日",
+  baseline: "基準日",
+  calories: "1日の目標カロリー",
+};
 
 function syncOutcomeMessage(outcome: SyncOutcome): string {
   switch (outcome.status) {
@@ -24,84 +51,148 @@ function syncOutcomeMessage(outcome: SyncOutcome): string {
   }
 }
 
+/** YYYY-MM-DD を 2026/10/31 形式で表示する */
+function formatSlashDate(date: string): string {
+  const [y, m, d] = date.split("-");
+  return `${y}/${Number(m)}/${Number(d)}`;
+}
+
+interface SettingRowProps {
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+  label: string;
+  value?: string;
+  divider?: boolean;
+  onClick: () => void;
+}
+
+function SettingRow({ icon, iconBg, iconColor, label, value, divider, onClick }: SettingRowProps) {
+  return (
+    <ButtonBase
+      onClick={onClick}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: "13px",
+        width: "100%",
+        p: "15px 16px",
+        textAlign: "left",
+        borderBottom: divider ? `1px solid ${tokens.divider}` : "none",
+      }}
+    >
+      <Box
+        sx={{
+          width: 34,
+          height: 34,
+          borderRadius: "11px",
+          bgcolor: iconBg,
+          color: iconColor,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </Box>
+      <Typography sx={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{label}</Typography>
+      {value && (
+        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14, color: "text.secondary" }}>{value}</Typography>
+      )}
+      <Box sx={{ color: "#D0C3AF", display: "flex" }}>
+        <IconChevronRight />
+      </Box>
+    </ButtonBase>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", m: "6px 4px 8px" }}>{children}</Typography>
+  );
+}
+
 export default function Settings() {
+  const navigate = useNavigate();
   const settings = useLiveQuery(() => getSettings(), []);
   const unsyncedCount = useLiveQuery(async () => {
     const [weights, meals] = await Promise.all([getUnsyncedWeightRecords(), getUnsyncedMealRecords()]);
     return weights.length + meals.length;
   }, []);
+  const foodMasterCount = useLiveQuery(async () => (await getAllFoodMasterItems()).length, []);
 
-  const [goalWeightKg, setGoalWeightKg] = useState("");
-  const [goalDate, setGoalDate] = useState("");
-  const [dailyCalorieTarget, setDailyCalorieTarget] = useState("");
-  const [baselineDate, setBaselineDate] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [draft, setDraft] = useState("");
   const [isSyncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-
-  const foodMasterItems = useLiveQuery(() => getAllFoodMasterItems(), []);
-  const [editingMasterId, setEditingMasterId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editKcal, setEditKcal] = useState("");
-  const [editProteinG, setEditProteinG] = useState("");
-  const [editFatG, setEditFatG] = useState("");
-  const [editCarbsG, setEditCarbsG] = useState("");
+  const [syncOutcome, setSyncOutcome] = useState<SyncOutcome | null>(null);
   const [isSeeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!settings) return;
-    setGoalWeightKg(String(settings.goalWeightKg));
-    setGoalDate(settings.goalDate);
-    setDailyCalorieTarget(String(settings.dailyCalorieTarget));
-    setBaselineDate(settings.baselineDate ?? "");
-  }, [settings]);
+  if (settings === undefined) {
+    return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
+  }
 
-  const handleSave = async (e: SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    await updateSettings({
-      goalWeightKg: Number(goalWeightKg),
-      goalDate,
-      dailyCalorieTarget: Number(dailyCalorieTarget),
-      baselineDate: baselineDate || undefined,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const openEditor = (target: EditTarget) => {
+    setEditTarget(target);
+    switch (target) {
+      case "weight":
+        setDraft(String(settings.goalWeightKg));
+        break;
+      case "goalDate":
+        setDraft(settings.goalDate);
+        break;
+      case "baseline":
+        setDraft(settings.baselineDate ?? "");
+        break;
+      case "calories":
+        setDraft(String(settings.dailyCalorieTarget));
+        break;
+    }
+  };
+
+  const isNumberEdit = editTarget === "weight" || editTarget === "calories";
+  const draftNumber = Number(draft);
+  const canSave =
+    editTarget === "baseline" ||
+    (isNumberEdit ? draft !== "" && !Number.isNaN(draftNumber) && draftNumber > 0 : draft !== "");
+
+  const stepDraft = (direction: 1 | -1) => {
+    const step = editTarget === "weight" ? 0.1 : 50;
+    const base = Number.isNaN(draftNumber) ? 0 : draftNumber;
+    const next = Math.max(0, base + direction * step);
+    setDraft(editTarget === "weight" ? next.toFixed(1) : String(next));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTarget || !canSave) return;
+    switch (editTarget) {
+      case "weight":
+        await updateSettings({ goalWeightKg: draftNumber });
+        break;
+      case "goalDate":
+        await updateSettings({ goalDate: draft });
+        break;
+      case "baseline":
+        await updateSettings({ baselineDate: draft || undefined });
+        break;
+      case "calories":
+        await updateSettings({ dailyCalorieTarget: draftNumber });
+        break;
+    }
+    setEditTarget(null);
   };
 
   const handleSyncNow = async () => {
     setSyncing(true);
-    setSyncMessage(null);
+    setSyncOutcome(null);
     try {
       const outcome = await runSync({ transport: workerSheetsTransport });
-      setSyncMessage(syncOutcomeMessage(outcome));
+      setSyncOutcome(outcome);
     } finally {
       setSyncing(false);
     }
   };
-
-  const handleExport = async () => {
-    const data = await exportBackupData();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `lifelog-backup-${data.exportedAt.slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const startEditMaster = (item: FoodMasterItem) => {
-    setEditingMasterId(item.id);
-    setEditName(item.name);
-    setEditKcal(String(item.kcal));
-    setEditProteinG(String(item.proteinG));
-    setEditFatG(String(item.fatG));
-    setEditCarbsG(String(item.carbsG));
-  };
-
-  const cancelEditMaster = () => setEditingMasterId(null);
 
   const handleSeedMaster = async () => {
     setSeeding(true);
@@ -116,229 +207,212 @@ export default function Settings() {
     }
   };
 
-  const saveEditMaster = async () => {
-    if (!editingMasterId) return;
-    await updateFoodMasterItem(editingMasterId, {
-      name: editName.trim(),
-      kcal: Number(editKcal),
-      proteinG: Number(editProteinG),
-      fatG: Number(editFatG),
-      carbsG: Number(editCarbsG),
-    });
-    setEditingMasterId(null);
-  };
-
-  const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-
-    setImportError(null);
-    try {
-      const data = JSON.parse(await file.text()) as BackupData;
-      if (!Array.isArray(data.weightRecords) || !Array.isArray(data.mealRecords) || !data.settings) {
-        throw new Error("invalid backup format");
-      }
-      await importBackupData(data);
-    } catch {
-      setImportError("ファイルの読み込みに失敗しました。エクスポートしたJSONファイルを選択してください。");
-    }
-  };
-
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-28 pt-6">
-      <h1 className="font-rounded text-xl font-bold text-ink">設定</h1>
+    <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "130px" }}>
+      <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22, mb: "14px" }}>設定</Typography>
 
-      <form onSubmit={handleSave} className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-soft">
-        <h2 className="text-sm font-medium text-muted">目標</h2>
-        <label className="flex flex-col gap-1 text-sm text-ink">
-          目標体重(kg)
-          <input
-            type="number"
-            step="0.1"
-            value={goalWeightKg}
-            onChange={(e) => setGoalWeightKg(e.target.value)}
-            className="rounded-card border border-black/10 px-3 py-2 font-rounded text-lg focus:border-primary focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-ink">
-          目標日
-          <input
-            type="date"
-            value={goalDate}
-            onChange={(e) => setGoalDate(e.target.value)}
-            className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-ink">
-          基準日(進捗バーの起点)
-          <input
-            type="date"
-            value={baselineDate}
-            onChange={(e) => setBaselineDate(e.target.value)}
-            className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
-          />
-          <span className="text-xs text-muted">未設定の場合、一番古い体重記録を起点にします</span>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-ink">
-          1日の目標摂取カロリー(kcal)
-          <input
-            type="number"
-            value={dailyCalorieTarget}
-            onChange={(e) => setDailyCalorieTarget(e.target.value)}
-            className="rounded-card border border-black/10 px-3 py-2 font-rounded text-lg focus:border-primary focus:outline-none"
-          />
-        </label>
-        <button type="submit" className="rounded-card bg-primary px-4 py-3 font-medium text-white">
-          {saved ? "保存しました" : "保存する"}
-        </button>
-      </form>
+      <SectionLabel>目標</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "18px" }}>
+        <SettingRow
+          icon={<IconClock />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label="目標体重"
+          value={`${settings.goalWeightKg.toFixed(1)} kg`}
+          divider
+          onClick={() => openEditor("weight")}
+        />
+        <SettingRow
+          icon={<IconCalendar />}
+          iconBg={tokens.primarySoft}
+          iconColor="#FF6B4A"
+          label="目標日"
+          value={formatSlashDate(settings.goalDate)}
+          divider
+          onClick={() => openEditor("goalDate")}
+        />
+        <SettingRow
+          icon={<IconSun />}
+          iconBg={tokens.warnBg}
+          iconColor={tokens.warnIcon}
+          label="基準日"
+          value={settings.baselineDate ? formatSlashDate(settings.baselineDate) : "未設定(自動)"}
+          divider
+          onClick={() => openEditor("baseline")}
+        />
+        <SettingRow
+          icon={<IconPerson />}
+          iconBg={tokens.primarySoft}
+          iconColor="#FF6B4A"
+          label="1日の目標カロリー"
+          value={`${settings.dailyCalorieTarget.toLocaleString()} kcal`}
+          onClick={() => openEditor("calories")}
+        />
+      </Card>
 
-      <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-soft">
-        <h2 className="text-sm font-medium text-muted">データ同期(スプレッドシート書き出し)</h2>
-        <div className="flex items-center justify-between text-sm text-ink">
-          <span className="text-muted">最終同期</span>
-          <span>{settings?.lastSyncedAt ? formatDateTime(settings.lastSyncedAt) : "未同期"}</span>
-        </div>
-        <div className="flex items-center justify-between text-sm text-ink">
-          <span className="text-muted">未同期の記録</span>
-          <span>{unsyncedCount ?? "-"}件</span>
-        </div>
-        <button
-          type="button"
+      <SectionLabel>データ同期(スプレッドシート書き出し)</SectionLabel>
+      <Card sx={{ p: "16px", mb: "18px" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "14px" }}>
+          <Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 500, color: "text.secondary" }}>最終同期</Typography>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14, mt: "2px" }}>
+              {settings.lastSyncedAt ? formatDateTime(settings.lastSyncedAt) : "未同期"}
+            </Typography>
+          </Box>
+          <Typography
+            sx={{
+              fontFamily: fontRounded,
+              fontWeight: 700,
+              fontSize: 11,
+              color: unsyncedCount ? tokens.warnText : "text.secondary",
+              bgcolor: unsyncedCount ? tokens.warnBg : tokens.beigeSoft,
+              px: "10px",
+              py: "5px",
+              borderRadius: "20px",
+            }}
+          >
+            未同期 {unsyncedCount ?? "-"}件
+          </Typography>
+        </Box>
+        <Button
+          fullWidth
+          variant="contained"
+          color="secondary"
           onClick={handleSyncNow}
           disabled={isSyncing}
-          className="rounded-card bg-secondary px-4 py-3 font-medium text-white disabled:opacity-60"
+          startIcon={<IconSync />}
+          sx={{ height: 46, borderRadius: "13px", fontSize: 14, boxShadow: tokens.secondaryButtonShadow }}
         >
           {isSyncing ? "同期中..." : "今すぐ同期"}
-        </button>
-        {syncMessage && <p className="text-sm text-muted">{syncMessage}</p>}
-      </section>
+        </Button>
+        {syncOutcome &&
+          (syncOutcome.status === "error" ? (
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: "7px", mt: "12px", bgcolor: tokens.errorBg, borderRadius: "11px", p: "10px 12px" }}>
+              <Typography sx={{ fontSize: 13, lineHeight: 1.4 }}>⚠️</Typography>
+              <Typography sx={{ fontSize: 11, fontWeight: 500, color: tokens.errorText, lineHeight: 1.5 }}>
+                {syncOutcomeMessage(syncOutcome)}。記録は保持され、次回に再試行します
+              </Typography>
+            </Box>
+          ) : (
+            <Typography sx={{ mt: "12px", fontSize: 12, color: "text.secondary" }}>{syncOutcomeMessage(syncOutcome)}</Typography>
+          ))}
+      </Card>
 
-      <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-soft">
-        <h2 className="text-sm font-medium text-muted">食事マスタ(よく食べるもの)</h2>
-        <button
-          type="button"
+      <SectionLabel>食事マスタ</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "18px" }}>
+        <SettingRow
+          icon={<IconFork size={18} />}
+          iconBg={tokens.primarySoft}
+          iconColor="#FF6B4A"
+          label="よく食べるものを管理"
+          value={foodMasterCount !== undefined ? `${foodMasterCount}件` : ""}
+          divider
+          onClick={() => navigate("/settings/food-master")}
+        />
+        <SettingRow
+          icon={<IconDownload />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label={isSeeding ? "登録中..." : "定番メニューを一括登録"}
           onClick={handleSeedMaster}
-          disabled={isSeeding}
-          className="rounded-card border border-primary px-4 py-3 font-medium text-primary disabled:opacity-60"
-        >
-          {isSeeding ? "登録中..." : "モスバーガー・ミスタードーナツ・コンビニの定番メニューを登録"}
-        </button>
-        {seedMessage && <p className="text-sm text-muted">{seedMessage}</p>}
-        {foodMasterItems === undefined ? (
-          <p className="text-sm text-muted">読み込み中...</p>
-        ) : foodMasterItems.length === 0 ? (
-          <p className="text-sm text-muted">
-            まだ登録がありません。食事記録の保存時に「マスタに登録する」を選ぶと追加されます。
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {foodMasterItems.map((item) =>
-              editingMasterId === item.id ? (
-                <li key={item.id} className="flex flex-col gap-2 rounded-card bg-background p-3">
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
-                  />
-                  <div className="grid grid-cols-4 gap-2">
-                    <input
-                      type="number"
-                      value={editKcal}
-                      onChange={(e) => setEditKcal(e.target.value)}
-                      placeholder="kcal"
-                      className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
-                    />
-                    <input
-                      type="number"
-                      value={editProteinG}
-                      onChange={(e) => setEditProteinG(e.target.value)}
-                      placeholder="P"
-                      className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
-                    />
-                    <input
-                      type="number"
-                      value={editFatG}
-                      onChange={(e) => setEditFatG(e.target.value)}
-                      placeholder="F"
-                      className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
-                    />
-                    <input
-                      type="number"
-                      value={editCarbsG}
-                      onChange={(e) => setEditCarbsG(e.target.value)}
-                      placeholder="C"
-                      className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={saveEditMaster}
-                      className="flex-1 rounded-card bg-primary px-3 py-1.5 text-sm font-medium text-white"
-                    >
-                      保存
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelEditMaster}
-                      className="flex-1 rounded-card border border-black/10 px-3 py-1.5 text-sm text-muted"
-                    >
-                      キャンセル
-                    </button>
-                  </div>
-                </li>
-              ) : (
-                <li
-                  key={item.id}
-                  className="flex items-center justify-between gap-2 rounded-card bg-background p-3"
-                >
-                  <div>
-                    <p className="text-sm text-ink">{item.name}</p>
-                    <p className="text-xs text-muted">
-                      {item.kcal}kcal(P{item.proteinG}/F{item.fatG}/C{item.carbsG}g)
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => startEditMaster(item)}
-                      className="rounded-card border border-black/10 px-3 py-1.5 text-xs text-ink"
-                    >
-                      編集
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteFoodMasterItem(item.id)}
-                      className="rounded-card border border-primary px-3 py-1.5 text-xs text-primary"
-                    >
-                      削除
-                    </button>
-                  </div>
-                </li>
-              ),
-            )}
-          </ul>
-        )}
-      </section>
+        />
+      </Card>
+      {seedMessage && (
+        <Typography sx={{ fontSize: 12, color: "text.secondary", mt: "-10px", mb: "18px", px: "4px" }}>{seedMessage}</Typography>
+      )}
 
-      <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-soft">
-        <h2 className="text-sm font-medium text-muted">バックアップ</h2>
-        <button
-          type="button"
-          onClick={handleExport}
-          className="rounded-card bg-primary px-4 py-3 font-medium text-white"
-        >
-          JSONエクスポート
-        </button>
-        <label className="cursor-pointer rounded-card border border-primary px-4 py-3 text-center font-medium text-primary">
-          JSONインポート
-          <input type="file" accept="application/json" onChange={handleImport} className="hidden" />
-        </label>
-        {importError && <p className="text-sm text-primary">{importError}</p>}
-      </section>
-    </div>
+      {/* 目標値の編集ボトムシート */}
+      <Drawer
+        anchor="bottom"
+        open={editTarget !== null}
+        onClose={() => setEditTarget(null)}
+        slotProps={{
+          paper: {
+            sx: { bgcolor: "background.default", borderRadius: "28px 28px 0 0", p: "12px 20px 30px", mx: "auto", maxWidth: 448, width: "100%" },
+          },
+        }}
+      >
+        {editTarget && (
+          <>
+            <Box sx={{ width: 40, height: 5, borderRadius: "3px", bgcolor: "#E2D8C9", mx: "auto", mb: "18px" }} />
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16, textAlign: "center", mb: "18px" }}>
+              {EDIT_LABELS[editTarget]}
+            </Typography>
+            {isNumberEdit ? (
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", mb: "18px" }}>
+                <IconButton
+                  onClick={() => stepDraft(-1)}
+                  sx={{ width: 44, height: 44, bgcolor: "background.paper", boxShadow: tokens.fieldShadow, fontFamily: fontRounded, fontWeight: 700, fontSize: 22, color: "text.primary" }}
+                >
+                  −
+                </IconButton>
+                <TextField
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  type="text"
+                  slotProps={{
+                    htmlInput: {
+                      inputMode: editTarget === "weight" ? "decimal" : "numeric",
+                      style: { textAlign: "center", fontFamily: fontRounded, fontWeight: 800, fontSize: 28 },
+                    },
+                    input: {
+                      endAdornment: (
+                        <Typography sx={{ fontFamily: fontRounded, color: "text.secondary", fontSize: 14, ml: "4px" }}>
+                          {editTarget === "weight" ? "kg" : "kcal"}
+                        </Typography>
+                      ),
+                    },
+                  }}
+                  sx={{ width: 190 }}
+                />
+                <IconButton
+                  onClick={() => stepDraft(1)}
+                  sx={{ width: 44, height: 44, bgcolor: "background.paper", boxShadow: tokens.fieldShadow, fontFamily: fontRounded, fontWeight: 700, fontSize: 22, color: "text.primary" }}
+                >
+                  ＋
+                </IconButton>
+              </Box>
+            ) : (
+              <TextField
+                type="date"
+                fullWidth
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                sx={{ mb: "18px" }}
+              />
+            )}
+            {editTarget === "baseline" && (
+              <>
+                <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "12px", textAlign: "center" }}>
+                  未設定の場合、一番古い体重記録を起点にします
+                </Typography>
+                {draft && (
+                  <Button
+                    fullWidth
+                    variant="text"
+                    onClick={() => setDraft("")}
+                    sx={{ mb: "6px", color: "text.secondary" }}
+                  >
+                    未設定にする
+                  </Button>
+                )}
+              </>
+            )}
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleSaveEdit}
+              disabled={!canSave}
+              sx={{ height: 50, borderRadius: "14px", fontSize: 15, boxShadow: tokens.primaryButtonShadow }}
+            >
+              保存する
+            </Button>
+            <Button fullWidth variant="text" onClick={() => setEditTarget(null)} sx={{ mt: "6px", color: "text.secondary" }}>
+              キャンセル
+            </Button>
+          </>
+        )}
+      </Drawer>
+    </Box>
   );
 }

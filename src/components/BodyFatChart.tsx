@@ -21,7 +21,18 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
 
   if (recorded.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-card bg-background text-sm text-muted">
+      <div
+        style={{
+          display: "flex",
+          height: 160,
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 16,
+          background: "#FFF8F0",
+          fontSize: 14,
+          color: "#8C8C8C",
+        }}
+      >
         体脂肪率の記録がありません
       </div>
     );
@@ -64,7 +75,7 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
   if (current.length > 0) segments.push(current);
 
   return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full" role="img" aria-label="体脂肪率推移グラフ">
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: "100%", display: "block" }} role="img" aria-label="体脂肪率推移グラフ">
       {segments.map((segment, i) => (
         <path
           key={i}

@@ -1,11 +1,32 @@
 import { useEffect, useState, type SubmitEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import RecordHeader from "../components/RecordHeader";
+import { IconArrow } from "../components/icons";
 import { db } from "../db/db";
 import { getWeightRecord, saveWeightRecord } from "../db/weightRecords";
 import { toDatetimeLocalValue } from "../lib/date";
+import { fontRounded, tokens } from "../theme";
 
 type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
+
+function FieldLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
+  return (
+    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", mb: "6px", mt: "4px" }}>
+      {children}
+      {optional && (
+        <Box component="span" sx={{ color: tokens.faint2, fontWeight: 400 }}>
+          (任意)
+        </Box>
+      )}
+    </Typography>
+  );
+}
 
 export default function WeightRecordPage() {
   const navigate = useNavigate();
@@ -77,87 +98,133 @@ export default function WeightRecordPage() {
   };
 
   if (loadStatus === "loading") {
-    return <div className="p-6 text-center text-sm text-muted">読み込み中...</div>;
+    return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
 
   if (loadStatus === "not-found") {
     return (
-      <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
-        <h1 className="font-rounded text-xl font-bold text-ink">記録が見つかりません</h1>
-        <p className="rounded-card bg-white p-4 text-sm text-muted shadow-soft">
-          指定された日付の体重記録は見つかりませんでした。別の端末で削除された可能性があります。
-        </p>
-        <button
-          type="button"
+      <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "40px" }}>
+        <RecordHeader title="記録が見つかりません" onBack={() => navigate("/trends", { state: { viewMode: "history" } })} />
+        <Card sx={{ p: "16px", mb: "16px" }}>
+          <Typography sx={{ fontSize: 14, color: "text.secondary" }}>
+            指定された日付の体重記録は見つかりませんでした。別の端末で削除された可能性があります。
+          </Typography>
+        </Card>
+        <Button
+          fullWidth
+          variant="contained"
           onClick={() => navigate("/trends", { state: { viewMode: "history" } })}
-          className="rounded-card bg-primary px-4 py-3 font-medium text-white"
+          sx={{ height: 50, borderRadius: "14px", boxShadow: tokens.primaryButtonShadow }}
         >
           履歴に戻る
-        </button>
-      </div>
+        </Button>
+      </Box>
     );
   }
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
-      <h1 className="font-rounded text-xl font-bold text-ink">{isEditing ? "体重を編集" : "体重を記録"}</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-soft">
-        <label className="flex flex-col gap-1 text-sm text-ink">
-          日時
-          <input
-            type="datetime-local"
-            value={dateTime}
-            onChange={(e) => setDateTime(e.target.value)}
-            disabled={isEditing}
-            className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none disabled:bg-background disabled:text-muted"
-          />
-          {isEditing && <span className="text-xs text-muted">日時は編集できません</span>}
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-ink">
-          体重(kg)
-          <input
-            type="number"
-            step="0.1"
-            inputMode="decimal"
-            value={weightKg}
-            onChange={(e) => setWeightKg(e.target.value)}
-            placeholder="72.0"
-            className="rounded-card border border-black/10 px-3 py-2 font-rounded text-2xl focus:border-primary focus:outline-none"
-          />
-          {diff !== null && (
-            <span className={`text-xs ${diff <= 0 ? "text-secondary" : "text-primary"}`}>
-              前回比 {diff > 0 ? "+" : ""}
-              {diff.toFixed(1)}kg
-            </span>
-          )}
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-ink">
-          体脂肪率(%・任意)
-          <input
-            type="number"
-            step="0.1"
-            inputMode="decimal"
-            value={bodyFatPercent}
-            onChange={(e) => setBodyFatPercent(e.target.value)}
-            placeholder="24.5"
-            className="rounded-card border border-black/10 px-3 py-2 font-rounded text-2xl focus:border-primary focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-ink">
-          メモ(任意)
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="筋トレ後、飲み会翌日など"
-            className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
-          />
-        </label>
-        {error && <p className="text-sm text-primary">{error}</p>}
-        <button type="submit" className="rounded-card bg-primary px-4 py-3 font-medium text-white">
-          保存する
-        </button>
-      </form>
-    </div>
+    <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "110px" }}>
+      <RecordHeader title={isEditing ? "体重を編集" : "体重を記録"} onBack={() => navigate(-1)} />
+
+      <Box component="form" onSubmit={handleSubmit}>
+        <FieldLabel>日時</FieldLabel>
+        <TextField
+          fullWidth
+          type="datetime-local"
+          value={dateTime}
+          onChange={(e) => setDateTime(e.target.value)}
+          disabled={isEditing}
+          helperText={isEditing ? "日時は編集できません" : undefined}
+          sx={{ mb: "14px" }}
+        />
+
+        <FieldLabel>体重</FieldLabel>
+        <TextField
+          fullWidth
+          type="number"
+          value={weightKg}
+          onChange={(e) => setWeightKg(e.target.value)}
+          placeholder="72.0"
+          slotProps={{
+            htmlInput: { step: "0.1", inputMode: "decimal", style: { fontFamily: fontRounded, fontWeight: 800, fontSize: 34 } },
+            input: {
+              endAdornment: (
+                <Typography sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 18, color: "text.secondary", ml: "8px" }}>
+                  kg
+                </Typography>
+              ),
+            },
+          }}
+          sx={{ mb: "8px" }}
+        />
+        {diff !== null && (
+          <Box
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              color: diff <= 0 ? "secondary.main" : "primary.main",
+              mb: "6px",
+            }}
+          >
+            <IconArrow up={diff > 0} size={12} />
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>
+              前回比 {Math.abs(diff).toFixed(1)}kg
+            </Typography>
+          </Box>
+        )}
+
+        <FieldLabel optional>体脂肪率</FieldLabel>
+        <TextField
+          fullWidth
+          type="number"
+          value={bodyFatPercent}
+          onChange={(e) => setBodyFatPercent(e.target.value)}
+          placeholder="24.5"
+          slotProps={{
+            htmlInput: { step: "0.1", inputMode: "decimal", style: { fontFamily: fontRounded, fontWeight: 700, fontSize: 18 } },
+            input: {
+              endAdornment: <Typography sx={{ fontWeight: 500, color: "text.secondary" }}>%</Typography>,
+            },
+          }}
+          sx={{ mb: "14px" }}
+        />
+
+        <FieldLabel optional>メモ</FieldLabel>
+        <TextField
+          fullWidth
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="筋トレ後 / 飲み会翌日 など"
+        />
+
+        {error && <Typography sx={{ mt: "12px", fontSize: 13, color: "primary.main" }}>{error}</Typography>}
+
+        {/* 下部固定の保存ボタン */}
+        <Box
+          sx={{
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            p: "16px 20px 26px",
+            background: "linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 30%)",
+            zIndex: 10,
+          }}
+        >
+          <Box sx={{ mx: "auto", maxWidth: 408 }}>
+            <Button
+              fullWidth
+              type="submit"
+              variant="contained"
+              sx={{ height: 54, borderRadius: "16px", fontSize: 16, boxShadow: tokens.primaryButtonShadow }}
+            >
+              保存する
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
 }

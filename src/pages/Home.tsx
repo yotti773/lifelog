@@ -1,27 +1,47 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate } from "react-router-dom";
-import CalorieProgressBar from "../components/CalorieProgressBar";
-import PfcSummary from "../components/PfcSummary";
+import Box from "@mui/material/Box";
+import ButtonBase from "@mui/material/ButtonBase";
+import Card from "@mui/material/Card";
+import Typography from "@mui/material/Typography";
+import CalorieCard from "../components/CalorieCard";
+import { IconArrow, IconBreakfast, IconChevronRight, IconDinner, IconLunch, IconPlus, IconSnack } from "../components/icons";
 import { db } from "../db/db";
 import { getSettings } from "../db/settings";
 import { formatTime, localDateRangeToUtcIso, todayDateString } from "../lib/date";
+import { fontRounded, tokens } from "../theme";
 import type { MealRecord, MealType } from "../types";
 
-const MEAL_LABELS: Record<MealType, string> = {
-  breakfast: "朝食",
-  lunch: "昼食",
-  dinner: "夕食",
-  snack: "間食",
+const MEAL_STYLES: Record<MealType, { label: string; Icon: typeof IconBreakfast; iconBg: string; iconColor: string }> = {
+  breakfast: { label: "朝食", Icon: IconBreakfast, iconBg: tokens.breakfastBg, iconColor: tokens.warnIcon },
+  lunch: { label: "昼食", Icon: IconLunch, iconBg: "#FFE6DE", iconColor: "#FF6B4A" },
+  dinner: { label: "夕食", Icon: IconDinner, iconBg: tokens.secondarySoft, iconColor: "#2EC4B6" },
+  snack: { label: "間食", Icon: IconSnack, iconBg: tokens.warnBg, iconColor: tokens.warnText },
 };
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
-export default function Home() {
+function greeting(hour: number): string {
+  if (hour < 11) return "おはよう、今日も記録しよう";
+  if (hour < 18) return "こんにちは、今日も記録しよう";
+  return "こんばんは、今日も記録しよう";
+}
+
+interface HomeProps {
+  onOpenActionSheet: () => void;
+}
+
+export default function Home({ onOpenActionSheet }: HomeProps) {
   const navigate = useNavigate();
   const today = todayDateString();
 
   const weight = useLiveQuery(() => db.weightRecords.get(today), [today]);
+  // 前回比の基準になる、今日より前の直近の記録。「未解決」と「記録なし」を区別するためnullに正規化する
+  const previousWeight = useLiveQuery(
+    () => db.weightRecords.where("date").below(today).last().then((v) => v ?? null),
+    [today],
+  );
   const [todayStartIso, todayEndIso] = localDateRangeToUtcIso(today);
   const meals = useLiveQuery(
     () =>
@@ -34,7 +54,7 @@ export default function Home() {
   const settings = useLiveQuery(() => getSettings(), []);
 
   if (meals === undefined || settings === undefined) {
-    return <div className="p-6 text-center text-sm text-muted">読み込み中...</div>;
+    return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
 
   const mealsByType = new Map<MealType, MealRecord[]>();
@@ -50,94 +70,233 @@ export default function Home() {
   const totalCarbsG = meals.reduce((sum, meal) => sum + meal.confirmedCarbsG, 0);
 
   const now = new Date();
-  const weekday = WEEKDAY_LABELS[now.getDay()];
+  const weightDiff = weight && previousWeight ? weight.weightKg - previousWeight.weightKg : null;
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-28 pt-6">
-      <h1 className="font-rounded text-xl font-bold text-ink">
-        {now.getMonth() + 1}/{now.getDate()}({weekday})
-      </h1>
+    <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "130px" }}>
+      {/* ヘッダー */}
+      <Box sx={{ mb: "20px" }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary", mb: "3px" }}>
+          {greeting(now.getHours())}
+        </Typography>
+        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22, letterSpacing: ".01em" }}>
+          {now.getMonth() + 1}月{now.getDate()}日
+          <Box component="span" sx={{ fontSize: 15, color: "text.secondary", ml: "6px", fontWeight: 500 }}>
+            {WEEKDAY_LABELS[now.getDay()]}曜日
+          </Box>
+        </Typography>
+      </Box>
 
-      <section className="rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-2 text-sm font-medium text-muted">体重</h2>
-        {weight ? (
-          <div className="flex items-baseline gap-2">
-            <span className="text-xs text-muted">{formatTime(weight.timestamp)}</span>
-            <span className="font-rounded text-3xl font-bold text-ink">{weight.weightKg}kg</span>
-            {weight.bodyFatPercent !== undefined && (
-              <span className="font-rounded text-lg font-bold text-ink">
-                体脂肪 {weight.bodyFatPercent}%
-              </span>
-            )}
-          </div>
-        ) : (
-          <p className="text-muted">未記録</p>
-        )}
-      </section>
+      {/* カロリーカード */}
+      <Box sx={{ mb: "14px" }}>
+        <CalorieCard
+          consumedKcal={totalKcal}
+          targetKcal={settings.dailyCalorieTarget}
+          proteinG={totalProteinG}
+          fatG={totalFatG}
+          carbsG={totalCarbsG}
+        />
+      </Box>
 
-      <section className="rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-2 text-sm font-medium text-muted">食事</h2>
-        <ul className="flex flex-col divide-y divide-black/5">
-          {MEAL_ORDER.map((mealType) => {
-            const items = mealsByType.get(mealType);
-            const rowContent = (
-              <>
-                <span className="w-12 shrink-0 font-medium text-ink">{MEAL_LABELS[mealType]}</span>
-                {!items ? (
-                  <span className="flex-1 text-right text-muted">未記録</span>
-                ) : items.length === 1 ? (
-                  <>
-                    <span className="text-xs text-muted">{formatTime(items[0].timestamp)}</span>
-                    <span className="flex-1 truncate px-2 text-ink">{items[0].confirmedName}</span>
-                    <span className="font-rounded font-bold text-ink">{items[0].confirmedKcal}kcal</span>
-                  </>
-                ) : (
-                  <span className="font-rounded font-bold text-ink">
-                    {items.reduce((sum, item) => sum + item.confirmedKcal, 0)}kcal
-                  </span>
-                )}
-              </>
-            );
+      {/* 体重・体脂肪率カード */}
+      <Box sx={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: "14px", mb: "22px" }}>
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "10px" }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary" }}>体重</Typography>
+            {weight && <Typography sx={{ fontSize: 11, color: tokens.faint }}>{formatTime(weight.timestamp)}</Typography>}
+          </Box>
+          {weight ? (
+            <>
+              <Box sx={{ display: "flex", alignItems: "baseline", gap: "4px", mb: "8px" }}>
+                <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
+                  {weight.weightKg}
+                </Typography>
+                <Typography sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 14, color: "text.secondary" }}>kg</Typography>
+              </Box>
+              {weightDiff !== null && (
+                <Box
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    bgcolor: weightDiff <= 0 ? tokens.secondarySoft : tokens.primarySoft,
+                    color: weightDiff <= 0 ? "secondary.main" : "primary.main",
+                    px: "8px",
+                    py: "4px",
+                    borderRadius: "20px",
+                  }}
+                >
+                  <IconArrow up={weightDiff > 0} />
+                  <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 12 }}>
+                    前回比 {Math.abs(weightDiff).toFixed(1)}kg
+                  </Typography>
+                </Box>
+              )}
+            </>
+          ) : (
+            <Typography sx={{ fontSize: 13, color: tokens.faint }}>未記録</Typography>
+          )}
+        </Card>
+        <Card sx={{ p: "18px" }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary", mb: "10px" }}>体脂肪率</Typography>
+          {weight?.bodyFatPercent !== undefined ? (
+            <>
+              <Box sx={{ display: "flex", alignItems: "baseline", gap: "4px", mb: "8px" }}>
+                <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
+                  {weight.bodyFatPercent}
+                </Typography>
+                <Typography sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 14, color: "text.secondary" }}>%</Typography>
+              </Box>
+              <Typography sx={{ fontSize: 11, color: tokens.faint }}>体組成計より</Typography>
+            </>
+          ) : (
+            <Typography sx={{ fontSize: 13, color: tokens.faint }}>未計測</Typography>
+          )}
+        </Card>
+      </Box>
+
+      {/* 今日の食事 */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px", px: "2px" }}>
+        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>今日の食事</Typography>
+        <Typography sx={{ fontSize: 12, fontWeight: 500, color: "text.secondary" }}>
+          合計 {totalKcal.toLocaleString()} kcal
+        </Typography>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {MEAL_ORDER.map((mealType) => {
+          const { label, Icon, iconBg, iconColor } = MEAL_STYLES[mealType];
+          const items = mealsByType.get(mealType);
+
+          if (!items) {
             return (
-              <li key={mealType} className="py-2 text-sm">
-                {items && items.length === 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/record/meal?id=${items[0].id}`)}
-                    className="-mx-2 flex w-full items-center justify-between gap-2 rounded-lg px-2 py-0.5 text-left transition-colors hover:bg-primary/5"
-                  >
-                    {rowContent}
-                  </button>
-                ) : (
-                  <div className="flex items-center justify-between gap-2">{rowContent}</div>
-                )}
-                {items && items.length > 1 && (
-                  <ul className="mt-1 flex flex-col gap-0.5 pl-14 text-xs text-muted">
-                    {items.map((item) => (
-                      <li key={item.id}>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/record/meal?id=${item.id}`)}
-                          className="-mx-1 flex w-full justify-between gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-primary/5"
-                        >
-                          <span className="truncate">
-                            {formatTime(item.timestamp)} {item.confirmedName}
-                          </span>
-                          <span className="shrink-0">{item.confirmedKcal}kcal</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
+              <ButtonBase
+                key={mealType}
+                onClick={onOpenActionSheet}
+                sx={{
+                  border: `1.5px dashed #DED4C4`,
+                  borderRadius: "18px",
+                  p: "14px 15px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "13px",
+                  textAlign: "left",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: "13px",
+                    bgcolor: tokens.beigeSoft,
+                    color: tokens.faint2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon size={22} />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, color: "text.secondary" }}>
+                    {label}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: tokens.faint, mt: "2px" }}>未記録</Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: "50%",
+                    bgcolor: tokens.primarySoft,
+                    color: "primary.main",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <IconPlus size={13} />
+                </Box>
+              </ButtonBase>
             );
-          })}
-        </ul>
-        <p className="mt-2 text-center text-xs text-muted">品目をタップすると編集・削除できます</p>
-      </section>
+          }
 
-      <CalorieProgressBar consumedKcal={totalKcal} targetKcal={settings.dailyCalorieTarget} />
-      <PfcSummary proteinG={totalProteinG} fatG={totalFatG} carbsG={totalCarbsG} />
-    </div>
+          return items.map((item, index) => (
+            <ButtonBase
+              key={item.id}
+              onClick={() => navigate(`/record/meal?id=${item.id}`)}
+              sx={{
+                bgcolor: "background.paper",
+                borderRadius: "18px",
+                p: "14px 15px",
+                display: "flex",
+                alignItems: "center",
+                gap: "13px",
+                boxShadow: tokens.rowCardShadow,
+                textAlign: "left",
+              }}
+            >
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "13px",
+                  bgcolor: iconBg,
+                  color: iconColor,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Icon size={22} />
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: "7px", mb: "2px" }}>
+                  <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>
+                    {label}
+                    {items.length > 1 ? ` ${index + 1}` : ""}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: tokens.faint }}>{formatTime(item.timestamp)}</Typography>
+                  {!item.synced && (
+                    <Typography
+                      sx={{
+                        fontSize: 9,
+                        fontWeight: 500,
+                        color: tokens.warnText,
+                        bgcolor: tokens.warnBg,
+                        px: "6px",
+                        py: "2px",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      未同期
+                    </Typography>
+                  )}
+                </Box>
+                <Typography sx={{ fontSize: 12, color: "text.secondary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {item.confirmedName}
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: "right", flexShrink: 0 }}>
+                <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>
+                  {item.confirmedKcal}
+                </Typography>
+                <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 10, color: "text.secondary", ml: "2px" }}>
+                  kcal
+                </Typography>
+              </Box>
+              <Box sx={{ color: "text.primary", opacity: 0.35, display: "flex", flexShrink: 0 }}>
+                <IconChevronRight size={13} />
+              </Box>
+            </ButtonBase>
+          ));
+        })}
+      </Box>
+      <Typography sx={{ mt: "12px", textAlign: "center", fontSize: 11, color: tokens.faint }}>
+        品目をタップすると編集・削除できます
+      </Typography>
+    </Box>
   );
 }

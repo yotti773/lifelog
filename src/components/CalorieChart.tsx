@@ -19,7 +19,18 @@ const COLORS = {
 export default function CalorieChart({ data, targetKcal }: CalorieChartProps) {
   if (data.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-card bg-background text-sm text-muted">
+      <div
+        style={{
+          display: "flex",
+          height: 160,
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 16,
+          background: "#FFF8F0",
+          fontSize: 14,
+          color: "#8C8C8C",
+        }}
+      >
         記録がありません
       </div>
     );
@@ -36,7 +47,7 @@ export default function CalorieChart({ data, targetKcal }: CalorieChartProps) {
   const targetY = yScale(targetKcal);
 
   return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full" role="img" aria-label="カロリー推移グラフ">
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: "100%", display: "block" }} role="img" aria-label="カロリー推移グラフ">
       <line
         x1={PADDING.left}
         x2={WIDTH - PADDING.right}

@@ -1,16 +1,31 @@
+import MuiFab from "@mui/material/Fab";
+import { tokens } from "../theme";
+import { IconPlus } from "./icons";
+
 interface FabProps {
   onClick: () => void;
 }
 
 export default function Fab({ onClick }: FabProps) {
   return (
-    <button
-      type="button"
+    <MuiFab
       onClick={onClick}
       aria-label="記録する"
-      className="fixed bottom-20 right-5 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-2xl text-white shadow-soft transition active:scale-95"
+      sx={{
+        position: "fixed",
+        right: 20,
+        bottom: 96,
+        zIndex: 20,
+        width: 60,
+        height: 60,
+        color: "#fff",
+        background: tokens.fabGradient,
+        boxShadow: tokens.fabShadow,
+        "&:hover": { background: tokens.fabGradient },
+        "&:active": { boxShadow: tokens.fabShadow },
+      }}
     >
-      +
-    </button>
+      <IconPlus />
+    </MuiFab>
   );
 }

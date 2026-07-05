@@ -1,16 +1,21 @@
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import Typography from "@mui/material/Typography";
 import BodyFatChart from "./BodyFatChart";
 import CalorieChart from "./CalorieChart";
+import SegmentedControl from "./SegmentedControl";
 import WeightChart from "./WeightChart";
+import { fontRounded } from "../theme";
 import type { DailyCalorieTotal } from "../db/mealRecords";
 import type { WeightRecord } from "../types";
 
 export type Period = "week" | "month" | "all";
 
-export const PERIOD_LABELS: Record<Period, string> = {
-  week: "週",
-  month: "月",
-  all: "全期間",
-};
+const PERIOD_OPTIONS = [
+  { value: "week", label: "週" },
+  { value: "month", label: "月" },
+  { value: "all", label: "全期間" },
+] as const;
 
 interface WeightTrendChartsProps {
   period: Period;
@@ -29,37 +34,50 @@ export default function WeightTrendCharts({
   goalWeightKg,
   dailyCalorieTarget,
 }: WeightTrendChartsProps) {
+  // 直近の体脂肪率(体脂肪率カードのヘッダー表示用)
+  const latestBodyFat = [...weightChartRecords].reverse().find((r) => r.bodyFatPercent !== undefined)?.bodyFatPercent;
+
   return (
     <>
-      <div className="flex justify-end gap-1 rounded-full bg-white p-1 shadow-soft">
-        {(Object.keys(PERIOD_LABELS) as Period[]).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onPeriodChange(key)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              period === key ? "bg-primary text-white" : "text-muted"
-            }`}
-          >
-            {PERIOD_LABELS[key]}
-          </button>
-        ))}
-      </div>
-
-      <section className="rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-3 text-sm font-medium text-muted">体重推移</h2>
+      <Card sx={{ p: "16px" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px" }}>
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>体重</Typography>
+          <SegmentedControl
+            options={PERIOD_OPTIONS}
+            value={period}
+            onChange={onPeriodChange}
+            size="small"
+            activeVariant="primary"
+          />
+        </Box>
         <WeightChart records={weightChartRecords} goalWeightKg={goalWeightKg} />
-      </section>
+      </Card>
 
-      <section className="rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-3 text-sm font-medium text-muted">体脂肪率推移</h2>
+      <Card sx={{ p: "16px" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px" }}>
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>体脂肪率</Typography>
+          {latestBodyFat !== undefined && (
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 15 }}>
+              {latestBodyFat}
+              <Box component="span" sx={{ fontSize: 11, color: "text.secondary" }}>
+                %
+              </Box>
+            </Typography>
+          )}
+        </Box>
         <BodyFatChart records={weightChartRecords} />
-      </section>
+      </Card>
 
-      <section className="rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-3 text-sm font-medium text-muted">カロリー推移</h2>
+      <Card sx={{ p: "16px" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "14px" }}>
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>摂取カロリー</Typography>
+          <Typography sx={{ display: "flex", alignItems: "center", gap: "5px", fontSize: 10, fontWeight: 500, color: "text.secondary" }}>
+            <Box component="span" sx={{ width: 14, height: "2px", bgcolor: "primary.main", display: "inline-block" }} />
+            目標 {dailyCalorieTarget.toLocaleString()}
+          </Typography>
+        </Box>
         <CalorieChart data={calorieDailyTotals} targetKcal={dailyCalorieTarget} />
-      </section>
+      </Card>
     </>
   );
 }

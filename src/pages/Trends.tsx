@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useLocation, useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import ButtonBase from "@mui/material/ButtonBase";
+import Card from "@mui/material/Card";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import GoalBar from "../components/GoalBar";
+import SegmentedControl from "../components/SegmentedControl";
 import WeightHistoryList from "../components/WeightHistoryList";
 import WeightTrendCharts, { type Period } from "../components/WeightTrendCharts";
+import { IconSync } from "../components/icons";
 import { db } from "../db/db";
 import { getDailyCalorieTotals } from "../db/mealRecords";
 import { getSettings } from "../db/settings";
@@ -14,14 +21,15 @@ import {
   getWeightRecordsByDateRange,
 } from "../db/weightRecords";
 import { dateStringDaysAgo, formatDate, todayDateString } from "../lib/date";
+import { fontRounded, tokens } from "../theme";
 import type { WeightRecord } from "../types";
 
 type ViewMode = "chart" | "history";
 
-const VIEW_MODE_LABELS: Record<ViewMode, string> = {
-  chart: "グラフ",
-  history: "履歴",
-};
+const VIEW_MODE_OPTIONS = [
+  { value: "chart", label: "グラフ" },
+  { value: "history", label: "履歴" },
+] as const;
 
 export default function Trends() {
   const navigate = useNavigate();
@@ -30,6 +38,8 @@ export default function Trends() {
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (location.state as { viewMode?: ViewMode } | null)?.viewMode ?? "chart",
   );
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
 
   const settings = useLiveQuery(() => getSettings(), []);
   // .first()/.last()は記録が1件もないとundefinedを返すが、useLiveQueryは
@@ -81,59 +91,99 @@ export default function Trends() {
     calorieDailyTotals === undefined ||
     historyRecords === undefined
   ) {
-    return <div className="p-6 text-center text-sm text-muted">読み込み中...</div>;
+    return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
 
   const startWeightKg =
     baselineWeightRecord?.weightKg ?? firstWeightRecord?.weightKg ?? lastWeightRecord?.weightKg;
 
+  // From/To絞込みは日付文字列(YYYY-MM-DD)の辞書順比較で足りる
+  const filteredHistory = historyRecords.filter(
+    (record) => (!historyFrom || record.date >= historyFrom) && (!historyTo || record.date <= historyTo),
+  );
+
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-28 pt-6">
-      <h1 className="font-rounded text-xl font-bold text-ink">推移</h1>
+    <Box sx={{ mx: "auto", maxWidth: 448, display: "flex", flexDirection: "column", gap: "14px", px: "20px", pt: "24px", pb: "130px" }}>
+      <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22 }}>推移</Typography>
 
-      {lastWeightRecord ? (
-        <GoalBar
-          startWeightKg={startWeightKg ?? lastWeightRecord.weightKg}
-          currentWeightKg={lastWeightRecord.weightKg}
-          goalWeightKg={settings.goalWeightKg}
-          goalDate={settings.goalDate}
-        />
-      ) : (
-        <div className="rounded-card bg-white p-4 text-center text-sm text-muted shadow-soft">
-          体重を記録するとここに進捗バーが表示されます
-        </div>
-      )}
-
-      <div className="flex gap-1 rounded-full bg-white p-1 shadow-soft">
-        {(Object.keys(VIEW_MODE_LABELS) as ViewMode[]).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setViewMode(key)}
-            className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              viewMode === key ? "bg-primary text-white" : "text-muted"
-            }`}
-          >
-            {VIEW_MODE_LABELS[key]}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
 
       {viewMode === "chart" ? (
-        <WeightTrendCharts
-          period={period}
-          onPeriodChange={setPeriod}
-          weightChartRecords={weightChartRecords}
-          calorieDailyTotals={calorieDailyTotals}
-          goalWeightKg={settings.goalWeightKg}
-          dailyCalorieTarget={settings.dailyCalorieTarget}
-        />
+        <>
+          {lastWeightRecord ? (
+            <GoalBar
+              startWeightKg={startWeightKg ?? lastWeightRecord.weightKg}
+              currentWeightKg={lastWeightRecord.weightKg}
+              goalWeightKg={settings.goalWeightKg}
+              goalDate={settings.goalDate}
+            />
+          ) : (
+            <Card sx={{ p: 2 }}>
+              <Typography sx={{ textAlign: "center", fontSize: 14, color: "text.secondary" }}>
+                体重を記録するとここに進捗バーが表示されます
+              </Typography>
+            </Card>
+          )}
+          <WeightTrendCharts
+            period={period}
+            onPeriodChange={setPeriod}
+            weightChartRecords={weightChartRecords}
+            calorieDailyTotals={calorieDailyTotals}
+            goalWeightKg={settings.goalWeightKg}
+            dailyCalorieTarget={settings.dailyCalorieTarget}
+          />
+        </>
       ) : (
-        <WeightHistoryList
-          records={historyRecords}
-          onSelect={(date) => navigate(`/record/weight?date=${date}`)}
-        />
+        <>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <TextField
+              type="date"
+              label="From"
+              size="small"
+              value={historyFrom}
+              onChange={(e) => setHistoryFrom(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ flex: 1 }}
+            />
+            <Typography sx={{ color: tokens.faint }}>-</Typography>
+            <TextField
+              type="date"
+              label="To"
+              size="small"
+              value={historyTo}
+              onChange={(e) => setHistoryTo(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ flex: 1 }}
+            />
+            <ButtonBase
+              onClick={() => {
+                setHistoryFrom("");
+                setHistoryTo("");
+              }}
+              aria-label="絞り込みをリセット"
+              sx={{
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                bgcolor: "background.paper",
+                boxShadow: tokens.fieldShadow,
+                color: "text.secondary",
+                flexShrink: 0,
+              }}
+            >
+              <IconSync size={15} />
+            </ButtonBase>
+          </Box>
+          <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+            {filteredHistory.length}件・新しい順(タップで編集)
+          </Typography>
+          <WeightHistoryList
+            records={filteredHistory}
+            baselineDate={settings.baselineDate}
+            onSelect={(date) => navigate(`/record/weight?date=${date}`)}
+          />
+        </>
       )}
-    </div>
+    </Box>
   );
 }

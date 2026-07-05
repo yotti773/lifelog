@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { formatDate } from "../lib/date";
+import { formatDate, localDateRangeToUtcIso } from "../lib/date";
 import type { MealRecord, MealType } from "../types";
 
 export interface DailyCalorieTotal {
@@ -58,8 +58,8 @@ export async function getMealRecordsByDateRange(
   startDate: string,
   endDate: string,
 ): Promise<MealRecord[]> {
-  const startIso = `${startDate}T00:00:00.000Z`;
-  const endIso = `${endDate}T23:59:59.999Z`;
+  const [startIso] = localDateRangeToUtcIso(startDate);
+  const [, endIso] = localDateRangeToUtcIso(endDate);
   return db.mealRecords.where("timestamp").between(startIso, endIso, true, true).sortBy("timestamp");
 }
 
@@ -97,7 +97,7 @@ export async function getDailyCalorieTotals(
 
   const totalsByDate = new Map<string, number>();
   for (const record of records) {
-    const date = record.timestamp.slice(0, 10);
+    const date = formatDate(new Date(record.timestamp));
     totalsByDate.set(date, (totalsByDate.get(date) ?? 0) + record.confirmedKcal);
   }
 

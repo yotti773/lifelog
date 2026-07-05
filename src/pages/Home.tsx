@@ -4,7 +4,7 @@ import CalorieProgressBar from "../components/CalorieProgressBar";
 import PfcSummary from "../components/PfcSummary";
 import { db } from "../db/db";
 import { getSettings } from "../db/settings";
-import { formatTime, todayDateString } from "../lib/date";
+import { formatTime, localDateRangeToUtcIso, todayDateString } from "../lib/date";
 import type { MealRecord, MealType } from "../types";
 
 const MEAL_LABELS: Record<MealType, string> = {
@@ -22,13 +22,14 @@ export default function Home() {
   const today = todayDateString();
 
   const weight = useLiveQuery(() => db.weightRecords.get(today), [today]);
+  const [todayStartIso, todayEndIso] = localDateRangeToUtcIso(today);
   const meals = useLiveQuery(
     () =>
       db.mealRecords
         .where("timestamp")
-        .between(`${today}T00:00:00.000Z`, `${today}T23:59:59.999Z`, true, true)
+        .between(todayStartIso, todayEndIso, true, true)
         .sortBy("timestamp"),
-    [today],
+    [todayStartIso, todayEndIso],
   );
   const settings = useLiveQuery(() => getSettings(), []);
 

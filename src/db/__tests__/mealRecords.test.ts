@@ -60,7 +60,7 @@ describe("mealRecords", () => {
     expect(all.every((r) => r.mealType === "lunch")).toBe(true);
   });
 
-  it("filters records by date range", async () => {
+  it("filters records by date range (ローカル日付基準)", async () => {
     await addMealRecord({
       mealType: "breakfast",
       confirmedName: "トースト",
@@ -68,7 +68,7 @@ describe("mealRecords", () => {
       confirmedProteinG: 8,
       confirmedFatG: 10,
       confirmedCarbsG: 40,
-      timestamp: "2026-06-30T07:00:00.000Z",
+      timestamp: new Date("2026-06-30T07:00:00").toISOString(),
     });
     await addMealRecord({
       mealType: "lunch",
@@ -77,7 +77,7 @@ describe("mealRecords", () => {
       confirmedProteinG: 40,
       confirmedFatG: 20,
       confirmedCarbsG: 50,
-      timestamp: "2026-07-01T12:15:00.000Z",
+      timestamp: new Date("2026-07-01T12:15:00").toISOString(),
     });
     await addMealRecord({
       mealType: "dinner",
@@ -86,12 +86,33 @@ describe("mealRecords", () => {
       confirmedProteinG: 35,
       confirmedFatG: 18,
       confirmedCarbsG: 30,
-      timestamp: "2026-07-02T19:00:00.000Z",
+      timestamp: new Date("2026-07-02T19:00:00").toISOString(),
     });
 
     const inRange = await getMealRecordsByDateRange("2026-07-01", "2026-07-01");
     expect(inRange).toHaveLength(1);
     expect(inRange[0].confirmedName).toBe("鶏肉と野菜炒め");
+  });
+
+  it("UTC日付を跨ぐ早朝(ローカル0:00〜8:59)の記録も当日分として取得できる(#23)", async () => {
+    // ローカル(JST)で7/1 7:30に記録した食事はUTCでは6/30 22:30となり、
+    // UTC日付でスライスすると誤って前日(6/30)扱いされてしまっていた
+    await addMealRecord({
+      mealType: "breakfast",
+      confirmedName: "早朝のトースト",
+      confirmedKcal: 300,
+      confirmedProteinG: 8,
+      confirmedFatG: 10,
+      confirmedCarbsG: 40,
+      timestamp: new Date("2026-07-01T07:30:00").toISOString(),
+    });
+
+    const inRange = await getMealRecordsByDateRange("2026-07-01", "2026-07-01");
+    expect(inRange).toHaveLength(1);
+    expect(inRange[0].confirmedName).toBe("早朝のトースト");
+
+    const notInPreviousDay = await getMealRecordsByDateRange("2026-06-30", "2026-06-30");
+    expect(notInPreviousDay).toHaveLength(0);
   });
 
   it("updates a record (e.g. correcting the AI-estimated calories/PFC)", async () => {
@@ -180,7 +201,7 @@ describe("mealRecords", () => {
       confirmedProteinG: 8,
       confirmedFatG: 10,
       confirmedCarbsG: 40,
-      timestamp: "2026-07-01T07:00:00.000Z",
+      timestamp: new Date("2026-07-01T07:00:00").toISOString(),
     });
     await addMealRecord({
       mealType: "lunch",
@@ -189,7 +210,7 @@ describe("mealRecords", () => {
       confirmedProteinG: 40,
       confirmedFatG: 20,
       confirmedCarbsG: 50,
-      timestamp: "2026-07-01T12:15:00.000Z",
+      timestamp: new Date("2026-07-01T12:15:00").toISOString(),
     });
     await addMealRecord({
       mealType: "dinner",
@@ -198,7 +219,7 @@ describe("mealRecords", () => {
       confirmedProteinG: 35,
       confirmedFatG: 18,
       confirmedCarbsG: 30,
-      timestamp: "2026-07-03T19:00:00.000Z",
+      timestamp: new Date("2026-07-03T19:00:00").toISOString(),
     });
 
     const totals = await getDailyCalorieTotals("2026-07-01", "2026-07-03");
@@ -207,5 +228,20 @@ describe("mealRecords", () => {
       { date: "2026-07-02", kcal: 0 },
       { date: "2026-07-03", kcal: 450 },
     ]);
+  });
+
+  it("早朝(ローカル0:00〜8:59)に記録した食事もその日の合計カロリーに計上される(#23)", async () => {
+    await addMealRecord({
+      mealType: "breakfast",
+      confirmedName: "早朝の朝食",
+      confirmedKcal: 400,
+      confirmedProteinG: 20,
+      confirmedFatG: 10,
+      confirmedCarbsG: 40,
+      timestamp: new Date("2026-07-05T07:30:00").toISOString(),
+    });
+
+    const totals = await getDailyCalorieTotals("2026-07-05", "2026-07-05");
+    expect(totals).toEqual([{ date: "2026-07-05", kcal: 400 }]);
   });
 });

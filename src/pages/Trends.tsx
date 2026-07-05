@@ -13,7 +13,7 @@ import {
   getWeightRecord,
   getWeightRecordsByDateRange,
 } from "../db/weightRecords";
-import { dateStringDaysAgo, todayDateString } from "../lib/date";
+import { dateStringDaysAgo, formatDate, todayDateString } from "../lib/date";
 import type { WeightRecord } from "../types";
 
 type ViewMode = "chart" | "history";
@@ -58,7 +58,7 @@ export default function Trends() {
     const endDate = todayDateString();
     if (period === "all") {
       const firstMealRecord = await db.mealRecords.orderBy("timestamp").first();
-      const startDate = firstMealRecord ? firstMealRecord.timestamp.slice(0, 10) : endDate;
+      const startDate = firstMealRecord ? formatDate(new Date(firstMealRecord.timestamp)) : endDate;
       return getDailyCalorieTotals(startDate, endDate);
     }
     const days = period === "week" ? 6 : 29;

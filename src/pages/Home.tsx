@@ -1,4 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
+import { useNavigate } from "react-router-dom";
 import CalorieProgressBar from "../components/CalorieProgressBar";
 import PfcSummary from "../components/PfcSummary";
 import { db } from "../db/db";
@@ -17,6 +18,7 @@ const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
 export default function Home() {
+  const navigate = useNavigate();
   const today = todayDateString();
 
   const weight = useLiveQuery(() => db.weightRecords.get(today), [today]);
@@ -77,32 +79,51 @@ export default function Home() {
         <ul className="flex flex-col divide-y divide-black/5">
           {MEAL_ORDER.map((mealType) => {
             const items = mealsByType.get(mealType);
+            const rowContent = (
+              <>
+                <span className="w-12 shrink-0 font-medium text-ink">{MEAL_LABELS[mealType]}</span>
+                {!items ? (
+                  <span className="flex-1 text-right text-muted">未記録</span>
+                ) : items.length === 1 ? (
+                  <>
+                    <span className="text-xs text-muted">{formatTime(items[0].timestamp)}</span>
+                    <span className="flex-1 truncate px-2 text-ink">{items[0].confirmedName}</span>
+                    <span className="font-rounded font-bold text-ink">{items[0].confirmedKcal}kcal</span>
+                  </>
+                ) : (
+                  <span className="font-rounded font-bold text-ink">
+                    {items.reduce((sum, item) => sum + item.confirmedKcal, 0)}kcal
+                  </span>
+                )}
+              </>
+            );
             return (
               <li key={mealType} className="py-2 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="w-12 shrink-0 font-medium text-ink">{MEAL_LABELS[mealType]}</span>
-                  {!items ? (
-                    <span className="flex-1 text-right text-muted">未記録</span>
-                  ) : items.length === 1 ? (
-                    <>
-                      <span className="text-xs text-muted">{formatTime(items[0].timestamp)}</span>
-                      <span className="flex-1 truncate px-2 text-ink">{items[0].confirmedName}</span>
-                      <span className="font-rounded font-bold text-ink">{items[0].confirmedKcal}kcal</span>
-                    </>
-                  ) : (
-                    <span className="font-rounded font-bold text-ink">
-                      {items.reduce((sum, item) => sum + item.confirmedKcal, 0)}kcal
-                    </span>
-                  )}
-                </div>
+                {items && items.length === 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/record/meal?id=${items[0].id}`)}
+                    className="-mx-2 flex w-full items-center justify-between gap-2 rounded-lg px-2 py-0.5 text-left transition-colors hover:bg-primary/5"
+                  >
+                    {rowContent}
+                  </button>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">{rowContent}</div>
+                )}
                 {items && items.length > 1 && (
                   <ul className="mt-1 flex flex-col gap-0.5 pl-14 text-xs text-muted">
                     {items.map((item) => (
-                      <li key={item.id} className="flex justify-between gap-2">
-                        <span className="truncate">
-                          {formatTime(item.timestamp)} {item.confirmedName}
-                        </span>
-                        <span className="shrink-0">{item.confirmedKcal}kcal</span>
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/record/meal?id=${item.id}`)}
+                          className="-mx-1 flex w-full justify-between gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-primary/5"
+                        >
+                          <span className="truncate">
+                            {formatTime(item.timestamp)} {item.confirmedName}
+                          </span>
+                          <span className="shrink-0">{item.confirmedKcal}kcal</span>
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -111,6 +132,7 @@ export default function Home() {
             );
           })}
         </ul>
+        <p className="mt-2 text-center text-xs text-muted">品目をタップすると編集・削除できます</p>
       </section>
 
       <CalorieProgressBar consumedKcal={totalKcal} targetKcal={settings.dailyCalorieTarget} />

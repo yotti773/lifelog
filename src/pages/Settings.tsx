@@ -1,11 +1,15 @@
 import { useEffect, useState, type ChangeEvent, type SubmitEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { exportBackupData, importBackupData, type BackupData } from "../db/backup";
+import { bulkAddFoodMasterItems, deleteFoodMasterItem, getAllFoodMasterItems, updateFoodMasterItem } from "../db/foodMaster";
+import { foodMasterSeedData } from "../db/foodMasterSeedData";
 import { getUnsyncedMealRecords } from "../db/mealRecords";
 import { getSettings, updateSettings } from "../db/settings";
 import { getUnsyncedWeightRecords } from "../db/weightRecords";
 import { formatDateTime } from "../lib/date";
 import { runSync, type SyncOutcome } from "../sync/syncEngine";
+import { workerSheetsTransport } from "../sync/workerSheetsTransport";
+import type { FoodMasterItem } from "../types";
 
 function syncOutcomeMessage(outcome: SyncOutcome): string {
   switch (outcome.status) {
@@ -36,6 +40,16 @@ export default function Settings() {
   const [isSyncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
+  const foodMasterItems = useLiveQuery(() => getAllFoodMasterItems(), []);
+  const [editingMasterId, setEditingMasterId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editKcal, setEditKcal] = useState("");
+  const [editProteinG, setEditProteinG] = useState("");
+  const [editFatG, setEditFatG] = useState("");
+  const [editCarbsG, setEditCarbsG] = useState("");
+  const [isSeeding, setSeeding] = useState(false);
+  const [seedMessage, setSeedMessage] = useState<string | null>(null);
+
   useEffect(() => {
     if (!settings) return;
     setGoalWeightKg(String(settings.goalWeightKg));
@@ -60,7 +74,7 @@ export default function Settings() {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const outcome = await runSync();
+      const outcome = await runSync({ transport: workerSheetsTransport });
       setSyncMessage(syncOutcomeMessage(outcome));
     } finally {
       setSyncing(false);
@@ -76,6 +90,42 @@ export default function Settings() {
     a.download = `lifelog-backup-${data.exportedAt.slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const startEditMaster = (item: FoodMasterItem) => {
+    setEditingMasterId(item.id);
+    setEditName(item.name);
+    setEditKcal(String(item.kcal));
+    setEditProteinG(String(item.proteinG));
+    setEditFatG(String(item.fatG));
+    setEditCarbsG(String(item.carbsG));
+  };
+
+  const cancelEditMaster = () => setEditingMasterId(null);
+
+  const handleSeedMaster = async () => {
+    setSeeding(true);
+    setSeedMessage(null);
+    try {
+      const count = await bulkAddFoodMasterItems(foodMasterSeedData);
+      setSeedMessage(
+        count > 0 ? `${count}件を登録しました` : "追加できる新しい品目はありませんでした(すべて登録済みです)",
+      );
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const saveEditMaster = async () => {
+    if (!editingMasterId) return;
+    await updateFoodMasterItem(editingMasterId, {
+      name: editName.trim(),
+      kcal: Number(editKcal),
+      proteinG: Number(editProteinG),
+      fatG: Number(editFatG),
+      carbsG: Number(editCarbsG),
+    });
+    setEditingMasterId(null);
   };
 
   const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -163,6 +213,115 @@ export default function Settings() {
           {isSyncing ? "同期中..." : "今すぐ同期"}
         </button>
         {syncMessage && <p className="text-sm text-muted">{syncMessage}</p>}
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-soft">
+        <h2 className="text-sm font-medium text-muted">食事マスタ(よく食べるもの)</h2>
+        <button
+          type="button"
+          onClick={handleSeedMaster}
+          disabled={isSeeding}
+          className="rounded-card border border-primary px-4 py-3 font-medium text-primary disabled:opacity-60"
+        >
+          {isSeeding ? "登録中..." : "モスバーガー・ミスタードーナツ・コンビニの定番メニューを登録"}
+        </button>
+        {seedMessage && <p className="text-sm text-muted">{seedMessage}</p>}
+        {foodMasterItems === undefined ? (
+          <p className="text-sm text-muted">読み込み中...</p>
+        ) : foodMasterItems.length === 0 ? (
+          <p className="text-sm text-muted">
+            まだ登録がありません。食事記録の保存時に「マスタに登録する」を選ぶと追加されます。
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {foodMasterItems.map((item) =>
+              editingMasterId === item.id ? (
+                <li key={item.id} className="flex flex-col gap-2 rounded-card bg-background p-3">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                  />
+                  <div className="grid grid-cols-4 gap-2">
+                    <input
+                      type="number"
+                      value={editKcal}
+                      onChange={(e) => setEditKcal(e.target.value)}
+                      placeholder="kcal"
+                      className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      value={editProteinG}
+                      onChange={(e) => setEditProteinG(e.target.value)}
+                      placeholder="P"
+                      className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      value={editFatG}
+                      onChange={(e) => setEditFatG(e.target.value)}
+                      placeholder="F"
+                      className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      value={editCarbsG}
+                      onChange={(e) => setEditCarbsG(e.target.value)}
+                      placeholder="C"
+                      className="rounded-card border border-black/10 px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={saveEditMaster}
+                      className="flex-1 rounded-card bg-primary px-3 py-1.5 text-sm font-medium text-white"
+                    >
+                      保存
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditMaster}
+                      className="flex-1 rounded-card border border-black/10 px-3 py-1.5 text-sm text-muted"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </li>
+              ) : (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-2 rounded-card bg-background p-3"
+                >
+                  <div>
+                    <p className="text-sm text-ink">{item.name}</p>
+                    <p className="text-xs text-muted">
+                      {item.kcal}kcal(P{item.proteinG}/F{item.fatG}/C{item.carbsG}g)
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEditMaster(item)}
+                      className="rounded-card border border-black/10 px-3 py-1.5 text-xs text-ink"
+                    >
+                      編集
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteFoodMasterItem(item.id)}
+                      className="rounded-card border border-primary px-3 py-1.5 text-xs text-primary"
+                    >
+                      削除
+                    </button>
+                  </div>
+                </li>
+              ),
+            )}
+          </ul>
+        )}
       </section>
 
       <section className="flex flex-col gap-3 rounded-card bg-white p-4 shadow-soft">

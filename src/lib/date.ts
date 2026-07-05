@@ -33,6 +33,14 @@ export function formatDateTime(iso: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${formatTime(iso)}`;
 }
 
+/**
+ * ローカル日付(YYYY-MM-DD)の00:00:00.000〜23:59:59.999を、その境界のUTC ISO文字列(開始・終了)に変換する。
+ * MealRecord.timestampはUTCのISO文字列で保存されているため、ローカル日付基準で範囲を絞り込むにはUTC境界へ変換する必要がある。
+ */
+export function localDateRangeToUtcIso(date: string): [string, string] {
+  return [new Date(`${date}T00:00:00`).toISOString(), new Date(`${date}T23:59:59.999`).toISOString()];
+}
+
 /** 指定日数分さかのぼった日付(YYYY-MM-DD)を今日を含めて返す(例: days=6なら直近7日間) */
 export function dateStringDaysAgo(days: number, from: Date = new Date()): string {
   const d = new Date(from);

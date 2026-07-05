@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { DEFAULT_SETTINGS } from "./settings";
-import type { MealRecord, Settings, WeightRecord } from "../types";
+import type { MealRecord, Settings, WeightRecord } from "@/types";
 
 export interface BackupData {
   exportedAt: string;

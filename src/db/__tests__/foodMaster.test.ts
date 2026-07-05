@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { db } from "../db";
+import { db } from "@/db/db";
 import {
   addFoodMasterItem,
   bulkAddFoodMasterItems,
   deleteFoodMasterItem,
   getAllFoodMasterItems,
   updateFoodMasterItem,
-} from "../foodMaster";
+} from "@/db/foodMaster";
 
 beforeEach(async () => {
   await db.foodMasterItems.clear();

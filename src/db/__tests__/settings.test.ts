@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { db } from "../db";
-import { getSettings, updateSettings } from "../settings";
+import { db } from "@/db/db";
+import { getSettings, updateSettings } from "@/db/settings";
 
 beforeEach(async () => {
   await db.settings.clear();

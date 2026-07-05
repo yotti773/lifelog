@@ -1,5 +1,5 @@
-import { resizeImageToBase64 } from "../lib/image";
-import type { MealType } from "../types";
+import { resizeImageToBase64 } from "@/lib/image";
+import type { MealType } from "@/types";
 
 export interface MealJudgment {
   dishName: string;

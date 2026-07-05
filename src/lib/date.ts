@@ -1,4 +1,4 @@
-import type { MealType } from "../types";
+import type { MealType } from "@/types";
 
 export function todayDateString(): string {
   return formatDate(new Date());

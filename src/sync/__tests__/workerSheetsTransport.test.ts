@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { workerSheetsTransport } from "../workerSheetsTransport";
-import type { SyncPushPayload } from "../types";
+import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
+import type { SyncPushPayload } from "@/sync/types";
 
 const payload: SyncPushPayload = { weightRecords: [], mealRecords: [] };
 

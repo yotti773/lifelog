@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { formatDate, localDateRangeToUtcIso } from "../lib/date";
-import type { MealRecord, MealType } from "../types";
+import { formatDate, localDateRangeToUtcIso } from "@/lib/date";
+import type { MealRecord, MealType } from "@/types";
 
 export interface DailyCalorieTotal {
   date: string; // YYYY-MM-DD

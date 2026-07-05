@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { FoodMasterItem, MealRecord, Settings, WeightRecord } from "../types";
+import type { FoodMasterItem, MealRecord, Settings, WeightRecord } from "@/types";
 
 export type SettingsRow = Settings & { id: "default" };
 

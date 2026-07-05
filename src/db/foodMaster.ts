@@ -1,5 +1,5 @@
 import { db } from "./db";
-import type { FoodMasterItem } from "../types";
+import type { FoodMasterItem } from "@/types";
 
 export interface AddFoodMasterItemInput {
   name: string;

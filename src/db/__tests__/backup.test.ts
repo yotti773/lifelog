@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { db } from "../db";
-import { saveWeightRecord } from "../weightRecords";
-import { addMealRecord } from "../mealRecords";
-import { updateSettings } from "../settings";
-import { exportBackupData, importBackupData } from "../backup";
+import { db } from "@/db/db";
+import { saveWeightRecord } from "@/db/weightRecords";
+import { addMealRecord } from "@/db/mealRecords";
+import { updateSettings } from "@/db/settings";
+import { exportBackupData, importBackupData } from "@/db/backup";
 
 beforeEach(async () => {
   await db.weightRecords.clear();

@@ -1,7 +1,13 @@
+import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
+import { handleSyncSheets } from "./sheetsSync";
+
 export interface Env {
   ASSETS: Fetcher;
   GEMINI_API_KEY: string;
   GEMINI_MODEL?: string;
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: string;
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: string;
+  GOOGLE_SHEETS_SPREADSHEET_ID: string;
 }
 
 interface MealJudgment {
@@ -31,13 +37,6 @@ const RESPONSE_SCHEMA = {
     isMixedOrUncertain: { type: "BOOLEAN" },
   },
   required: ["dishName", "kcal", "proteinG", "fatG", "carbsG", "isMixedOrUncertain"],
-};
-
-const MEAL_TYPE_LABELS: Record<string, string> = {
-  breakfast: "朝食",
-  lunch: "昼食",
-  dinner: "夕食",
-  snack: "間食",
 };
 
 async function judgeMeal(
@@ -102,6 +101,10 @@ async function judgeMeal(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/sync-sheets" && request.method === "POST") {
+      return handleSyncSheets(request, env);
+    }
 
     if (url.pathname === "/api/judge-meal" && request.method === "POST") {
       try {

@@ -1,2 +1,5 @@
 GEMINI_API_KEY=your-gemini-api-key-here
 GEMINI_MODEL=gemini-2.5-flash
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
+GOOGLE_SHEETS_SPREADSHEET_ID=your-spreadsheet-id-here

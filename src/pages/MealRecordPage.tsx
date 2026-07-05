@@ -1,11 +1,11 @@
-import { useState, type ChangeEvent, type SubmitEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, type ChangeEvent, type SubmitEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { judgeMealPhoto, type MealJudgment } from "../api/judgeMeal";
 import FoodMasterPicker from "../components/FoodMasterPicker";
 import { addFoodMasterItem, getAllFoodMasterItems } from "../db/foodMaster";
-import { addMealRecord } from "../db/mealRecords";
-import { nearestMealType, toDatetimeLocalValue } from "../lib/date";
+import { addMealRecord, deleteMealRecord, getMealRecord, updateMealRecord } from "../db/mealRecords";
+import { formatDateTime, nearestMealType, toDatetimeLocalValue } from "../lib/date";
 import type { FoodMasterItem, MealType } from "../types";
 
 const MEAL_OPTIONS: { type: MealType; label: string }[] = [
@@ -29,8 +29,14 @@ interface PendingMealItem {
   registerToMaster: boolean;
 }
 
+type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
+
 export default function MealRecordPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // ホーム画面の品目タップから ?id=<MealRecord.id> 付きで遷移してきた場合は編集モードになる
+  const editId = searchParams.get("id");
+  const [loadStatus, setLoadStatus] = useState<LoadStatus>(editId ? "loading" : "idle");
   const [mealType, setMealType] = useState<MealType>(() => nearestMealType());
   const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [name, setName] = useState("");
@@ -39,6 +45,7 @@ export default function MealRecordPage() {
   const [fatG, setFatG] = useState("");
   const [carbsG, setCarbsG] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const [note, setNote] = useState("");
   const [isJudging, setJudging] = useState(false);
@@ -48,6 +55,35 @@ export default function MealRecordPage() {
   const [pendingItems, setPendingItems] = useState<PendingMealItem[]>([]);
 
   const foodMasterItems = useLiveQuery(() => getAllFoodMasterItems(), []);
+
+  useEffect(() => {
+    if (!editId) {
+      setLoadStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setLoadStatus("loading");
+    void getMealRecord(editId).then((record) => {
+      if (cancelled) return;
+      if (!record) {
+        setLoadStatus("not-found");
+        return;
+      }
+      setMealType(record.mealType);
+      setDateTime(toDatetimeLocalValue(record.timestamp));
+      setName(record.confirmedName);
+      setKcal(String(record.confirmedKcal));
+      setProteinG(String(record.confirmedProteinG));
+      setFatG(String(record.confirmedFatG));
+      setCarbsG(String(record.confirmedCarbsG));
+      setLoadStatus("loaded");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [editId]);
+
+  const isEditing = loadStatus === "loaded";
 
   const parsedKcal = Number(kcal);
   const parsedProteinG = Number(proteinG);
@@ -141,6 +177,25 @@ export default function MealRecordPage() {
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (isEditing && editId) {
+      if (!isCurrentItemFilled || Number.isNaN(parsedKcal) || Number.isNaN(parsedProteinG) || Number.isNaN(parsedFatG) || Number.isNaN(parsedCarbsG)) {
+        setError("料理名・カロリー・PFC(たんぱく質/脂質/炭水化物)を入力してください");
+        return;
+      }
+      await updateMealRecord(editId, {
+        mealType,
+        confirmedName: name.trim(),
+        confirmedKcal: parsedKcal,
+        confirmedProteinG: parsedProteinG,
+        confirmedFatG: parsedFatG,
+        confirmedCarbsG: parsedCarbsG,
+        timestamp: new Date(dateTime).toISOString(),
+      });
+      navigate("/");
+      return;
+    }
+
     const currentItem = buildCurrentItem();
     const items = currentItem ? [...pendingItems, currentItem] : pendingItems;
     if (items.length === 0) {
@@ -175,9 +230,37 @@ export default function MealRecordPage() {
     navigate("/");
   };
 
+  const handleDelete = async () => {
+    if (!editId) return;
+    await deleteMealRecord(editId);
+    navigate("/");
+  };
+
+  if (loadStatus === "loading") {
+    return <div className="p-6 text-center text-sm text-muted">読み込み中...</div>;
+  }
+
+  if (loadStatus === "not-found") {
+    return (
+      <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
+        <h1 className="font-rounded text-xl font-bold text-ink">記録が見つかりません</h1>
+        <p className="rounded-card bg-white p-4 text-sm text-muted shadow-soft">
+          指定された食事記録は見つかりませんでした。別の端末で削除された可能性があります。
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="rounded-card bg-primary px-4 py-3 font-medium text-white"
+        >
+          ホームに戻る
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pb-10 pt-6">
-      <h1 className="font-rounded text-xl font-bold text-ink">食事を記録</h1>
+      <h1 className="font-rounded text-xl font-bold text-ink">{isEditing ? "食事を編集" : "食事を記録"}</h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <section className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-soft">
@@ -265,91 +348,149 @@ export default function MealRecordPage() {
           </div>
         </section>
 
-        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
-          <h2 className="text-sm font-medium text-muted">写真から記録する</h2>
-          <label className="flex flex-col gap-1 text-sm text-ink">
-            補足情報(任意)
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="例: 唐揚げ弁当、ご飯少なめ / サラダとスープも別皿である"
-              className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
-            />
-          </label>
-          <label className="cursor-pointer rounded-card bg-secondary px-4 py-3 text-center font-medium text-white">
-            {isJudging ? "判定中..." : "写真から判定する"}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoSelected}
-              disabled={isJudging}
-              className="hidden"
-            />
-          </label>
-          {judgeError && <p className="text-sm text-primary">{judgeError}</p>}
-          {aiJudgment?.isMixedOrUncertain && (
-            <p className="text-xs text-muted">
-              複数の料理が写っている、または判定に自信が低いため、誤差が大きい場合があります。上の内容を確認・修正してください。
-            </p>
-          )}
-        </section>
+        {!isEditing && (
+          <>
+            <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
+              <h2 className="text-sm font-medium text-muted">写真から記録する</h2>
+              <label className="flex flex-col gap-1 text-sm text-ink">
+                補足情報(任意)
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="例: 唐揚げ弁当、ご飯少なめ / サラダとスープも別皿である"
+                  className="rounded-card border border-black/10 px-3 py-2 focus:border-primary focus:outline-none"
+                />
+              </label>
+              <label className="cursor-pointer rounded-card bg-secondary px-4 py-3 text-center font-medium text-white">
+                {isJudging ? "判定中..." : "写真から判定する"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoSelected}
+                  disabled={isJudging}
+                  className="hidden"
+                />
+              </label>
+              {judgeError && <p className="text-sm text-primary">{judgeError}</p>}
+              {aiJudgment?.isMixedOrUncertain && (
+                <p className="text-xs text-muted">
+                  複数の料理が写っている、または判定に自信が低いため、誤差が大きい場合があります。上の内容を確認・修正してください。
+                </p>
+              )}
+            </section>
 
-        <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
-          <h2 className="text-sm font-medium text-muted">よく食べるものから選ぶ</h2>
-          <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
-        </section>
+            <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
+              <h2 className="text-sm font-medium text-muted">よく食べるものから選ぶ</h2>
+              <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
+            </section>
 
-        {pendingItems.length > 0 && (
-          <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
-            <h2 className="text-sm font-medium text-muted">今回まとめて記録する品目({pendingItems.length}件)</h2>
-            <ul className="flex flex-col gap-1">
-              {pendingItems.map((item, index) => (
-                <li
-                  key={index}
-                  className="flex items-center justify-between gap-2 rounded-card bg-background px-3 py-2 text-sm text-ink"
-                >
-                  <span>
-                    {item.name}({item.kcal}kcal)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePending(index)}
-                    className="text-xs text-primary"
-                  >
-                    削除
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
+            {pendingItems.length > 0 && (
+              <section className="flex flex-col gap-2 rounded-card bg-white p-4 shadow-soft">
+                <h2 className="text-sm font-medium text-muted">今回まとめて記録する品目({pendingItems.length}件)</h2>
+                <ul className="flex flex-col gap-1">
+                  {pendingItems.map((item, index) => (
+                    <li
+                      key={index}
+                      className="flex items-center justify-between gap-2 rounded-card bg-background px-3 py-2 text-sm text-ink"
+                    >
+                      <span>
+                        {item.name}({item.kcal}kcal)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePending(index)}
+                        className="text-xs text-primary"
+                      >
+                        削除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </>
         )}
 
         <section className="flex flex-col gap-4 rounded-card bg-white p-4 shadow-soft">
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={registerToMaster}
-              onChange={(e) => setRegisterToMaster(e.target.checked)}
-              className="h-4 w-4 accent-primary"
-            />
-            この内容をマスタに登録する(次回から選んで入力できるようになります)
-          </label>
+          {!isEditing && (
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={registerToMaster}
+                onChange={(e) => setRegisterToMaster(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              この内容をマスタに登録する(次回から選んで入力できるようになります)
+            </label>
+          )}
+          {isEditing && (
+            <p className="rounded-card bg-background p-2 text-xs text-muted">
+              更新すると同期状態は「未同期」に戻り、次回の同期対象になります
+            </p>
+          )}
           {error && <p className="text-sm text-primary">{error}</p>}
-          <button
-            type="button"
-            onClick={handleAddToList}
-            className="rounded-card border border-primary px-4 py-3 font-medium text-primary"
-          >
-            この品目をリストに追加してもう1品記録する
-          </button>
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={handleAddToList}
+              className="rounded-card border border-primary px-4 py-3 font-medium text-primary"
+            >
+              この品目をリストに追加してもう1品記録する
+            </button>
+          )}
           <button type="submit" className="rounded-card bg-primary px-4 py-3 font-medium text-white">
-            {pendingItems.length > 0
-              ? `まとめて保存する(${pendingItems.length + (isCurrentItemFilled ? 1 : 0)}件)`
-              : "保存する"}
+            {isEditing
+              ? "更新する"
+              : pendingItems.length > 0
+                ? `まとめて保存する(${pendingItems.length + (isCurrentItemFilled ? 1 : 0)}件)`
+                : "保存する"}
           </button>
+          {isEditing && (
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              className="rounded-card border border-primary px-4 py-2.5 text-sm font-medium text-primary"
+            >
+              この記録を削除する
+            </button>
+          )}
         </section>
       </form>
+
+      {deleteConfirmOpen && (
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center bg-ink/30 px-6"
+          onClick={() => setDeleteConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-card bg-white p-5 shadow-soft"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-1.5 font-rounded text-base font-bold text-ink">この記録を削除しますか?</h2>
+            <p className="mb-4 text-sm text-muted">
+              {name}({kcal}kcal・{MEAL_OPTIONS.find((option) => option.type === mealType)?.label}{" "}
+              {formatDateTime(new Date(dateTime).toISOString())})を削除します。この操作は取り消せません。
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                className="flex-1 rounded-card border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-muted"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="flex-1 rounded-card bg-primary px-4 py-2.5 text-sm font-bold text-white"
+              >
+                削除する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

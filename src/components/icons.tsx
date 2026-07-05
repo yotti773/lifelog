@@ -69,17 +69,6 @@ export function IconPlus(props: IconProps) {
   );
 }
 
-/** 体重計(アクションシートの「体重を記録」) */
-export function IconScale(props: IconProps) {
-  return (
-    <svg {...base({ size: 24, ...props }, "0 0 24 24")}>
-      <path d="M12 4a4 4 0 0 0-4 4h8a4 4 0 0 0-4-4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <rect x="4" y="8" width="16" height="12" rx="3" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M9 13h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 /** フォーク(食事関連) */
 export function IconFork(props: IconProps) {
   return (

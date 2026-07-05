@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Typography from "@mui/material/Typography";
-import { fontRounded, tokens } from "../theme";
+import { fontRounded, tokens } from "@/theme";
 import { IconHome, IconSettings, IconTrends } from "./icons";
 
 const TABS = [

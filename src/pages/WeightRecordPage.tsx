@@ -6,12 +6,12 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import RecordHeader from "../components/RecordHeader";
-import { IconArrow } from "../components/icons";
-import { db } from "../db/db";
-import { getWeightRecord, saveWeightRecord } from "../db/weightRecords";
-import { toDatetimeLocalValue } from "../lib/date";
-import { fontRounded, tokens } from "../theme";
+import RecordHeader from "@/components/RecordHeader";
+import { IconArrow } from "@/components/icons";
+import { db } from "@/db/db";
+import { getWeightRecord, saveWeightRecord } from "@/db/weightRecords";
+import { toDatetimeLocalValue, todayDateString } from "@/lib/date";
+import { fontRounded, tokens } from "@/theme";
 
 type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
 
@@ -31,8 +31,12 @@ function FieldLabel({ children, optional }: { children: React.ReactNode; optiona
 export default function WeightRecordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  // 履歴確認画面(Trends)の行タップから ?date=YYYY-MM-DD 付きで遷移してきた場合は編集モードになる
+  // 履歴確認画面(Trends)の行タップ、またはホーム画面の体重/体脂肪率カードタップから
+  // ?date=YYYY-MM-DD 付きで遷移してきた場合、その日付の既存記録があれば編集モードになる
   const editDate = searchParams.get("date");
+  // ホームからは当日の日付が渡ってくるが、当日分がまだ未記録のこともあるため、
+  // その場合は「見つかりません」ではなく新規入力として扱う
+  const isTodayParam = editDate === todayDateString();
   const [loadStatus, setLoadStatus] = useState<LoadStatus>(editDate ? "loading" : "idle");
   const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [weightKg, setWeightKg] = useState("");
@@ -50,7 +54,7 @@ export default function WeightRecordPage() {
     void getWeightRecord(editDate).then((record) => {
       if (cancelled) return;
       if (!record) {
-        setLoadStatus("not-found");
+        setLoadStatus(isTodayParam ? "idle" : "not-found");
         return;
       }
       setDateTime(toDatetimeLocalValue(record.timestamp));
@@ -94,7 +98,10 @@ export default function WeightRecordPage() {
       note: note.trim() || undefined,
       timestamp: new Date(dateTime).toISOString(),
     });
-    navigate(editDate ? "/trends" : "/", editDate ? { state: { viewMode: "history" } } : undefined);
+    // 履歴確認画面からの編集(今日より前の日付)のみ、保存後は履歴タブに戻す。
+    // ホームからの遷移(当日分の新規/編集)は今まで通りホームに戻る
+    const cameFromHistory = editDate !== null && !isTodayParam;
+    navigate(cameFromHistory ? "/trends" : "/", cameFromHistory ? { state: { viewMode: "history" } } : undefined);
   };
 
   if (loadStatus === "loading") {

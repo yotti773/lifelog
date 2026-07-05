@@ -1,5 +1,5 @@
-import type { DailyCalorieTotal } from "../db/mealRecords";
-import { formatMonthDay } from "../lib/date";
+import type { DailyCalorieTotal } from "@/db/mealRecords";
+import { formatMonthDay } from "@/lib/date";
 
 interface CalorieChartProps {
   data: DailyCalorieTotal[];

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import type { WeightRecord } from "../types";
+import type { WeightRecord } from "@/types";
 
 export interface SaveWeightRecordInput {
   date: string; // YYYY-MM-DD

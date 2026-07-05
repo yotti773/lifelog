@@ -6,23 +6,23 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import GoalBar from "../components/GoalBar";
-import SegmentedControl from "../components/SegmentedControl";
-import WeightHistoryList from "../components/WeightHistoryList";
-import WeightTrendCharts, { type Period } from "../components/WeightTrendCharts";
-import { IconSync } from "../components/icons";
-import { db } from "../db/db";
-import { getDailyCalorieTotals } from "../db/mealRecords";
-import { getSettings } from "../db/settings";
+import GoalBar from "@/components/GoalBar";
+import SegmentedControl from "@/components/SegmentedControl";
+import WeightHistoryList from "@/components/WeightHistoryList";
+import WeightTrendCharts, { type Period } from "@/components/WeightTrendCharts";
+import { IconSync } from "@/components/icons";
+import { db } from "@/db/db";
+import { getDailyCalorieTotals } from "@/db/mealRecords";
+import { getSettings } from "@/db/settings";
 import {
   getAllWeightRecords,
   getAllWeightRecordsDesc,
   getWeightRecord,
   getWeightRecordsByDateRange,
-} from "../db/weightRecords";
-import { dateStringDaysAgo, formatDate, todayDateString } from "../lib/date";
-import { fontRounded, tokens } from "../theme";
-import type { WeightRecord } from "../types";
+} from "@/db/weightRecords";
+import { dateStringDaysAgo, formatDate, todayDateString } from "@/lib/date";
+import { fontRounded, tokens } from "@/theme";
+import type { WeightRecord } from "@/types";
 
 type ViewMode = "chart" | "history";
 

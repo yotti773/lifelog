@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { db } from "../db";
+import { db } from "@/db/db";
 import {
   deleteWeightRecord,
   getAllWeightRecords,
@@ -10,7 +10,7 @@ import {
   markWeightRecordsSynced,
   saveWeightRecord,
   updateWeightRecord,
-} from "../weightRecords";
+} from "@/db/weightRecords";
 
 beforeEach(async () => {
   await db.weightRecords.clear();

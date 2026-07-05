@@ -3,8 +3,8 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import { IconChevronRight } from "./icons";
-import { fontRounded, tokens } from "../theme";
-import type { WeightRecord } from "../types";
+import { fontRounded, tokens } from "@/theme";
+import type { WeightRecord } from "@/types";
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 

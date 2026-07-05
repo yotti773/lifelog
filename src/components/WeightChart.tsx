@@ -1,5 +1,5 @@
-import { formatMonthDay } from "../lib/date";
-import type { WeightRecord } from "../types";
+import { formatMonthDay } from "@/lib/date";
+import type { WeightRecord } from "@/types";
 
 interface WeightChartProps {
   records: WeightRecord[];

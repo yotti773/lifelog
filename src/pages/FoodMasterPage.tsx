@@ -16,16 +16,16 @@ import {
   IconEdit,
   IconSearch,
   IconTrash,
-} from "../components/icons";
+} from "@/components/icons";
 import {
   bulkAddFoodMasterItems,
   deleteFoodMasterItem,
   getAllFoodMasterItems,
   updateFoodMasterItem,
-} from "../db/foodMaster";
-import { foodMasterSeedData } from "../db/foodMasterSeedData";
-import { fontRounded, tokens } from "../theme";
-import type { FoodMasterItem } from "../types";
+} from "@/db/foodMaster";
+import { foodMasterSeedData } from "@/db/foodMasterSeedData";
+import { fontRounded, tokens } from "@/theme";
+import type { FoodMasterItem } from "@/types";
 
 const PAGE_SIZE = 8;
 

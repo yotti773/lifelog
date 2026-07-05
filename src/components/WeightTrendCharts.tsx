@@ -5,9 +5,9 @@ import BodyFatChart from "./BodyFatChart";
 import CalorieChart from "./CalorieChart";
 import SegmentedControl from "./SegmentedControl";
 import WeightChart from "./WeightChart";
-import { fontRounded } from "../theme";
-import type { DailyCalorieTotal } from "../db/mealRecords";
-import type { WeightRecord } from "../types";
+import { fontRounded } from "@/theme";
+import type { DailyCalorieTotal } from "@/db/mealRecords";
+import type { WeightRecord } from "@/types";
 
 export type Period = "week" | "month" | "all";
 

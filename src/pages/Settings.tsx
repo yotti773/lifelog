@@ -18,16 +18,16 @@ import {
   IconPerson,
   IconSun,
   IconSync,
-} from "../components/icons";
-import { getAllFoodMasterItems, bulkAddFoodMasterItems } from "../db/foodMaster";
-import { foodMasterSeedData } from "../db/foodMasterSeedData";
-import { getUnsyncedMealRecords } from "../db/mealRecords";
-import { getSettings, updateSettings } from "../db/settings";
-import { getUnsyncedWeightRecords } from "../db/weightRecords";
-import { formatDateTime } from "../lib/date";
-import { runSync, type SyncOutcome } from "../sync/syncEngine";
-import { workerSheetsTransport } from "../sync/workerSheetsTransport";
-import { fontRounded, tokens } from "../theme";
+} from "@/components/icons";
+import { getAllFoodMasterItems, bulkAddFoodMasterItems } from "@/db/foodMaster";
+import { foodMasterSeedData } from "@/db/foodMasterSeedData";
+import { getUnsyncedMealRecords } from "@/db/mealRecords";
+import { getSettings, updateSettings } from "@/db/settings";
+import { getUnsyncedWeightRecords } from "@/db/weightRecords";
+import { formatDateTime } from "@/lib/date";
+import { runSync, type SyncOutcome } from "@/sync/syncEngine";
+import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
+import { fontRounded, tokens } from "@/theme";
 
 type EditTarget = "weight" | "goalDate" | "baseline" | "calories";
 

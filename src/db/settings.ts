@@ -1,5 +1,5 @@
 import { db } from "./db";
-import type { Settings } from "../types";
+import type { Settings } from "@/types";
 
 const SETTINGS_ID = "default" as const;
 

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { db } from "../../db/db";
-import { addMealRecord, getUnsyncedMealRecords } from "../../db/mealRecords";
-import { getSettings } from "../../db/settings";
-import { getUnsyncedWeightRecords, saveWeightRecord } from "../../db/weightRecords";
-import { runSync } from "../syncEngine";
-import { SyncNotConfiguredError } from "../notConfiguredTransport";
-import type { SyncPushPayload, SyncPushResult, SyncTransport } from "../types";
+import { db } from "@/db/db";
+import { addMealRecord, getUnsyncedMealRecords } from "@/db/mealRecords";
+import { getSettings } from "@/db/settings";
+import { getUnsyncedWeightRecords, saveWeightRecord } from "@/db/weightRecords";
+import { runSync } from "@/sync/syncEngine";
+import { SyncNotConfiguredError } from "@/sync/notConfiguredTransport";
+import type { SyncPushPayload, SyncPushResult, SyncTransport } from "@/sync/types";
 
 beforeEach(async () => {
   await db.weightRecords.clear();

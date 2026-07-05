@@ -1,6 +1,6 @@
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
-import { fontRounded, tokens } from "../theme";
+import { fontRounded, tokens } from "@/theme";
 
 interface SegmentedControlProps<T extends string> {
   options: readonly { value: T; label: string }[];

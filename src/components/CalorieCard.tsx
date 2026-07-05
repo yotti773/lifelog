@@ -2,7 +2,7 @@ import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import LinearProgress from "@mui/material/LinearProgress";
 import Typography from "@mui/material/Typography";
-import { accent, fontRounded, tokens } from "../theme";
+import { accent, fontRounded, tokens } from "@/theme";
 
 interface CalorieCardProps {
   consumedKcal: number;

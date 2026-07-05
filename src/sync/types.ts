@@ -1,4 +1,4 @@
-import type { MealRecord, WeightRecord } from "../types";
+import type { MealRecord, WeightRecord } from "@/types";
 
 export interface SyncPushPayload {
   weightRecords: WeightRecord[];

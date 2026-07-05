@@ -1,6 +1,6 @@
-import { getUnsyncedMealRecords, markMealRecordsSynced } from "../db/mealRecords";
-import { updateSettings } from "../db/settings";
-import { getUnsyncedWeightRecords, markWeightRecordsSynced } from "../db/weightRecords";
+import { getUnsyncedMealRecords, markMealRecordsSynced } from "@/db/mealRecords";
+import { updateSettings } from "@/db/settings";
+import { getUnsyncedWeightRecords, markWeightRecordsSynced } from "@/db/weightRecords";
 import { notConfiguredTransport } from "./notConfiguredTransport";
 import type { SyncTransport } from "./types";
 

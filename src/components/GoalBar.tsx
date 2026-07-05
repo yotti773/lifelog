@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
-import { accent, fontRounded, tokens } from "../theme";
+import { accent, fontRounded, tokens } from "@/theme";
 
 interface GoalBarProps {
   startWeightKg: number;

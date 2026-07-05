@@ -6,8 +6,8 @@ import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { IconChevronRight, IconSearch } from "./icons";
-import { fontRounded, tokens } from "../theme";
-import type { FoodMasterItem } from "../types";
+import { fontRounded, tokens } from "@/theme";
+import type { FoodMasterItem } from "@/types";
 
 interface FoodMasterPickerProps {
   items: FoodMasterItem[];

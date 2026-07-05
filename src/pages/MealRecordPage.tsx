@@ -14,16 +14,16 @@ import DialogTitle from "@mui/material/DialogTitle";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { judgeMealPhoto, type MealJudgment } from "../api/judgeMeal";
-import FoodMasterPicker from "../components/FoodMasterPicker";
-import RecordHeader from "../components/RecordHeader";
-import SegmentedControl from "../components/SegmentedControl";
-import { IconCamera, IconLibrary, IconPlus } from "../components/icons";
-import { addFoodMasterItem, getAllFoodMasterItems } from "../db/foodMaster";
-import { addMealRecord, deleteMealRecord, getMealRecord, updateMealRecord } from "../db/mealRecords";
-import { formatDateTime, nearestMealType, toDatetimeLocalValue } from "../lib/date";
-import { accent, fontRounded, tokens } from "../theme";
-import type { FoodMasterItem, MealType } from "../types";
+import { judgeMealPhoto, type MealJudgment } from "@/api/judgeMeal";
+import FoodMasterPicker from "@/components/FoodMasterPicker";
+import RecordHeader from "@/components/RecordHeader";
+import SegmentedControl from "@/components/SegmentedControl";
+import { IconCamera, IconLibrary, IconPlus } from "@/components/icons";
+import { addFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
+import { addMealRecord, deleteMealRecord, getMealRecord, updateMealRecord } from "@/db/mealRecords";
+import { formatDateTime, nearestMealType, toDatetimeLocalValue } from "@/lib/date";
+import { accent, fontRounded, tokens } from "@/theme";
+import type { FoodMasterItem, MealType } from "@/types";
 
 const MEAL_OPTIONS = [
   { value: "breakfast", label: "朝食" },
@@ -31,6 +31,11 @@ const MEAL_OPTIONS = [
   { value: "dinner", label: "夕食" },
   { value: "snack", label: "間食" },
 ] as const;
+
+const MEAL_TYPES = MEAL_OPTIONS.map((option) => option.value);
+function isMealType(value: string | null): value is MealType {
+  return value !== null && (MEAL_TYPES as readonly string[]).includes(value);
+}
 
 // PFC入力欄のラベル色(ハンドオフモックの系列色。theme.tsのaccent注記参照)
 const PFC_FIELDS = [
@@ -73,8 +78,13 @@ export default function MealRecordPage() {
   const [searchParams] = useSearchParams();
   // ホーム画面の品目タップから ?id=<MealRecord.id> 付きで遷移してきた場合は編集モードになる
   const editId = searchParams.get("id");
+  // ホーム画面の食事区分ラベルタップから ?type=<MealType> 付きで遷移してきた場合、
+  // その区分をプリセットした状態で新規記録を開く(編集時はレコードの区分を優先するため無視する)
+  const presetType = searchParams.get("type");
   const [loadStatus, setLoadStatus] = useState<LoadStatus>(editId ? "loading" : "idle");
-  const [mealType, setMealType] = useState<MealType>(() => nearestMealType());
+  const [mealType, setMealType] = useState<MealType>(() =>
+    !editId && isMealType(presetType) ? presetType : nearestMealType(),
+  );
   const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [name, setName] = useState("");
   const [kcal, setKcal] = useState("");

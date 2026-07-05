@@ -54,6 +54,11 @@ export async function getAllMealRecords(): Promise<MealRecord[]> {
   return db.mealRecords.orderBy("timestamp").toArray();
 }
 
+/** 履歴確認画面用: タイムスタンプ降順(新しい記録が先頭)で全件取得する */
+export async function getAllMealRecordsDesc(): Promise<MealRecord[]> {
+  return db.mealRecords.orderBy("timestamp").reverse().toArray();
+}
+
 export async function getMealRecordsByDateRange(
   startDate: string,
   endDate: string,

@@ -7,12 +7,13 @@ import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import GoalBar from "@/components/GoalBar";
+import MealHistoryList from "@/components/MealHistoryList";
 import SegmentedControl from "@/components/SegmentedControl";
 import WeightHistoryList from "@/components/WeightHistoryList";
 import WeightTrendCharts, { type Period } from "@/components/WeightTrendCharts";
 import { IconSync } from "@/components/icons";
 import { db } from "@/db/db";
-import { getDailyCalorieTotals } from "@/db/mealRecords";
+import { getAllMealRecordsDesc, getDailyCalorieTotals } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
 import {
   getAllWeightRecords,
@@ -22,13 +23,19 @@ import {
 } from "@/db/weightRecords";
 import { dateStringDaysAgo, formatDate, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
-import type { WeightRecord } from "@/types";
+import type { MealRecord, WeightRecord } from "@/types";
 
 type ViewMode = "chart" | "history";
+type HistoryKind = "weight" | "meal";
 
 const VIEW_MODE_OPTIONS = [
   { value: "chart", label: "グラフ" },
   { value: "history", label: "履歴" },
+] as const;
+
+const HISTORY_KIND_OPTIONS = [
+  { value: "weight", label: "体重" },
+  { value: "meal", label: "食事" },
 ] as const;
 
 export default function Trends() {
@@ -38,6 +45,7 @@ export default function Trends() {
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (location.state as { viewMode?: ViewMode } | null)?.viewMode ?? "chart",
   );
+  const [historyKind, setHistoryKind] = useState<HistoryKind>("weight");
   const [historyFrom, setHistoryFrom] = useState("");
   const [historyTo, setHistoryTo] = useState("");
 
@@ -75,11 +83,21 @@ export default function Trends() {
     return getDailyCalorieTotals(dateStringDaysAgo(days), endDate);
   }, [period]);
 
-  // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書9章、詳細は今後検討)。
-  // 履歴タブを開いていない間はDexieへ問い合わせない(グラフ表示中の無駄なフルスキャンを避ける)
+  // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書5.1章)。
+  // 表示していない種別・タブに対してはDexieへ問い合わせない(無駄なフルスキャンを避ける)
   const historyRecords = useLiveQuery(
-    () => (viewMode === "history" ? getAllWeightRecordsDesc() : Promise.resolve<WeightRecord[]>([])),
-    [viewMode],
+    () =>
+      viewMode === "history" && historyKind === "weight"
+        ? getAllWeightRecordsDesc()
+        : Promise.resolve<WeightRecord[]>([]),
+    [viewMode, historyKind],
+  );
+  const mealHistoryRecords = useLiveQuery(
+    () =>
+      viewMode === "history" && historyKind === "meal"
+        ? getAllMealRecordsDesc()
+        : Promise.resolve<MealRecord[]>([]),
+    [viewMode, historyKind],
   );
 
   if (
@@ -89,7 +107,8 @@ export default function Trends() {
     baselineWeightRecord === undefined ||
     weightChartRecords === undefined ||
     calorieDailyTotals === undefined ||
-    historyRecords === undefined
+    historyRecords === undefined ||
+    mealHistoryRecords === undefined
   ) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
@@ -101,6 +120,12 @@ export default function Trends() {
   const filteredHistory = historyRecords.filter(
     (record) => (!historyFrom || record.date >= historyFrom) && (!historyTo || record.date <= historyTo),
   );
+  // 食事はtimestamp(UTC ISO)を持つため、ローカル日付に直してからFrom/Toで絞り込む
+  const filteredMealHistory = mealHistoryRecords.filter((record) => {
+    const date = formatDate(new Date(record.timestamp));
+    return (!historyFrom || date >= historyFrom) && (!historyTo || date <= historyTo);
+  });
+  const historyCount = historyKind === "weight" ? filteredHistory.length : filteredMealHistory.length;
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, display: "flex", flexDirection: "column", gap: "14px", px: "20px", pt: "24px", pb: "130px" }}>
@@ -135,6 +160,7 @@ export default function Trends() {
         </>
       ) : (
         <>
+          <SegmentedControl options={HISTORY_KIND_OPTIONS} value={historyKind} onChange={setHistoryKind} />
           <Box sx={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <TextField
               type="date"
@@ -175,13 +201,20 @@ export default function Trends() {
             </ButtonBase>
           </Box>
           <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
-            {filteredHistory.length}件・新しい順(タップで編集)
+            {historyCount}件・新しい順(タップで編集)
           </Typography>
-          <WeightHistoryList
-            records={filteredHistory}
-            baselineDate={settings.baselineDate}
-            onSelect={(date) => navigate(`/record/weight?date=${date}`)}
-          />
+          {historyKind === "weight" ? (
+            <WeightHistoryList
+              records={filteredHistory}
+              baselineDate={settings.baselineDate}
+              onSelect={(date) => navigate(`/record/weight?date=${date}`)}
+            />
+          ) : (
+            <MealHistoryList
+              records={filteredMealHistory}
+              onSelect={(id) => navigate(`/record/meal?id=${id}`)}
+            />
+          )}
         </>
       )}
     </Box>

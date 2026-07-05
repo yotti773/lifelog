@@ -323,10 +323,13 @@ export default function FoodMasterPage() {
             size="small"
             value={addName}
             onChange={(e) => setAddName(e.target.value)}
-            placeholder="品目名"
+            placeholder="品目名(例: 【モス】モスバーガー)"
             autoFocus
-            sx={{ mb: "8px" }}
+            sx={{ mb: "4px" }}
           />
+          <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "8px", px: "2px" }}>
+            外食チェーン・コンビニの商品は店名を含めておくと一覧で見分けやすくなります
+          </Typography>
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", mb: "8px" }}>
             <TextField size="small" type="number" value={addKcal} onChange={(e) => setAddKcal(e.target.value)} placeholder="kcal" />
             <TextField size="small" type="number" value={addProteinG} onChange={(e) => setAddProteinG(e.target.value)} placeholder="P" />

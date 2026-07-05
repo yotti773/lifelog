@@ -9,6 +9,7 @@ import Settings from "./pages/Settings";
 import WeightRecordPage from "./pages/WeightRecordPage";
 import MealRecordPage from "./pages/MealRecordPage";
 import { runSync } from "./sync/syncEngine";
+import { workerSheetsTransport } from "./sync/workerSheetsTransport";
 
 export default function App() {
   const [isActionSheetOpen, setActionSheetOpen] = useState(false);
@@ -16,7 +17,7 @@ export default function App() {
   // アプリ起動時にオンラインであれば未同期分の同期を試みる(画面設計書7章「トリガー」参照)。
   // 失敗は静かに無視する(未同期フラグは維持されるので設定画面から手動再試行できる)。
   useEffect(() => {
-    void runSync();
+    void runSync({ transport: workerSheetsTransport });
   }, []);
 
   return (

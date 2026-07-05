@@ -8,6 +8,7 @@ import { getSettings, updateSettings } from "../db/settings";
 import { getUnsyncedWeightRecords } from "../db/weightRecords";
 import { formatDateTime } from "../lib/date";
 import { runSync, type SyncOutcome } from "../sync/syncEngine";
+import { workerSheetsTransport } from "../sync/workerSheetsTransport";
 import type { FoodMasterItem } from "../types";
 
 function syncOutcomeMessage(outcome: SyncOutcome): string {
@@ -73,7 +74,7 @@ export default function Settings() {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const outcome = await runSync();
+      const outcome = await runSync({ transport: workerSheetsTransport });
       setSyncMessage(syncOutcomeMessage(outcome));
     } finally {
       setSyncing(false);

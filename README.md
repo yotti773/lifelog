@@ -8,7 +8,7 @@
 
 - **体重記録**: 日々の体重を記録し、推移グラフと目標(基準日→目標体重)の進捗バーを表示
 - **食事記録**: 写真を撮影 → Cloudflare Workers 経由で Google Gemini API(Vision)がカロリー・PFC(たんぱく質/脂質/炭水化物)を推定 → 手動で修正・確定
-- **データ同期**: IndexedDB に保存した未同期の記録を、オンライン時にスプレッドシートへ書き出し(現状は未実装、下記「開発状況」参照)
+- **データ同期**: IndexedDB に保存した未同期の記録を、オンライン時に Cloudflare Workers 経由で Google Sheets(専用の新規スプレッドシート)へ書き出し
 - **バックアップ**: JSON エクスポート/インポートによる手動バックアップ・機種変更対応
 - **PWA**: オフラインでも記録可能、ホーム画面に追加してアプリのように利用可能
 
@@ -32,7 +32,7 @@ src/
   sync/       スプレッドシート同期エンジン(トランスポート非依存)
   pages/      画面(Home, WeightRecordPage, MealRecordPage, Trends, Settings)
   components/ 手書き SVG チャートなどの UI 部品
-worker/       Cloudflare Workers: 静的アセット配信 + 写真AI判定API(/api/judge-meal)
+worker/       Cloudflare Workers: 静的アセット配信 + 写真AI判定API(/api/judge-meal) + スプレッドシート同期API(/api/sync-sheets)
 docs/         要件定義書・画面設計書・デザインガイド
 ```
 
@@ -40,7 +40,7 @@ docs/         要件定義書・画面設計書・デザインガイド
 
 ```
 npm install
-cp .dev.vars.example .dev.vars   # GEMINI_API_KEY を設定(Worker のローカル実行に必要)
+cp .dev.vars.example .dev.vars   # GEMINI_API_KEY・Google Sheets関連の値を設定(Worker のローカル実行に必要)
 ```
 
 ## 開発コマンド
@@ -51,7 +51,7 @@ npm run build            # tsc -b && vite build(PWA の Service Worker も生成
 npm run test             # vitest run(全テスト)
 npx vitest run <path>    # 単一テストファイルのみ実行
 npm run preview          # 本番ビルドをローカルで確認(実際の PWA/インストール挙動の確認用)
-npm run worker:dev       # wrangler dev で Worker(/api/judge-meal 含む)をローカル実行
+npm run worker:dev       # wrangler dev で Worker(/api/judge-meal・/api/sync-sheets 含む)をローカル実行
 ```
 
 `npm run lint` は package.json に定義されているが ESLint 未導入のため動作しない。
@@ -62,4 +62,4 @@ Cloudflare Workers(Git 連携)で `main` ブランチへの push を契機に自
 
 ## 開発状況・残タスク
 
-MVP(体重記録・食事記録)は実装済み。スプレッドシート同期(`src/sync/notConfiguredTransport.ts` が未実装のプレースホルダー)をはじめ、残っているタスクは GitHub Issues で管理している。詳細は [Issues](../../issues) を参照。
+MVP(体重記録・食事記録・スプレッドシート同期)は実装済み。残っているタスクは GitHub Issues で管理している。詳細は [Issues](../../issues) を参照。

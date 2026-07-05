@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#EAE0D3;font-family:'Noto Sans JP',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box}
+  @keyframes blink{0%,50%{opacity:1}50.01%,100%{opacity:0}}
+  .dev{width:392px;background:#141414;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(60,30,10,.4),0 0 0 1px rgba(0,0,0,.06);flex-shrink:0}
+  .scr{position:relative;width:370px;height:806px;background:#FFF8F0;border-radius:42px;overflow:hidden}
+  .sb{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;z-index:20;pointer-events:none}
+  .sb-t{font:700 15px 'M PLUS Rounded 1c';color:#2B2B2B}
+  .fld-lbl{font:500 12px 'Noto Sans JP';color:#8C8C8C;margin-bottom:7px;display:block}
+  .fld{width:100%;background:#fff;border:1.5px solid #F0E7DB;border-radius:14px;padding:13px 15px;font:500 15px 'Noto Sans JP';color:#2B2B2B;box-shadow:0 4px 12px -8px rgba(120,60,20,.2)}
+  .ph-cap{font:600 11px ui-monospace,Menlo,monospace;color:rgba(90,60,30,.55);text-align:center;letter-spacing:.06em;margin-top:16px}
+  .arrow{align-self:center;flex-shrink:0;color:#C3B29A}
+  .key{background:#fff;border-radius:11px;display:flex;align-items:center;justify-content:center;font:500 24px 'M PLUS Rounded 1c';color:#2B2B2B;box-shadow:0 1.5px 0 rgba(120,60,20,.12);height:46px}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;align-items:flex-start;gap:16px;padding:56px 60px;background:radial-gradient(120% 70% at 50% 0%,#F3ECE2 0%,#E7DCCD 100%);width:max-content">
+
+  <!-- ============ 1. アクションシート ============ -->
+  <div>
+    <div class="dev"><div class="scr">
+      <div class="sb"><span class="sb-t">9:41</span><div style="display:flex;gap:6px;color:#2B2B2B"><svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1" opacity=".35"/></svg><svg width="24" height="12" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="3" stroke="currentColor" stroke-width="1.2" opacity=".5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.5" fill="currentColor"/><rect x="21" y="4" width="1.6" height="4" rx="1" fill="currentColor" opacity=".5"/></svg></div></div>
+
+      <!-- dimmed home behind -->
+      <div style="position:absolute;inset:0;padding:60px 20px;filter:saturate(.9)">
+        <div style="font:700 22px 'M PLUS Rounded 1c';color:#2B2B2B;margin-bottom:16px">7月4日<span style="font-size:15px;color:#8C8C8C;margin-left:6px;font-weight:500">金曜日</span></div>
+        <div style="background:#fff;border-radius:22px;height:150px;box-shadow:0 10px 26px -14px rgba(120,60,20,.28)"></div>
+      </div>
+      <div style="position:absolute;inset:0;background:rgba(30,15,5,.42);backdrop-filter:blur(1.5px)"></div>
+
+      <!-- sheet -->
+      <div style="position:absolute;left:0;right:0;bottom:0;background:#FFF8F0;border-radius:28px 28px 0 0;padding:12px 20px 30px;box-shadow:0 -20px 50px -20px rgba(0,0,0,.3)">
+        <div style="width:40px;height:5px;border-radius:3px;background:#E2D8C9;margin:0 auto 18px"></div>
+        <div style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B;text-align:center;margin-bottom:18px">記録する</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:15px;background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 8px 20px -14px rgba(120,60,20,.28)">
+            <div style="width:48px;height:48px;border-radius:15px;background:#E4F7F5;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 4a4 4 0 0 0-4 4h8a4 4 0 0 0-4-4Z" stroke="#2EC4B6" stroke-width="1.8" stroke-linejoin="round"/><rect x="4" y="8" width="16" height="12" rx="3" stroke="#2EC4B6" stroke-width="1.8"/><path d="M9 13h6" stroke="#2EC4B6" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <div style="flex:1"><div style="font:700 15px 'M PLUS Rounded 1c';color:#2B2B2B">体重を記録</div><div style="font:400 12px 'Noto Sans JP';color:#8C8C8C;margin-top:2px">体重・体脂肪率・メモ</div></div>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 4l5 5-5 5" stroke="#C3B29A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display:flex;align-items:center;gap:15px;background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 8px 20px -14px rgba(120,60,20,.28)">
+            <div style="width:48px;height:48px;border-radius:15px;background:#FFEDE6;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M7 3v7a2 2 0 0 0 2 2v9M9 3v6M5 3v6M17 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4v9" stroke="#FF6B4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div style="flex:1"><div style="font:700 15px 'M PLUS Rounded 1c';color:#2B2B2B">食事を記録</div><div style="font:400 12px 'Noto Sans JP';color:#8C8C8C;margin-top:2px">写真AI判定・手入力・マスタ</div></div>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 4l5 5-5 5" stroke="#C3B29A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="text-align:center;font:700 14px 'M PLUS Rounded 1c';color:#8C8C8C;padding:13px;margin-top:2px">キャンセル</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="ph-cap">＋ ACTION SHEET</div>
+  </div>
+
+  <svg class="arrow" width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M4 13h18M15 6l7 7-7 7" stroke="#C3B29A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+
+  <!-- ============ 2. 体重記録 ============ -->
+  <div>
+    <div class="dev"><div class="scr">
+      <div class="sb"><span class="sb-t">9:41</span><div style="display:flex;gap:6px;color:#2B2B2B"><svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1" opacity=".35"/></svg><svg width="24" height="12" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="3" stroke="currentColor" stroke-width="1.2" opacity=".5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.5" fill="currentColor"/><rect x="21" y="4" width="1.6" height="4" rx="1" fill="currentColor" opacity=".5"/></svg></div></div>
+
+      <!-- nav -->
+      <div style="position:absolute;top:52px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:15">
+        <div style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">体重を記録</span>
+        <div style="width:38px"></div>
+      </div>
+
+      <div style="position:absolute;top:104px;left:0;right:0;bottom:0;padding:14px 20px 0;overflow-y:auto">
+        <!-- 日時 -->
+        <label class="fld-lbl">日時</label>
+        <div class="fld" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <span>2026/7/4（金）21:40</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6h12M4 2v2M12 2v2" stroke="#C3B29A" stroke-width="1.5" stroke-linecap="round"/><rect x="2" y="4" width="12" height="10" rx="2" stroke="#C3B29A" stroke-width="1.5"/></svg>
+        </div>
+
+        <!-- 体重 (focused) -->
+        <label class="fld-lbl">体重</label>
+        <div style="background:#fff;border:2px solid #FF6B4A;border-radius:16px;padding:16px 18px;display:flex;align-items:baseline;gap:6px;box-shadow:0 8px 22px -12px rgba(255,107,74,.5);margin-bottom:8px">
+          <span style="font:800 40px 'M PLUS Rounded 1c';color:#2B2B2B;line-height:1">72.1</span>
+          <span style="width:2px;height:34px;background:#FF6B4A;align-self:center;animation:blink 1s steps(1) infinite"></span>
+          <span style="font:500 18px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:auto">kg</span>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:4px;margin-bottom:20px">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 9.5V2.5M6 9.5L3 6.5M6 9.5L9 6.5" stroke="#2EC4B6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font:700 13px 'M PLUS Rounded 1c';color:#2EC4B6">前回比 0.3kg</span>
+        </div>
+
+        <!-- 体脂肪率 -->
+        <label class="fld-lbl">体脂肪率<span style="color:#C3B29A;font-weight:400">（任意）</span></label>
+        <div class="fld" style="display:flex;align-items:baseline;margin-bottom:20px">
+          <span style="font:700 18px 'M PLUS Rounded 1c'">22.4</span><span style="color:#8C8C8C;margin-left:auto;font-weight:500">%</span>
+        </div>
+
+        <!-- メモ -->
+        <label class="fld-lbl">メモ<span style="color:#C3B29A;font-weight:400">（任意）</span></label>
+        <div class="fld" style="color:#B7AE9F;font-weight:400">筋トレ後 / 飲み会翌日 など</div>
+      </div>
+
+      <!-- 保存 + keypad -->
+      <sc-if value="{{ showKeypad }}" hint-placeholder-val="{{ true }}">
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#EDE4D7;padding:10px 6px 30px;box-shadow:0 -8px 24px -16px rgba(0,0,0,.3)">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:0 6px">
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+            <div class="key" style="background:transparent;box-shadow:none">.</div><div class="key">0</div>
+            <div class="key" style="background:transparent;box-shadow:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 5h11v14H9l-6-7 6-7Z" stroke="#8C8C8C" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 10l4 4M16 10l-4 4" stroke="#8C8C8C" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ noKeypad }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 20px 26px;background:linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 30%)">
+          <div style="height:54px;border-radius:16px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;font:700 16px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 12px 24px -10px rgba(255,90,56,.6)">保存する</div>
+        </div>
+      </sc-if>
+    </div></div>
+    <div class="ph-cap">WEIGHT INPUT</div>
+  </div>
+
+  <svg class="arrow" width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M4 13h18M15 6l7 7-7 7" stroke="#C3B29A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+
+  <!-- ============ 3. 食事記録 ============ -->
+  <div>
+    <div class="dev"><div class="scr">
+      <div class="sb"><span class="sb-t">9:41</span><div style="display:flex;gap:6px;color:#2B2B2B"><svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1" opacity=".35"/></svg><svg width="24" height="12" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="3" stroke="currentColor" stroke-width="1.2" opacity=".5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.5" fill="currentColor"/><rect x="21" y="4" width="1.6" height="4" rx="1" fill="currentColor" opacity=".5"/></svg></div></div>
+
+      <div style="position:absolute;top:52px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:15;background:rgba(255,248,240,.92);backdrop-filter:blur(8px)">
+        <div style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">食事を記録</span>
+        <span style="font:700 14px 'M PLUS Rounded 1c';color:#C3B29A">保存</span>
+      </div>
+
+      <div style="position:absolute;top:104px;left:0;right:0;bottom:0;padding:14px 20px 100px;overflow-y:auto">
+        <!-- 区分 segmented -->
+        <label class="fld-lbl">区分</label>
+        <div style="display:flex;gap:6px;background:#F1E9DE;padding:4px;border-radius:14px;margin-bottom:18px">
+          <div style="flex:1;text-align:center;padding:9px 0;border-radius:10px;font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">朝食</div>
+          <div style="flex:1;text-align:center;padding:9px 0;border-radius:10px;font:700 13px 'M PLUS Rounded 1c';color:#fff;background:#FF6B4A;box-shadow:0 6px 14px -6px rgba(255,90,56,.6)">昼食</div>
+          <div style="flex:1;text-align:center;padding:9px 0;border-radius:10px;font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">夕食</div>
+          <div style="flex:1;text-align:center;padding:9px 0;border-radius:10px;font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">間食</div>
+        </div>
+
+        <!-- AI reflected note -->
+        <div style="display:flex;align-items:center;gap:8px;background:#E4F7F5;border-radius:12px;padding:10px 13px;margin-bottom:16px">
+          <span style="font-size:15px">✨</span>
+          <span style="font:500 12px 'Noto Sans JP';color:#1B8B80">写真AIの判定結果を反映しました。確認して修正できます</span>
+        </div>
+
+        <!-- 手入力フォーム -->
+        <label class="fld-lbl">料理名</label>
+        <div class="fld" style="margin-bottom:16px">唐揚げ弁当（ご飯少なめ）</div>
+
+        <label class="fld-lbl">カロリー</label>
+        <div class="fld" style="display:flex;align-items:baseline;margin-bottom:16px"><span style="font:700 18px 'M PLUS Rounded 1c'">680</span><span style="color:#8C8C8C;margin-left:auto;font-weight:500">kcal</span></div>
+
+        <label class="fld-lbl">PFC（たんぱく質 / 脂質 / 炭水化物）</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:18px">
+          <div style="background:#fff;border:1.5px solid #F0E7DB;border-radius:14px;padding:11px 10px;text-align:center;box-shadow:0 4px 12px -8px rgba(120,60,20,.2)"><div style="font:700 10px 'Noto Sans JP';color:#FF6B4A;margin-bottom:4px">P</div><div style="font:700 18px 'M PLUS Rounded 1c';color:#2B2B2B">28<span style="font-size:11px;color:#8C8C8C;font-weight:500">g</span></div></div>
+          <div style="background:#fff;border:1.5px solid #F0E7DB;border-radius:14px;padding:11px 10px;text-align:center;box-shadow:0 4px 12px -8px rgba(120,60,20,.2)"><div style="font:700 10px 'Noto Sans JP';color:#FFC145;margin-bottom:4px">F</div><div style="font:700 18px 'M PLUS Rounded 1c';color:#2B2B2B">24<span style="font-size:11px;color:#8C8C8C;font-weight:500">g</span></div></div>
+          <div style="background:#fff;border:1.5px solid #F0E7DB;border-radius:14px;padding:11px 10px;text-align:center;box-shadow:0 4px 12px -8px rgba(120,60,20,.2)"><div style="font:700 10px 'Noto Sans JP';color:#2EC4B6;margin-bottom:4px">C</div><div style="font:700 18px 'M PLUS Rounded 1c';color:#2B2B2B">78<span style="font-size:11px;color:#8C8C8C;font-weight:500">g</span></div></div>
+        </div>
+
+        <!-- 写真から記録する -->
+        <div style="background:#fff;border-radius:18px;padding:15px;margin-bottom:14px;box-shadow:0 8px 20px -14px rgba(120,60,20,.26)">
+          <div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B;margin-bottom:12px">📷 写真から記録する</div>
+          <div style="display:flex;gap:11px;margin-bottom:12px">
+            <div style="width:78px;height:78px;border-radius:14px;background-image:repeating-linear-gradient(45deg,#F4EEE4 0 8px,#EDE5D8 8px 16px);flex-shrink:0;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center"><span style="font-size:26px">🍱</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+              <div style="flex:1;background:#FFEDE6;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="12" rx="3" stroke="#FF6B4A" stroke-width="1.6"/><circle cx="10" cy="11" r="3" stroke="#FF6B4A" stroke-width="1.6"/><path d="M7 5l1.5-2h3L13 5" stroke="#FF6B4A" stroke-width="1.6" stroke-linejoin="round"/></svg><span style="font:700 12px 'M PLUS Rounded 1c';color:#FF6B4A">撮影</span></div>
+              <div style="flex:1;background:#F4EEE4;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="3" stroke="#8C8C8C" stroke-width="1.6"/><circle cx="7.5" cy="7.5" r="1.5" fill="#8C8C8C"/><path d="M4 14l4-4 4 4 3-3 2 2" stroke="#8C8C8C" stroke-width="1.6" stroke-linejoin="round"/></svg><span style="font:700 12px 'M PLUS Rounded 1c';color:#8C8C8C">ライブラリ</span></div>
+            </div>
+          </div>
+          <div style="background:#FBFAF7;border:1.5px solid #F0E7DB;border-radius:11px;padding:10px 12px;font:400 12px 'Noto Sans JP';color:#8C8C8C">補足：唐揚げ弁当、ご飯少なめ</div>
+          <sc-if value="{{ aiWarn }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-start;gap:7px;margin-top:10px;background:#FBF1DD;border-radius:10px;padding:9px 11px">
+              <span style="font-size:13px;line-height:1.4">⚠️</span>
+              <span style="font:500 11px 'Noto Sans JP';color:#B07E1E;line-height:1.5">複数の料理が写っているため、判定の精度が低い可能性があります。数値をご確認ください</span>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- よく食べるものから選ぶ -->
+        <div style="background:#fff;border-radius:18px;padding:15px;box-shadow:0 8px 20px -14px rgba(120,60,20,.26)">
+          <div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B;margin-bottom:12px">🔖 よく食べるものから選ぶ</div>
+          <div style="background:#F4EEE4;border-radius:11px;padding:10px 13px;display:flex;align-items:center;gap:8px;margin-bottom:12px"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="#B7AE9F" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="#B7AE9F" stroke-width="1.6" stroke-linecap="round"/></svg><span style="font:400 12px 'Noto Sans JP';color:#B7AE9F">品目名で検索</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #F4EEE4"><div style="flex:1"><div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">サラダチキン（プレーン）</div><div style="font:400 11px 'Noto Sans JP';color:#8C8C8C;margin-top:2px">P24 / F1.5 / C0g</div></div><span style="font:700 14px 'M PLUS Rounded 1c';color:#2B2B2B">113<span style="font-size:10px;color:#8C8C8C;font-weight:500">kcal</span></span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #F4EEE4"><div style="flex:1"><div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">おにぎり（鮭）</div><div style="font:400 11px 'Noto Sans JP';color:#8C8C8C;margin-top:2px">P4 / F1 / C39g</div></div><span style="font:700 14px 'M PLUS Rounded 1c';color:#2B2B2B">180<span style="font-size:10px;color:#8C8C8C;font-weight:500">kcal</span></span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 4px"><div style="flex:1"><div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">プロテイン（ザバス）</div><div style="font:400 11px 'Noto Sans JP';color:#8C8C8C;margin-top:2px">P15 / F1.5 / C4g</div></div><span style="font:700 14px 'M PLUS Rounded 1c';color:#2B2B2B">92<span style="font-size:10px;color:#8C8C8C;font-weight:500">kcal</span></span></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid #F4EEE4">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 4l-4 4 4 4" stroke="#C3B29A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font:600 11px 'M PLUS Rounded 1c';color:#8C8C8C">1 / 3 ページ</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#FF6B4A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+
+        <!-- add item + master checkbox -->
+        <div style="margin-top:14px;height:48px;border:1.5px dashed #E0B7A8;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:7px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="#FF6B4A" stroke-width="1.7" stroke-linecap="round"/></svg><span style="font:700 13px 'M PLUS Rounded 1c';color:#FF6B4A">この品目を追加してもう1品記録</span></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:16px;padding:0 2px">
+          <div style="width:22px;height:22px;border-radius:7px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 7l2.5 2.5L10 4" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <span style="font:500 13px 'Noto Sans JP';color:#2B2B2B">この内容をマスタに登録する</span>
+        </div>
+      </div>
+
+      <!-- 保存 -->
+      <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 20px 26px;background:linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 34%)">
+        <div style="height:54px;border-radius:16px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;font:700 16px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 12px 24px -10px rgba(255,90,56,.6)">保存する</div>
+      </div>
+    </div></div>
+    <div class="ph-cap">MEAL INPUT（1画面）</div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:900},&quot;showKeypad&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;体重画面&quot;},&quot;aiWarn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;食事画面&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const showKeypad = this.props.showKeypad ?? true;
+    return {
+      showKeypad,
+      noKeypad: !showKeypad,
+      aiWarn: this.props.aiWarn ?? false,
+    };
+  }
+}
+</script>
+</body>
+</html>

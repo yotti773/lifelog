@@ -14,10 +14,12 @@ import {
   IconChevronRight,
   IconDownload,
   IconEdit,
+  IconPlus,
   IconSearch,
   IconTrash,
 } from "@/components/icons";
 import {
+  addFoodMasterItem,
   bulkAddFoodMasterItems,
   deleteFoodMasterItem,
   getAllFoodMasterItems,
@@ -43,6 +45,12 @@ export default function FoodMasterPage() {
   const [editCarbsG, setEditCarbsG] = useState("");
   const [isSeeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
+  const [isAdding, setAdding] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addKcal, setAddKcal] = useState("");
+  const [addProteinG, setAddProteinG] = useState("");
+  const [addFatG, setAddFatG] = useState("");
+  const [addCarbsG, setAddCarbsG] = useState("");
 
   if (items === undefined) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
@@ -86,6 +94,36 @@ export default function FoodMasterPage() {
     } finally {
       setSeeding(false);
     }
+  };
+
+  const resetAddForm = () => {
+    setAddName("");
+    setAddKcal("");
+    setAddProteinG("");
+    setAddFatG("");
+    setAddCarbsG("");
+  };
+
+  const cancelAdd = () => {
+    resetAddForm();
+    setAdding(false);
+  };
+
+  const saveAdd = async () => {
+    const name = addName.trim();
+    if (!name) return;
+    await addFoodMasterItem({
+      name,
+      kcal: Number(addKcal) || 0,
+      proteinG: Number(addProteinG) || 0,
+      fatG: Number(addFatG) || 0,
+      carbsG: Number(addCarbsG) || 0,
+    });
+    resetAddForm();
+    setAdding(false);
+    // 追加直後の品目を一覧で見つけやすいよう、絞り込みを解除して先頭ページへ戻す
+    setQuery("");
+    setPage(0);
   };
 
   return (
@@ -274,6 +312,57 @@ export default function FoodMasterPage() {
             <IconChevronRight />
           </IconButton>
         </Box>
+      )}
+
+      {/* 手動で追加 */}
+      {isAdding ? (
+        <Card sx={{ p: "14px", mt: "14px" }}>
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "10px" }}>手動で追加</Typography>
+          <TextField
+            fullWidth
+            size="small"
+            value={addName}
+            onChange={(e) => setAddName(e.target.value)}
+            placeholder="品目名"
+            autoFocus
+            sx={{ mb: "8px" }}
+          />
+          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", mb: "8px" }}>
+            <TextField size="small" type="number" value={addKcal} onChange={(e) => setAddKcal(e.target.value)} placeholder="kcal" />
+            <TextField size="small" type="number" value={addProteinG} onChange={(e) => setAddProteinG(e.target.value)} placeholder="P" />
+            <TextField size="small" type="number" value={addFatG} onChange={(e) => setAddFatG(e.target.value)} placeholder="F" />
+            <TextField size="small" type="number" value={addCarbsG} onChange={(e) => setAddCarbsG(e.target.value)} placeholder="C" />
+          </Box>
+          <Box sx={{ display: "flex", gap: "8px" }}>
+            <Button fullWidth variant="contained" size="small" onClick={saveAdd} disabled={!addName.trim()}>
+              追加
+            </Button>
+            <Button fullWidth variant="outlined" size="small" onClick={cancelAdd} sx={{ color: "text.secondary", borderColor: tokens.border }}>
+              キャンセル
+            </Button>
+          </Box>
+        </Card>
+      ) : (
+        <ButtonBase
+          onClick={() => setAdding(true)}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "7px",
+            width: "100%",
+            height: 48,
+            mt: "14px",
+            border: "1.5px dashed #E0B7A8",
+            borderRadius: "14px",
+            color: "primary.main",
+          }}
+        >
+          <IconPlus size={16} />
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, color: "primary.main" }}>
+            手動で追加
+          </Typography>
+        </ButtonBase>
       )}
     </Box>
   );

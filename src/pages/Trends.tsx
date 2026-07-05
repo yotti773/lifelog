@@ -21,6 +21,7 @@ import {
   getWeightRecordsByDateRange,
 } from "@/db/weightRecords";
 import { dateStringDaysAgo, formatDate, todayDateString } from "@/lib/date";
+import { projectWeightAtDate } from "@/lib/weightProjection";
 import { fontRounded, tokens } from "@/theme";
 import type { WeightRecord } from "@/types";
 
@@ -97,6 +98,17 @@ export default function Trends() {
   const startWeightKg =
     baselineWeightRecord?.weightKg ?? firstWeightRecord?.weightKg ?? lastWeightRecord?.weightKg;
 
+  // 現在ペースでの着地予測(Issue #25)。起点=基準日の記録(なければ最古の記録)、最新=直近の記録。
+  const projectionStart = baselineWeightRecord ?? firstWeightRecord;
+  const projectedWeightKg =
+    projectionStart && lastWeightRecord
+      ? projectWeightAtDate(
+          { date: projectionStart.date, weightKg: projectionStart.weightKg },
+          { date: lastWeightRecord.date, weightKg: lastWeightRecord.weightKg },
+          settings.goalDate,
+        )
+      : null;
+
   // From/To絞込みは日付文字列(YYYY-MM-DD)の辞書順比較で足りる
   const filteredHistory = historyRecords.filter(
     (record) => (!historyFrom || record.date >= historyFrom) && (!historyTo || record.date <= historyTo),
@@ -116,6 +128,7 @@ export default function Trends() {
               currentWeightKg={lastWeightRecord.weightKg}
               goalWeightKg={settings.goalWeightKg}
               goalDate={settings.goalDate}
+              projectedWeightKg={projectedWeightKg}
             />
           ) : (
             <Card sx={{ p: 2 }}>

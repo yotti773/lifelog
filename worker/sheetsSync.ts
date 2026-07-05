@@ -38,13 +38,50 @@ interface SyncPushResultOutput {
 const WEIGHT_SHEET_NAME = "体重記録";
 const MEAL_SHEET_NAME = "食事記録";
 
+const JST_TIME_ZONE = "Asia/Tokyo";
+
+// Cloudflare WorkersはUTCで動くため、Dateのgetters(getHours()等)をそのまま使うと9時間ズレる。
+// Intl.DateTimeFormatにtimeZoneを明示することで、実行環境の時刻に依存せず正しくJST表示に変換する。
+function getJstParts(date: Date): { year: string; month: string; day: string; hour: string; minute: string } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: JST_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
+}
+
+/** "YYYY-MM-DD" の日付キーを "yyyy年mm月dd日" に変換する。既にカレンダー日付なのでタイムゾーン変換は不要。 */
+export function formatCalendarDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-");
+  return `${year}年${month}月${day}日`;
+}
+
+/** ISO8601タイムスタンプをJSTの "yyyy年mm月dd日 hh:mm" に変換する。 */
+export function formatJstDateTime(isoTimestamp: string): string {
+  const { year, month, day, hour, minute } = getJstParts(new Date(isoTimestamp));
+  return `${year}年${month}月${day}日 ${hour}:${minute}`;
+}
+
 function weightRecordToRow(r: WeightRecordInput): (string | number)[] {
-  return [r.date, r.weightKg, r.bodyFatPercent ?? "", r.note ?? "", r.timestamp, r.id];
+  return [
+    formatCalendarDate(r.date),
+    r.weightKg,
+    r.bodyFatPercent ?? "",
+    r.note ?? "",
+    formatJstDateTime(r.timestamp),
+    r.id,
+  ];
 }
 
 function mealRecordToRow(r: MealRecordInput): (string | number)[] {
   return [
-    r.timestamp,
+    formatJstDateTime(r.timestamp),
     MEAL_TYPE_LABELS[r.mealType] ?? r.mealType,
     r.confirmedName,
     r.confirmedKcal,

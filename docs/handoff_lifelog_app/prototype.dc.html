@@ -81,7 +81,7 @@
           </div>
 
           <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:14px;margin-bottom:22px">
-            <div class="card" style="padding:18px">
+            <div class="card" onClick="{{ goWeight }}" style="padding:18px;cursor:pointer">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font:500 13px 'Noto Sans JP';color:#8C8C8C">体重</span><span style="font:400 11px 'Noto Sans JP';color:#B7AE9F">21:40</span></div>
               <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:8px"><span style="font:800 34px 'M PLUS Rounded 1c';color:#2B2B2B;line-height:1">72.1</span><span style="font:500 14px 'M PLUS Rounded 1c';color:#8C8C8C">kg</span></div>
               <div style="display:inline-flex;align-items:center;gap:3px;background:#E4F7F5;padding:4px 8px;border-radius:20px"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 8V2M5 8L2.5 5.5M5 8L7.5 5.5" stroke="#2EC4B6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:700 12px 'M PLUS Rounded 1c';color:#2EC4B6">前回比 0.3kg</span></div>
@@ -95,45 +95,67 @@
 
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:0 2px"><span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">今日の食事</span><span style="font:500 12px 'Noto Sans JP';color:#8C8C8C">合計 {{ kcalStr }} kcal</span></div>
           <div style="display:flex;flex-direction:column;gap:10px">
-            <sc-if value="{{ hasMeal1 }}" hint-placeholder-val="{{ true }}">
-              <div class="card" onClick="{{ openMeal1Edit }}" style="padding:14px 15px;display:flex;align-items:center;gap:13px;border-radius:18px;cursor:pointer">
-                <div style="width:42px;height:42px;border-radius:13px;background:{{ meal1IconBg }};display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 4v2M5.5 9.5 7 11M18.5 9.5 17 11M4 20h16M8 20a4 4 0 0 1 8 0" stroke="{{ meal1IconColor }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:7px;margin-bottom:2px"><span style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">{{ meal1.mealType }}</span><span style="font:400 11px 'Noto Sans JP';color:#B7AE9F">{{ meal1.time }}</span><sc-if value="{{ meal1Unsynced }}" hint-placeholder-val="{{ true }}"><span style="font:500 9px 'Noto Sans JP';color:#C6A05A;background:#FBF1DD;padding:2px 6px;border-radius:6px">未同期</span></sc-if></div><div style="font:400 12px 'Noto Sans JP';color:#8C8C8C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ meal1.name }}</div></div>
-                <div style="text-align:right;flex-shrink:0"><span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">{{ meal1.kcal }}</span><span style="font:500 10px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:2px">kcal</span></div>
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:.35;margin-left:1px"><path d="M6 4l4 4-4 4" stroke="#2B2B2B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <sc-for list="{{ mealSections }}" as="sec" hint-placeholder-count="4">
+              <sc-if value="{{ sec.hasItems }}" hint-placeholder-val="{{ false }}">
+                <div class="card" style="border-radius:18px;overflow:hidden">
+                  <div onClick="{{ sec.onNew }}" style="padding:14px 15px;display:flex;align-items:center;gap:13px;cursor:pointer;border-bottom:1px solid #F4EEE4">
+                    <div style="width:42px;height:42px;border-radius:13px;background:{{ sec.iconBg }};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                        <sc-if value="{{ sec.isSnack }}" hint-placeholder-val="{{ false }}"><circle cx="12" cy="12" r="8" stroke="{{ sec.iconColor }}" stroke-width="1.8"/><circle cx="9.5" cy="10" r="1" fill="{{ sec.iconColor }}"/><circle cx="14.2" cy="9.6" r="1" fill="{{ sec.iconColor }}"/><circle cx="13" cy="14.2" r="1" fill="{{ sec.iconColor }}"/><circle cx="9.3" cy="14.4" r="1" fill="{{ sec.iconColor }}"/></sc-if>
+                        <sc-if value="{{ sec.isNotSnack }}" hint-placeholder-val="{{ true }}"><path d="{{ sec.iconPath }}" stroke="{{ sec.iconColor }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></sc-if>
+                      </svg>
+                    </div>
+                    <span style="flex:1;font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">{{ sec.label }}</span>
+                    <div style="text-align:right;flex-shrink:0"><span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">{{ sec.subtotal }}</span><span style="font:500 10px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:2px">kcal</span></div>
+                    <div style="width:24px;height:24px;border-radius:8px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="{{ sec.iconColor }}" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+                  </div>
+                  <sc-for list="{{ sec.items }}" as="it" hint-placeholder-count="1">
+                    <div onClick="{{ it.onEdit }}" style="padding:11px 15px;display:flex;align-items:center;gap:13px;cursor:pointer">
+                      <div style="width:42px;flex-shrink:0"></div>
+                      <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:7px;margin-bottom:1px"><span style="font:400 11px 'Noto Sans JP';color:#B7AE9F">{{ it.time }}</span><sc-if value="{{ it.unsynced }}" hint-placeholder-val="{{ false }}"><span style="font:500 9px 'Noto Sans JP';color:#C6A05A;background:#FBF1DD;padding:2px 6px;border-radius:6px">未同期</span></sc-if></div><div style="font:400 12px 'Noto Sans JP';color:#8C8C8C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</div></div>
+                      <div style="text-align:right;flex-shrink:0"><span style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">{{ it.kcal }}</span><span style="font:500 9px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:2px">kcal</span></div>
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:.3"><path d="M6 4l4 4-4 4" stroke="#2B2B2B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ sec.noItems }}" hint-placeholder-val="{{ true }}">
+                <div onClick="{{ sec.onNew }}" style="border:1.5px dashed #DED4C4;border-radius:18px;padding:14px 15px;display:flex;align-items:center;gap:13px;cursor:pointer">
+                  <div style="width:42px;height:42px;border-radius:13px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                      <sc-if value="{{ sec.isSnack }}" hint-placeholder-val="{{ false }}"><circle cx="12" cy="12" r="8" stroke="#C3B29A" stroke-width="1.8"/><circle cx="9.5" cy="10" r="1" fill="#C3B29A"/><circle cx="14.2" cy="9.6" r="1" fill="#C3B29A"/><circle cx="13" cy="14.2" r="1" fill="#C3B29A"/><circle cx="9.3" cy="14.4" r="1" fill="#C3B29A"/></sc-if>
+                      <sc-if value="{{ sec.isNotSnack }}" hint-placeholder-val="{{ true }}"><path d="{{ sec.iconPath }}" stroke="#C3B29A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></sc-if>
+                    </svg>
+                  </div>
+                  <div style="flex:1"><span style="font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">{{ sec.label }}</span><div style="font:400 12px 'Noto Sans JP';color:#B7AE9F;margin-top:2px">未記録</div></div>
+                  <div style="width:26px;height:26px;border-radius:50%;background:#FFEDE6;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V10.5M2.5 6.5H10.5" stroke="#FF6B4A" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:24px 0 12px;padding:0 2px"><span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">その他の記録</span></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="card" onClick="{{ goWater }}" style="padding:14px 15px;display:flex;align-items:center;gap:13px;border-radius:18px;cursor:pointer">
+              <div style="width:42px;height:42px;border-radius:13px;background:#E4F3FB;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z" stroke="#3AA0DB" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+              <div style="flex:1;min-width:0">
+                <div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B;margin-bottom:5px">水分</div>
+                <sc-if value="{{ waterHasGoal }}" hint-placeholder-val="{{ false }}">
+                  <div style="height:6px;background:#F0EBE3;border-radius:6px;overflow:hidden"><div style="height:100%;width:{{ waterPct }};background:#3AA0DB;border-radius:6px;transition:width .4s"></div></div>
+                </sc-if>
               </div>
-            </sc-if>
-            <sc-if value="{{ noMeal1 }}" hint-placeholder-val="{{ false }}">
-              <div onClick="{{ openSheet }}" style="border:1.5px dashed #DED4C4;border-radius:18px;padding:14px 15px;display:flex;align-items:center;gap:13px;cursor:pointer">
-                <div style="width:42px;height:42px;border-radius:13px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 4v2M5.5 9.5 7 11M18.5 9.5 17 11M4 20h16M8 20a4 4 0 0 1 8 0" stroke="#C3B29A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                <div style="flex:1"><span style="font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">朝食</span><div style="font:400 12px 'Noto Sans JP';color:#B7AE9F;margin-top:2px">未記録</div></div>
-                <div style="width:26px;height:26px;border-radius:50%;background:#FFEDE6;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V10.5M2.5 6.5H10.5" stroke="#FF6B4A" stroke-width="1.6" stroke-linecap="round"/></svg></div>
-              </div>
-            </sc-if>
-            <sc-if value="{{ hasMeal2 }}" hint-placeholder-val="{{ true }}">
-              <div class="card" onClick="{{ openMeal2Edit }}" style="padding:14px 15px;display:flex;align-items:center;gap:13px;border-radius:18px;cursor:pointer">
-                <div style="width:42px;height:42px;border-radius:13px;background:{{ meal2IconBg }};display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3.5 11h17M5 11a7 7 0 0 0 14 0M12 5c0 1.1 1 1.4 1 2.4M9.2 6.2c0 .8.6 1 .6 1.8" stroke="{{ meal2IconColor }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:7px;margin-bottom:2px"><span style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">{{ meal2.mealType }}</span><span style="font:400 11px 'Noto Sans JP';color:#B7AE9F">{{ meal2.time }}</span><sc-if value="{{ meal2Unsynced }}" hint-placeholder-val="{{ false }}"><span style="font:500 9px 'Noto Sans JP';color:#C6A05A;background:#FBF1DD;padding:2px 6px;border-radius:6px">未同期</span></sc-if></div><div style="font:400 12px 'Noto Sans JP';color:#8C8C8C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ meal2.name }}</div></div>
-                <div style="text-align:right;flex-shrink:0"><span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">{{ meal2.kcal }}</span><span style="font:500 10px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:2px">kcal</span></div>
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:.35;margin-left:1px"><path d="M6 4l4 4-4 4" stroke="#2B2B2B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </div>
-            </sc-if>
-            <sc-if value="{{ noMeal2 }}" hint-placeholder-val="{{ false }}">
-              <div onClick="{{ openSheet }}" style="border:1.5px dashed #DED4C4;border-radius:18px;padding:14px 15px;display:flex;align-items:center;gap:13px;cursor:pointer">
-                <div style="width:42px;height:42px;border-radius:13px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3.5 11h17M5 11a7 7 0 0 0 14 0M12 5c0 1.1 1 1.4 1 2.4M9.2 6.2c0 .8.6 1 .6 1.8" stroke="#C3B29A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                <div style="flex:1"><span style="font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">昼食</span><div style="font:400 12px 'Noto Sans JP';color:#B7AE9F;margin-top:2px">未記録</div></div>
-                <div style="width:26px;height:26px;border-radius:50%;background:#FFEDE6;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V10.5M2.5 6.5H10.5" stroke="#FF6B4A" stroke-width="1.6" stroke-linecap="round"/></svg></div>
-              </div>
-            </sc-if>
-            <div onClick="{{ openSheet }}" style="border:1.5px dashed #DED4C4;border-radius:18px;padding:14px 15px;display:flex;align-items:center;gap:13px;cursor:pointer">
-              <div style="width:42px;height:42px;border-radius:13px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 3v18M17 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4v9" stroke="#C3B29A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              <div style="flex:1"><span style="font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">夕食</span><div style="font:400 12px 'Noto Sans JP';color:#B7AE9F;margin-top:2px">未記録</div></div>
-              <div style="width:26px;height:26px;border-radius:50%;background:#FFEDE6;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V10.5M2.5 6.5H10.5" stroke="#FF6B4A" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              <div style="text-align:right;flex-shrink:0"><span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">{{ waterTotal }}</span><span style="font:500 10px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:2px">{{ waterTargetSuffixHome }}</span></div>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:.35"><path d="M6 4l4 4-4 4" stroke="#2B2B2B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
-            <div onClick="{{ openSheet }}" style="border:1.5px dashed #DED4C4;border-radius:18px;padding:14px 15px;display:flex;align-items:center;gap:13px;cursor:pointer">
-              <div style="width:42px;height:42px;border-radius:13px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="#C3B29A" stroke-width="1.8"/><circle cx="9.5" cy="10" r="1" fill="#C3B29A"/><circle cx="14.2" cy="9.6" r="1" fill="#C3B29A"/><circle cx="13" cy="14.2" r="1" fill="#C3B29A"/><circle cx="9.3" cy="14.4" r="1" fill="#C3B29A"/></svg></div>
-              <div style="flex:1"><span style="font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">間食</span><div style="font:400 12px 'Noto Sans JP';color:#B7AE9F;margin-top:2px">未記録</div></div>
-              <div style="width:26px;height:26px;border-radius:50%;background:#FFEDE6;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V10.5M2.5 6.5H10.5" stroke="#FF6B4A" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+            <div class="card" onClick="{{ goDiary }}" style="padding:14px 15px;display:flex;align-items:center;gap:13px;border-radius:18px;cursor:pointer">
+              <div style="width:42px;height:42px;border-radius:13px;background:#FBF1DD;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M5 4h11a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2Z" stroke="#E0A62A" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 9h7M8 12.5h5" stroke="#E0A62A" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:7px;margin-bottom:2px"><span style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">日記</span><sc-if value="{{ diaryHasMood }}" hint-placeholder-val="{{ false }}"><span style="font:500 9px 'Noto Sans JP';color:#C6A05A;background:#FBF1DD;padding:2px 6px;border-radius:6px">{{ diaryMoodLabel }}</span></sc-if></div><div style="font:400 12px 'Noto Sans JP';color:{{ diaryPreviewColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ diaryPreview }}</div></div>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:.35"><path d="M6 4l4 4-4 4" stroke="#2B2B2B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="card" onClick="{{ goStrength }}" style="padding:14px 15px;display:flex;align-items:center;gap:13px;border-radius:18px;cursor:pointer">
+              <div style="width:42px;height:42px;border-radius:13px;background:#FFE6DE;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" stroke="#FF6B4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div style="flex:1;min-width:0"><div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B;margin-bottom:2px">筋トレ</div><div style="font:400 12px 'Noto Sans JP';color:{{ strengthPreviewColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ strengthPreview }}</div></div>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:.35"><path d="M6 4l4 4-4 4" stroke="#2B2B2B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
           </div>
         </div>
@@ -172,24 +194,17 @@
                 <svg width="100%" viewBox="0 0 326 120" fill="none" style="display:block"><line x1="26" y1="8" x2="326" y2="8" stroke="#F2ECE3"/><line x1="26" y1="63" x2="326" y2="63" stroke="#F2ECE3"/><line x1="0" y1="38" x2="326" y2="38" stroke="#FF6B4A" stroke-width="1.4" stroke-dasharray="4 4"/><text x="0" y="11" font-size="9" fill="#B7AE9F">2000</text><text x="0" y="66" font-size="9" fill="#B7AE9F">1000</text><text x="8" y="118" font-size="9" fill="#B7AE9F">0</text><g fill="#2EC4B6"><rect x="14" y="58" width="26" height="62" rx="5"/><rect x="58" y="70" width="26" height="50" rx="5"/><rect x="102" y="48" width="26" height="72" rx="5"/><rect x="146" y="66" width="26" height="54" rx="5"/><rect x="190" y="80" width="26" height="40" rx="5"/><rect x="234" y="52" width="26" height="68" rx="5"/><rect x="278" y="62" width="26" height="58" rx="5" fill="#FFC145"/></g></svg>
                 <div style="display:flex;justify-content:space-between;font:500 10px 'Noto Sans JP';color:#B7AE9F;margin-top:6px;padding:0 8px"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span></div>
               </div>
+              <div class="card" style="padding:16px;margin-top:14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><span style="font:700 14px 'M PLUS Rounded 1c';color:#2B2B2B">水分摂取量</span><sc-if value="{{ waterHasGoal }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:5px;font:500 10px 'Noto Sans JP';color:#8C8C8C"><span style="width:14px;height:2px;background:#3AA0DB;display:inline-block"></span>目標 {{ goalWaterMl }}ml</span></sc-if></div>
+                <svg width="100%" viewBox="0 0 326 120" fill="none" style="display:block"><line x1="26" y1="8" x2="326" y2="8" stroke="#F2ECE3"/><line x1="26" y1="63" x2="326" y2="63" stroke="#F2ECE3"/><sc-if value="{{ waterHasGoal }}" hint-placeholder-val="{{ false }}"><line x1="0" y1="38" x2="326" y2="38" stroke="#3AA0DB" stroke-width="1.4" stroke-dasharray="4 4"/></sc-if><text x="0" y="11" font-size="9" fill="#B7AE9F">2000</text><text x="0" y="66" font-size="9" fill="#B7AE9F">1000</text><text x="8" y="118" font-size="9" fill="#B7AE9F">0</text><g fill="#3AA0DB"><rect x="14" y="74" width="26" height="46" rx="5"/><rect x="58" y="52" width="26" height="68" rx="5"/><rect x="102" y="98" width="26" height="22" rx="5"/><rect x="146" y="46" width="26" height="74" rx="5"/><rect x="190" y="60" width="26" height="60" rx="5"/><rect x="234" y="50" width="26" height="70" rx="5"/><rect x="278" y="0" width="26" height="0" rx="5"/></g><g fill="#DCEAF3"><rect x="278" y="8" width="26" height="112" rx="5"/></g><text x="282" y="14" font-size="8" fill="#8C8C8C">未記録</text></svg>
+                <div style="display:flex;justify-content:space-between;font:500 10px 'Noto Sans JP';color:#B7AE9F;margin-top:6px;padding:0 8px"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span></div>
+              </div>
             </sc-if>
             <sc-if value="{{ histTab }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-                <div onClick="{{ openHistFromEdit }}" style="flex:1;background:#fff;border:1.5px solid #F0E7DB;border-radius:12px;padding:9px 12px;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.18)">
-                  <div style="font:500 9px 'Noto Sans JP';color:#B7AE9F;margin-bottom:1px">From</div>
-                  <div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">{{ histFromText }}</div>
-                </div>
-                <span style="font:700 13px 'M PLUS Rounded 1c';color:#C3B29A">-</span>
-                <div onClick="{{ openHistToEdit }}" style="flex:1;background:#fff;border:1.5px solid #F0E7DB;border-radius:12px;padding:9px 12px;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.18)">
-                  <div style="font:500 9px 'Noto Sans JP';color:#B7AE9F;margin-bottom:1px">To</div>
-                  <div style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">{{ histToText }}</div>
-                </div>
-                <div onClick="{{ resetHistRange }}" style="width:38px;height:38px;border-radius:11px;background:#F1E9DE;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M15 4v4h-4M3 14v-4h4" stroke="#8C8C8C" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.5 8a5.5 5.5 0 0 0-10-2M3.5 10a5.5 5.5 0 0 0 10 2" stroke="#8C8C8C" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              </div>
               <div style="font:400 11px 'Noto Sans JP';color:#8C8C8C;margin-bottom:12px">{{ historyCountText }}（タップで編集）</div>
               <div class="card" style="overflow:hidden">
-                <sc-for list="{{ filteredHistory }}" as="r" hint-placeholder-count="4">
-                  <div style="display:flex;align-items:center;padding:15px 16px;border-bottom:1px solid #F4EEE4">
+                <sc-for list="{{ historyRows }}" as="r" hint-placeholder-count="4">
+                  <div onClick="{{ r.onEdit }}" style="display:flex;align-items:center;padding:15px 16px;border-bottom:1px solid #F4EEE4;cursor:pointer">
                     <div style="flex:1">
                       <div style="font:700 14px 'M PLUS Rounded 1c';color:#2B2B2B">{{ r.label }}<span style="font-size:11px;color:#8C8C8C;font-weight:500;margin-left:6px">{{ r.wd }}</span>
                         <sc-if value="{{ r.baseline }}" hint-placeholder-val="{{ false }}"><span style="font:700 9px 'M PLUS Rounded 1c';color:#2EC4B6;background:#E4F7F5;padding:2px 6px;border-radius:6px;margin-left:7px">基準日</span></sc-if>
@@ -202,7 +217,7 @@
                 </sc-for>
               </div>
               <sc-if value="{{ historyEmpty }}" hint-placeholder-val="{{ false }}">
-                <div style="text-align:center;padding:40px 20px;font:400 13px 'Noto Sans JP';color:#B7AE9F">この期間の記録はありません</div>
+                <div style="text-align:center;padding:40px 20px;font:400 13px 'Noto Sans JP';color:#B7AE9F">記録がありません</div>
               </sc-if>
             </sc-if>
           </div>
@@ -219,7 +234,8 @@
               <div class="set-row" onClick="{{ openWeightEdit }}" style="border-bottom:1px solid #F4EEE4"><div class="set-ic" style="background:#E4F7F5"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#2EC4B6" stroke-width="1.7"/><path d="M10 6v4l2.5 2" stroke="#2EC4B6" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="set-lbl">目標体重</span><span class="set-val">{{ goalWeightText }}</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
               <div class="set-row" onClick="{{ openGoalDateEdit }}" style="border-bottom:1px solid #F4EEE4"><div class="set-ic" style="background:#FFEDE6"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="4" width="14" height="13" rx="3" stroke="#FF6B4A" stroke-width="1.7"/><path d="M3 8h14M7 2v3M13 2v3" stroke="#FF6B4A" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="set-lbl">目標日</span><span class="set-val">{{ goalDateText }}</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
               <div class="set-row" onClick="{{ openBaselineEdit }}" style="border-bottom:1px solid #F4EEE4"><div class="set-ic" style="background:#FBF1DD"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2v3M10 15v3M4 10H2M18 10h-2M4.9 4.9 3.5 3.5M16.5 16.5l-1.4-1.4" stroke="#E0A62A" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="10" r="3.5" stroke="#E0A62A" stroke-width="1.7"/></svg></div><span class="set-lbl">基準日</span><span class="set-val">{{ baselineDateText }}</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              <div class="set-row" onClick="{{ openCaloriesEdit }}"><div class="set-ic" style="background:#FFEDE6"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 3c-1.5 0-2 2-2 3.5S9 9 10 9s2-1 2-2.5S11.5 3 10 3ZM4 17c0-3 2.5-5 6-5s6 2 6 5" stroke="#FF6B4A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="set-lbl">1日の目標カロリー</span><span class="set-val">{{ goalCaloriesText }}</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="set-row" onClick="{{ openCaloriesEdit }}" style="border-bottom:1px solid #F4EEE4"><div class="set-ic" style="background:#FFEDE6"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 3c-1.5 0-2 2-2 3.5S9 9 10 9s2-1 2-2.5S11.5 3 10 3ZM4 17c0-3 2.5-5 6-5s6 2 6 5" stroke="#FF6B4A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="set-lbl">1日の目標カロリー</span><span class="set-val">{{ goalCaloriesText }}</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="set-row" onClick="{{ openWaterGoalEdit }}"><div class="set-ic" style="background:#E4F3FB"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z" stroke="#3AA0DB" stroke-width="1.7" stroke-linejoin="round"/></svg></div><span class="set-lbl">1日の目標水分摄取量</span><span class="set-val">{{ goalWaterText }}</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             </div>
 
             <div style="font:700 12px 'Noto Sans JP';color:#8C8C8C;margin:6px 4px 8px">データ同期</div>
@@ -233,6 +249,11 @@
             <div class="card" style="overflow:hidden;margin-bottom:18px">
               <div class="set-row" onClick="{{ goMaster }}" style="border-bottom:1px solid #F4EEE4"><div class="set-ic" style="background:#FFEDE6"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M5 3v6a2 2 0 0 0 4 0V3M7 3v14M14 3c-1.2 0-2 1.6-2 4s.8 3 2 3v7" stroke="#FF6B4A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="set-lbl">よく食べるものを管理</span><span class="set-val" style="font-size:12px">24件</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
               <div class="set-row" onClick="{{ goMaster }}"><div class="set-ic" style="background:#E4F7F5"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5" stroke="#2EC4B6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="#2EC4B6" stroke-width="1.7" stroke-linecap="round"/></svg></div><span class="set-lbl">定番メニューを一括登録</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+
+            <div style="font:700 12px 'Noto Sans JP';color:#8C8C8C;margin:6px 4px 8px">種目マスタ</div>
+            <div class="card" style="overflow:hidden;margin-bottom:18px">
+              <div class="set-row" onClick="{{ goExerciseMaster }}"><div class="set-ic" style="background:#FFE6DE"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" stroke="#FF6B4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="set-lbl">よく行う種目を管理</span><span class="set-val" style="font-size:12px">{{ exerciseMasterCountText }}</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             </div>
 
           </div>
@@ -279,25 +300,58 @@
         </div>
       </sc-if>
 
+      <!-- ============ EXERCISE MASTER ============ -->
+      <sc-if value="{{ isExerciseMaster }}" hint-placeholder-val="{{ false }}">
+        <div class="screen">
+          <div style="position:absolute;top:52px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:15;background:rgba(255,248,240,.92);backdrop-filter:blur(8px)">
+            <div onClick="{{ goSettings }}" style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">種目マスタ</span>
+            <div style="width:38px"></div>
+          </div>
+          <div class="scrl" style="top:104px;bottom:0;padding:14px 20px 24px">
+            <div style="background:#fff;border:1.5px solid #F0E7DB;border-radius:13px;padding:11px 14px;display:flex;align-items:center;gap:9px;margin-bottom:18px;box-shadow:0 4px 12px -8px rgba(120,60,20,.2)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="#B7AE9F" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="#B7AE9F" stroke-width="1.6" stroke-linecap="round"/></svg><span style="font:400 13px 'Noto Sans JP';color:#B7AE9F">種目名で検索</span></div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px"><span style="font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B">登録済み <span style="color:#8C8C8C">{{ exerciseMasterCount }}件</span></span><span style="font:500 11px 'Noto Sans JP';color:#8C8C8C">名前順</span></div>
+
+            <div class="card" style="overflow:hidden;margin-bottom:14px">
+              <sc-for list="{{ exerciseMasterItems }}" as="it" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid #F4EEE4">
+                  <div style="width:32px;height:32px;border-radius:10px;background:#FFE6DE;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" stroke="#FF6B4A" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  <div style="flex:1;min-width:0;font:700 13px 'M PLUS Rounded 1c';color:#2B2B2B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</div>
+                  <div style="display:flex;gap:6px;flex-shrink:0">
+                    <div style="width:30px;height:30px;border-radius:9px;background:#FFF3EF;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="15" height="15" viewBox="0 0 18 18" fill="none"><path d="M12 3l3 3-8 8H4v-3l8-8Z" stroke="#FF6B4A" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+                    <div style="width:30px;height:30px;border-radius:9px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="15" height="15" viewBox="0 0 18 18" fill="none"><path d="M4 5h10M7 5V3.5h4V5M5.5 5l.7 9a1 1 0 0 0 1 .9h3.6a1 1 0 0 0 1-.9l.7-9" stroke="#B7AE9F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="height:46px;border:1.5px dashed #E0B7A8;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="#FF6B4A" stroke-width="1.7" stroke-linecap="round"/></svg><span style="font:700 13px 'M PLUS Rounded 1c';color:#FF6B4A">手動で追加</span></div>
+          </div>
+        </div>
+      </sc-if>
+
       <!-- ============ WEIGHT ============ -->
       <sc-if value="{{ isWeight }}" hint-placeholder-val="{{ false }}">
         <div class="screen">
           <div style="position:absolute;top:52px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:15">
-            <div onClick="{{ goHome }}" style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">体重を記録</span><div style="width:38px"></div>
+            <div onClick="{{ closeWeightScreen }}" style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">{{ weightScreenTitle }}</span><div style="width:38px"></div>
           </div>
           <div class="scrl" style="top:104px;bottom:100px;padding:14px 20px 0">
             <label class="fld-lbl">日時</label>
-            <div class="fld" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px"><span>2026/7/4（金）21:40</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6h12M4 2v2M12 2v2" stroke="#C3B29A" stroke-width="1.5" stroke-linecap="round"/><rect x="2" y="4" width="12" height="10" rx="2" stroke="#C3B29A" stroke-width="1.5"/></svg></div>
+            <div class="fld" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;opacity:{{ dateFieldOpacity }}"><span>{{ draftWeightDateText }}</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 6h12M4 2v2M12 2v2" stroke="#C3B29A" stroke-width="1.5" stroke-linecap="round"/><rect x="2" y="4" width="12" height="10" rx="2" stroke="#C3B29A" stroke-width="1.5"/></svg></div>
             <label class="fld-lbl">体重</label>
-            <div style="background:#fff;border:2px solid #FF6B4A;border-radius:16px;padding:16px 18px;display:flex;align-items:baseline;gap:6px;box-shadow:0 8px 22px -12px rgba(255,107,74,.5);margin-bottom:8px"><span style="font:800 40px 'M PLUS Rounded 1c';color:#2B2B2B;line-height:1">72.1</span><span style="font:500 18px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:auto">kg</span></div>
-            <div style="display:inline-flex;align-items:center;gap:4px;margin-bottom:20px"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 9.5V2.5M6 9.5L3 6.5M6 9.5L9 6.5" stroke="#2EC4B6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:700 13px 'M PLUS Rounded 1c';color:#2EC4B6">前回比 0.3kg</span></div>
+            <div style="background:#fff;border:2px solid #FF6B4A;border-radius:16px;padding:16px 18px;display:flex;align-items:baseline;gap:6px;box-shadow:0 8px 22px -12px rgba(255,107,74,.5);margin-bottom:8px"><input type="number" step="0.1" value="{{ draftWeightVal }}" onChange="{{ onDraftWeightChange }}" style="width:100%;border:none;background:transparent;outline:none;font:800 40px 'M PLUS Rounded 1c';color:#2B2B2B;line-height:1"><span style="font:500 18px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:auto;flex-shrink:0">kg</span></div>
+            <sc-if value="{{ hasWeightDiff }}" hint-placeholder-val="{{ true }}">
+              <div style="display:inline-flex;align-items:center;gap:4px;margin-bottom:20px"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 9.5V2.5M6 9.5L3 6.5M6 9.5L9 6.5" stroke="{{ weightDiffColor }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:700 13px 'M PLUS Rounded 1c';color:{{ weightDiffColor }}">{{ weightDiffText }}</span></div>
+            </sc-if>
             <label class="fld-lbl">体脂肪率<span style="color:#C3B29A;font-weight:400">（任意）</span></label>
-            <div class="fld" style="display:flex;align-items:baseline;margin-bottom:20px"><span style="font:700 18px 'M PLUS Rounded 1c'">22.4</span><span style="color:#8C8C8C;margin-left:auto;font-weight:500">%</span></div>
+            <div class="fld" style="display:flex;align-items:baseline;margin-bottom:20px"><input type="number" step="0.1" value="{{ draftBodyfatVal }}" onChange="{{ onDraftBodyfatChange }}" placeholder="未計測" style="width:100%;border:none;background:transparent;outline:none;font:700 18px 'M PLUS Rounded 1c';color:#2B2B2B"><span style="color:#8C8C8C;margin-left:auto;font-weight:500;flex-shrink:0">%</span></div>
             <label class="fld-lbl">メモ<span style="color:#C3B29A;font-weight:400">（任意）</span></label>
-            <div class="fld" style="color:#B7AE9F;font-weight:400">筋トレ後 / 飲み会翌日 など</div>
+            <input type="text" value="{{ draftMemoVal }}" onChange="{{ onDraftMemoChange }}" placeholder="筋トレ後 / 飲み会翌日 など" style="width:100%;background:#fff;border:1.5px solid #F0E7DB;border-radius:14px;padding:13px 15px;font:500 15px 'Noto Sans JP';color:#2B2B2B;box-shadow:0 4px 12px -8px rgba(120,60,20,.2);outline:none;box-sizing:border-box">
           </div>
-          <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 20px 26px;background:linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 30%)"><div onClick="{{ goHome }}" style="height:54px;border-radius:16px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 16px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 12px 24px -10px rgba(255,90,56,.6)">保存する</div></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 20px 26px;background:linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 30%)"><div onClick="{{ saveWeightRecord }}" style="height:54px;border-radius:16px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 16px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 12px 24px -10px rgba(255,90,56,.6)">{{ weightSaveLabel }}</div></div>
         </div>
       </sc-if>
 
@@ -307,15 +361,15 @@
           <div style="position:absolute;top:52px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:15;background:rgba(255,248,240,.92);backdrop-filter:blur(8px)">
             <div onClick="{{ goHome }}" style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">食事を記録</span>
-            <span onClick="{{ goHome }}" style="font:700 14px 'M PLUS Rounded 1c';color:#FF6B4A;cursor:pointer">保存</span>
+            <span onClick="{{ createMeal }}" style="font:700 14px 'M PLUS Rounded 1c';color:#FF6B4A;cursor:pointer">保存</span>
           </div>
           <div class="scrl" style="top:104px;bottom:100px;padding:14px 20px 0">
             <label class="fld-lbl">区分</label>
             <div style="display:flex;gap:6px;background:#F1E9DE;padding:4px;border-radius:14px;margin-bottom:18px">
-              <div style="flex:1;text-align:center;padding:9px 0;border-radius:10px;font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">朝食</div>
-              <div style="flex:1;text-align:center;padding:9px 0;border-radius:10px;font:700 13px 'M PLUS Rounded 1c';color:#fff;background:#FF6B4A;box-shadow:0 6px 14px -6px rgba(255,90,56,.6)">昼食</div>
-              <div style="flex:1;text-align:center;padding:9px 0;border-radius:10px;font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">夕食</div>
-              <div style="flex:1;text-align:center;padding:9px 0;border-radius:10px;font:700 13px 'M PLUS Rounded 1c';color:#8C8C8C">間食</div>
+              <div onClick="{{ setMealTypeBreakfast }}" style="flex:1;text-align:center;padding:9px 0;border-radius:10px;cursor:pointer;font:700 13px 'M PLUS Rounded 1c';color:{{ pillBreakfastColor }};background:{{ pillBreakfastBg }};box-shadow:{{ pillBreakfastShadow }}">朝食</div>
+              <div onClick="{{ setMealTypeLunch }}" style="flex:1;text-align:center;padding:9px 0;border-radius:10px;cursor:pointer;font:700 13px 'M PLUS Rounded 1c';color:{{ pillLunchColor }};background:{{ pillLunchBg }};box-shadow:{{ pillLunchShadow }}">昼食</div>
+              <div onClick="{{ setMealTypeDinner }}" style="flex:1;text-align:center;padding:9px 0;border-radius:10px;cursor:pointer;font:700 13px 'M PLUS Rounded 1c';color:{{ pillDinnerColor }};background:{{ pillDinnerBg }};box-shadow:{{ pillDinnerShadow }}">夕食</div>
+              <div onClick="{{ setMealTypeSnack }}" style="flex:1;text-align:center;padding:9px 0;border-radius:10px;cursor:pointer;font:700 13px 'M PLUS Rounded 1c';color:{{ pillSnackColor }};background:{{ pillSnackBg }};box-shadow:{{ pillSnackShadow }}">間食</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;background:#E4F7F5;border-radius:12px;padding:10px 13px;margin-bottom:16px"><span style="font-size:15px">✨</span><span style="font:500 12px 'Noto Sans JP';color:#1B8B80">写真AIの判定結果を反映しました。確認して修正できます</span></div>
             <label class="fld-lbl">料理名</label>
@@ -350,7 +404,7 @@
             <div style="margin-top:14px;height:48px;border:1.5px dashed #E0B7A8;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="#FF6B4A" stroke-width="1.7" stroke-linecap="round"/></svg><span style="font:700 13px 'M PLUS Rounded 1c';color:#FF6B4A">この品目を追加してもう1品記録</span></div>
             <div style="display:flex;align-items:center;gap:10px;margin-top:16px;padding:0 2px;cursor:pointer"><div style="width:22px;height:22px;border-radius:7px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 7l2.5 2.5L10 4" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span style="font:500 13px 'Noto Sans JP';color:#2B2B2B">この内容をマスタに登録する</span></div>
           </div>
-          <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 20px 26px;background:linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 34%)"><div onClick="{{ goHome }}" style="height:54px;border-radius:16px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 16px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 12px 24px -10px rgba(255,90,56,.6)">保存する</div></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 20px 26px;background:linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 34%)"><div onClick="{{ createMeal }}" style="height:54px;border-radius:16px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 16px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 12px 24px -10px rgba(255,90,56,.6)">保存する</div></div>
         </div>
       </sc-if>
 
@@ -408,9 +462,128 @@
         </div>
       </sc-if>
 
-      <!-- ============ FAB (home only) ============ -->
-      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
-        <div onClick="{{ openSheet }}" style="position:absolute;right:20px;bottom:96px;z-index:25;cursor:pointer"><div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(145deg,#FF7B5C,#FF5A38);display:flex;align-items:center;justify-content:center;box-shadow:0 14px 26px -8px rgba(255,90,56,.7),0 2px 4px rgba(0,0,0,.1)"><svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M13 5V21M5 13H21" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg></div></div>
+      <!-- ============ WATER ============ -->
+      <sc-if value="{{ isWater }}" hint-placeholder-val="{{ false }}">
+        <div class="screen">
+          <div style="position:absolute;top:52px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:15;background:rgba(255,248,240,.92);backdrop-filter:blur(8px)">
+            <div onClick="{{ goHome }}" style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">水分を記録</span>
+            <div style="width:38px"></div>
+          </div>
+          <div class="scrl" style="top:104px;bottom:0;padding:8px 20px 24px">
+            <div class="card" style="padding:22px 18px;margin-bottom:18px;text-align:center;background:#EFF7FC">
+              <div style="font:500 12px 'Noto Sans JP';color:#5A8CA8;margin-bottom:8px">今日の合計</div>
+              <div style="display:flex;align-items:baseline;justify-content:center;gap:6px;margin-bottom:14px"><span style="font:800 44px 'M PLUS Rounded 1c';color:#2B7BB0;line-height:1">{{ waterTotal }}</span><span style="font:500 15px 'M PLUS Rounded 1c';color:#5A8CA8">{{ waterTargetSuffixScreen }}</span></div>
+              <sc-if value="{{ waterHasGoal }}" hint-placeholder-val="{{ false }}">
+                <div style="height:12px;background:#DCEAF3;border-radius:8px;overflow:hidden"><div style="height:100%;width:{{ waterPct }};background:linear-gradient(90deg,#5FB6E6,#2B7BB0);border-radius:8px;transition:width .4s"></div></div>
+              </sc-if>
+              <sc-if value="{{ waterNoGoal }}" hint-placeholder-val="{{ true }}">
+                <div style="font:400 11px 'Noto Sans JP';color:#8C8C8C;margin-top:4px">設定画面で目標を設定すると、達成度を表示できます</div>
+              </sc-if>
+            </div>
+            <label class="fld-lbl">クイック追加</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:20px">
+              <div onClick="{{ addWater100 }}" style="background:#fff;border:1.5px solid #DCEAF3;border-radius:14px;padding:14px 0;text-align:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(43,123,176,.25)"><div style="font:800 18px 'M PLUS Rounded 1c';color:#2B7BB0">100</div><div style="font:500 9px 'Noto Sans JP';color:#8C8C8C">ml</div></div>
+              <div onClick="{{ addWater200 }}" style="background:#fff;border:1.5px solid #DCEAF3;border-radius:14px;padding:14px 0;text-align:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(43,123,176,.25)"><div style="font:800 18px 'M PLUS Rounded 1c';color:#2B7BB0">200</div><div style="font:500 9px 'Noto Sans JP';color:#8C8C8C">ml</div></div>
+              <div onClick="{{ addWater350 }}" style="background:#fff;border:1.5px solid #DCEAF3;border-radius:14px;padding:14px 0;text-align:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(43,123,176,.25)"><div style="font:800 18px 'M PLUS Rounded 1c';color:#2B7BB0">350</div><div style="font:500 9px 'Noto Sans JP';color:#8C8C8C">ml</div></div>
+              <div onClick="{{ addWater500 }}" style="background:#2B7BB0;border:1.5px solid #2B7BB0;border-radius:14px;padding:14px 0;text-align:center;cursor:pointer;box-shadow:0 8px 16px -8px rgba(43,123,176,.5)"><div style="font:800 18px 'M PLUS Rounded 1c';color:#fff">500</div><div style="font:500 9px 'Noto Sans JP';color:#CFE6F4">ml</div></div>
+            </div>
+            <label class="fld-lbl">今日の記録</label>
+            <sc-if value="{{ waterHasEntries }}" hint-placeholder-val="{{ true }}">
+              <div class="card" style="overflow:hidden">
+                <sc-for list="{{ waterEntries }}" as="w" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid #F4EEE4">
+                    <div style="width:32px;height:32px;border-radius:10px;background:#E4F3FB;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z" stroke="#3AA0DB" stroke-width="1.9" stroke-linejoin="round"/></svg></div>
+                    <span style="flex:1;font:400 12px 'Noto Sans JP';color:#8C8C8C">{{ w.time }}</span>
+                    <span style="font:700 15px 'M PLUS Rounded 1c';color:#2B2B2B">{{ w.ml }}<span style="font-size:10px;color:#8C8C8C;font-weight:500;margin-left:1px">ml</span></span>
+                    <div onClick="{{ w.onRemove }}" style="width:28px;height:28px;border-radius:8px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="#B7AE9F" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ waterEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="text-align:center;padding:30px 20px;font:400 13px 'Noto Sans JP';color:#B7AE9F">まだ記録がありません</div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ============ DIARY ============ -->
+      <sc-if value="{{ isDiary }}" hint-placeholder-val="{{ false }}">
+        <div class="screen">
+          <div style="position:absolute;top:52px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:15;background:rgba(255,248,240,.92);backdrop-filter:blur(8px)">
+            <div onClick="{{ goHome }}" style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">日記</span>
+            <div style="width:38px"></div>
+          </div>
+          <div class="scrl" style="top:104px;bottom:100px;padding:14px 20px 0">
+            <label class="fld-lbl">今日の気分</label>
+            <div style="display:flex;gap:8px;margin-bottom:20px">
+              <sc-for list="{{ moods }}" as="mo" hint-placeholder-count="5">
+                <div onClick="{{ mo.onSelect }}" style="flex:1;aspect-ratio:1;border-radius:14px;background:{{ mo.bg }};border:2px solid {{ mo.border }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="8" stroke="#E0A62A" stroke-width="1.7"/>
+                    <sc-if value="{{ mo.hasBrows }}" hint-placeholder-val="{{ false }}">
+                      <path d="{{ mo.browLeft }}" stroke="#E0A62A" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="{{ mo.browRight }}" stroke="#E0A62A" stroke-width="1.5" stroke-linecap="round"/>
+                    </sc-if>
+                    <sc-if value="{{ mo.eyesClosed }}" hint-placeholder-val="{{ false }}">
+                      <path d="{{ mo.eyeLeft }}" stroke="#E0A62A" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="{{ mo.eyeRight }}" stroke="#E0A62A" stroke-width="1.5" stroke-linecap="round"/>
+                    </sc-if>
+                    <sc-if value="{{ mo.eyesDot }}" hint-placeholder-val="{{ true }}">
+                      <circle cx="9.3" cy="10" r="{{ mo.eyeR }}" fill="#E0A62A"/>
+                      <circle cx="14.7" cy="10" r="{{ mo.eyeR }}" fill="#E0A62A"/>
+                    </sc-if>
+                    <path d="{{ mo.mouth }}" stroke="#E0A62A" stroke-width="1.6" stroke-linecap="round"/>
+                  </svg>
+                  <span style="font:600 9px 'Noto Sans JP';color:#A97F2E">{{ mo.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <label class="fld-lbl">ひとこと日記</label>
+            <textarea value="{{ diaryDraftText }}" onChange="{{ onDiaryTextChange }}" placeholder="今日はどんな一日でしたか？" style="width:100%;min-height:180px;background:#fff;border:1.5px solid #F0E7DB;border-radius:14px;padding:14px 15px;font:400 14px 'Noto Sans JP';color:#2B2B2B;line-height:1.7;box-shadow:0 4px 12px -8px rgba(120,60,20,.2);outline:none;resize:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 20px 26px;background:linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 34%)"><div onClick="{{ saveDiary }}" style="height:54px;border-radius:16px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 16px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 12px 24px -10px rgba(255,90,56,.6)">保存する</div></div>
+        </div>
+      </sc-if>
+
+      <!-- ============ STRENGTH ============ -->
+      <sc-if value="{{ isStrength }}" hint-placeholder-val="{{ false }}">
+        <div class="screen">
+          <div style="position:absolute;top:52px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:15;background:rgba(255,248,240,.92);backdrop-filter:blur(8px)">
+            <div onClick="{{ goHome }}" style="width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px -8px rgba(120,60,20,.3)"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4l-5 5 5 5" stroke="#2B2B2B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B">筋トレを記録</span>
+            <div style="width:38px"></div>
+          </div>
+          <div class="scrl" style="top:104px;bottom:100px;padding:14px 20px 0">
+            <sc-for list="{{ strengthExercises }}" as="ex" hint-placeholder-count="2">
+              <div class="card" style="padding:14px;margin-bottom:14px;border-radius:18px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                  <span style="width:28px;height:28px;border-radius:9px;background:#FFE6DE;display:flex;align-items:center;justify-content:center;font:700 12px 'M PLUS Rounded 1c';color:#FF6B4A;flex-shrink:0">{{ ex.no }}</span>
+                  <input type="text" value="{{ ex.name }}" onChange="{{ ex.onName }}" placeholder="例: ベンチプレス" style="flex:1;min-width:0;border:1.5px solid #F0E7DB;border-radius:12px;padding:10px 13px;font:700 14px 'M PLUS Rounded 1c';color:#2B2B2B;outline:none;background:#FBFAF7">
+                  <div onClick="{{ ex.onRemoveExercise }}" style="width:30px;height:30px;border-radius:9px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 5h10M7 5V3.5h4V5M5.5 5l.7 9a1 1 0 0 0 1 .9h3.6a1 1 0 0 0 1-.9l.7-9" stroke="#B7AE9F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><label class="fld-lbl" style="margin-bottom:0">セット</label><span style="font:500 11px 'Noto Sans JP';color:#8C8C8C">重量 × 回数</span></div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+                  <sc-for list="{{ ex.sets }}" as="st" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #F0E7DB;border-radius:14px;padding:10px 13px">
+                      <span style="width:24px;height:24px;border-radius:8px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;font:700 11px 'M PLUS Rounded 1c';color:#8C8C8C;flex-shrink:0">{{ st.no }}</span>
+                      <input type="number" value="{{ st.weight }}" onChange="{{ st.onWeight }}" style="flex:1;min-width:0;border:none;background:transparent;font:700 17px 'M PLUS Rounded 1c';color:#2B2B2B;outline:none;text-align:center">
+                      <span style="font:500 12px 'Noto Sans JP';color:#8C8C8C">kg ×</span>
+                      <input type="number" value="{{ st.reps }}" onChange="{{ st.onReps }}" style="flex:1;min-width:0;border:none;background:transparent;font:700 17px 'M PLUS Rounded 1c';color:#2B2B2B;outline:none;text-align:center">
+                      <span style="font:500 12px 'Noto Sans JP';color:#8C8C8C">回</span>
+                      <div onClick="{{ st.onRemove }}" style="width:26px;height:26px;border-radius:8px;background:#F4EEE4;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="#B7AE9F" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div onClick="{{ ex.onAddSet }}" style="height:40px;border:1.5px dashed #E0B7A8;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="#FF6B4A" stroke-width="1.7" stroke-linecap="round"/></svg><span style="font:700 12px 'M PLUS Rounded 1c';color:#FF6B4A">セットを追加</span></div>
+              </div>
+            </sc-for>
+            <div onClick="{{ addExercise }}" style="height:48px;border:1.5px dashed #E0B7A8;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;margin-bottom:6px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="#FF6B4A" stroke-width="1.7" stroke-linecap="round"/></svg><span style="font:700 13px 'M PLUS Rounded 1c';color:#FF6B4A">種目を追加</span></div>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 20px 26px;background:linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 34%)"><div onClick="{{ saveStrength }}" style="height:54px;border-radius:16px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 16px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 12px 24px -10px rgba(255,90,56,.6)">保存する</div></div>
+        </div>
       </sc-if>
 
       <!-- ============ BOTTOM NAV ============ -->
@@ -419,20 +592,6 @@
           <div class="navi" onClick="{{ goHome }}" style="background:{{ navHomeBg }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 10.5 12 3l9 7.5" stroke="{{ navHomeColor }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 9.5V20h13V9.5" stroke="{{ navHomeColor }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:700 10px 'M PLUS Rounded 1c';color:{{ navHomeColor }}">ホーム</span></div>
           <div class="navi" onClick="{{ goTrends }}" style="background:{{ navTrendsBg }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 18V6M4 18h16M8 15l4-5 3 3 4-6" stroke="{{ navTrendsColor }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:700 10px 'M PLUS Rounded 1c';color:{{ navTrendsColor }}">推移</span></div>
           <div class="navi" onClick="{{ goSettings }}" style="background:{{ navSetBg }}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 8h12M6 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm12 8H6m12 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z" stroke="{{ navSetColor }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:700 10px 'M PLUS Rounded 1c';color:{{ navSetColor }}">設定</span></div>
-        </div>
-      </sc-if>
-
-      <!-- ============ ACTION SHEET ============ -->
-      <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
-        <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(30,15,5,.42);backdrop-filter:blur(1.5px);z-index:50"></div>
-        <div style="position:absolute;left:0;right:0;bottom:0;background:#FFF8F0;border-radius:28px 28px 0 0;padding:12px 20px 30px;z-index:51;box-shadow:0 -20px 50px -20px rgba(0,0,0,.3);animation:sheetUp .28s cubic-bezier(.2,.9,.3,1)">
-          <div style="width:40px;height:5px;border-radius:3px;background:#E2D8C9;margin:0 auto 18px"></div>
-          <div style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B;text-align:center;margin-bottom:18px">記録する</div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div onClick="{{ goWeight }}" style="display:flex;align-items:center;gap:15px;background:#fff;border-radius:18px;padding:16px 18px;cursor:pointer;box-shadow:0 8px 20px -14px rgba(120,60,20,.28)"><div style="width:48px;height:48px;border-radius:15px;background:#E4F7F5;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 4a4 4 0 0 0-4 4h8a4 4 0 0 0-4-4Z" stroke="#2EC4B6" stroke-width="1.8" stroke-linejoin="round"/><rect x="4" y="8" width="16" height="12" rx="3" stroke="#2EC4B6" stroke-width="1.8"/><path d="M9 13h6" stroke="#2EC4B6" stroke-width="1.8" stroke-linecap="round"/></svg></div><div style="flex:1"><div style="font:700 15px 'M PLUS Rounded 1c';color:#2B2B2B">体重を記録</div><div style="font:400 12px 'Noto Sans JP';color:#8C8C8C;margin-top:2px">体重・体脂肪率・メモ</div></div><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 4l5 5-5 5" stroke="#C3B29A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div onClick="{{ goMeal }}" style="display:flex;align-items:center;gap:15px;background:#fff;border-radius:18px;padding:16px 18px;cursor:pointer;box-shadow:0 8px 20px -14px rgba(120,60,20,.28)"><div style="width:48px;height:48px;border-radius:15px;background:#FFEDE6;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M7 3v7a2 2 0 0 0 2 2v9M9 3v6M5 3v6M17 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4v9" stroke="#FF6B4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div style="flex:1"><div style="font:700 15px 'M PLUS Rounded 1c';color:#2B2B2B">食事を記録</div><div style="font:400 12px 'Noto Sans JP';color:#8C8C8C;margin-top:2px">写真AI判定・手入力・マスタ</div></div><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6.5 4l5 5-5 5" stroke="#C3B29A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div onClick="{{ closeSheet }}" style="text-align:center;font:700 14px 'M PLUS Rounded 1c';color:#8C8C8C;padding:13px;margin-top:2px;cursor:pointer">キャンセル</div>
-          </div>
         </div>
       </sc-if>
 
@@ -467,6 +626,28 @@
               <div onClick="{{ setCal2200 }}" style="padding:7px 14px;border-radius:20px;background:#F1E9DE;font:700 12px 'M PLUS Rounded 1c';color:#8C8C8C;cursor:pointer">2,200</div>
             </div>
             <input type="text" inputmode="numeric" placeholder="直接入力（例: 1900）" onBlur="{{ onCalBlur }}" style="width:100%;background:#FBFAF7;border:1.5px solid #F0E7DB;border-radius:12px;padding:10px 13px;font:500 13px 'Noto Sans JP';color:#2B2B2B;text-align:center;outline:none;margin-bottom:8px">
+          </sc-if>
+
+          <!-- 1日の目標水分摂取量 -->
+          <sc-if value="{{ isEditWaterGoal }}" hint-placeholder-val="{{ false }}">
+            <div style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B;text-align:center;margin-bottom:22px">1日の目標水分摂取量</div>
+            <sc-if value="{{ hasWaterGoal }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;justify-content:center;gap:22px;margin-bottom:18px">
+                <div onClick="{{ decWaterGoal }}" style="width:44px;height:44px;border-radius:14px;background:#fff;box-shadow:0 4px 12px -8px rgba(120,60,20,.25);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9h12" stroke="#3AA0DB" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+                <div style="min-width:150px;text-align:center"><span style="font:800 38px 'M PLUS Rounded 1c';color:#2B2B2B">{{ draftWaterGoalText }}</span><span style="font:500 15px 'M PLUS Rounded 1c';color:#8C8C8C;margin-left:6px">ml</span></div>
+                <div onClick="{{ incWaterGoal }}" style="width:44px;height:44px;border-radius:14px;background:#3AA0DB;box-shadow:0 8px 18px -8px rgba(58,160,219,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 3v12M3 9h12" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+              </div>
+              <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px">
+                <div onClick="{{ setWater1500 }}" style="padding:7px 14px;border-radius:20px;background:#F1E9DE;font:700 12px 'M PLUS Rounded 1c';color:#8C8C8C;cursor:pointer">1,500</div>
+                <div onClick="{{ setWater2000 }}" style="padding:7px 14px;border-radius:20px;background:#F1E9DE;font:700 12px 'M PLUS Rounded 1c';color:#8C8C8C;cursor:pointer">2,000</div>
+                <div onClick="{{ setWater2500 }}" style="padding:7px 14px;border-radius:20px;background:#F1E9DE;font:700 12px 'M PLUS Rounded 1c';color:#8C8C8C;cursor:pointer">2,500</div>
+              </div>
+              <div style="text-align:center;margin-bottom:8px"><span onClick="{{ clearWaterGoal }}" style="font:700 12px 'M PLUS Rounded 1c';color:#C3B29A;cursor:pointer;text-decoration:underline">未設定にする</span></div>
+            </sc-if>
+            <sc-if value="{{ noWaterGoal }}" hint-placeholder-val="{{ true }}">
+              <div style="text-align:center;font:400 13px 'Noto Sans JP';color:#8C8C8C;margin-bottom:18px">未設定（ホームでは合計mlのみ表示されます）</div>
+              <div onClick="{{ enableWaterGoal }}" style="height:46px;border-radius:14px;background:#fff;border:1.5px dashed #9BCBE8;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;margin-bottom:8px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="#3AA0DB" stroke-width="1.7" stroke-linecap="round"/></svg><span style="font:700 13px 'M PLUS Rounded 1c';color:#3AA0DB">目標を設定する</span></div>
+            </sc-if>
           </sc-if>
 
           <!-- 目標日 -->
@@ -527,31 +708,6 @@
             </sc-if>
           </sc-if>
 
-          <!-- 履歴の期間フィルタ（From/To） -->
-          <sc-if value="{{ isEditHistDate }}" hint-placeholder-val="{{ false }}">
-            <div style="font:700 16px 'M PLUS Rounded 1c';color:#2B2B2B;text-align:center;margin-bottom:20px">{{ histDateTitle }}</div>
-            <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px">
-              <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-                <div onClick="{{ incHY }}" class="stepbtn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 9l4-4 4 4" stroke="#FF6B4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                <div style="font:700 22px 'M PLUS Rounded 1c';color:#2B2B2B;min-width:64px;text-align:center">{{ histY }}</div>
-                <div onClick="{{ decHY }}" class="stepbtn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="#B7AE9F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              </div>
-              <span style="font:700 18px 'M PLUS Rounded 1c';color:#C3B29A">/</span>
-              <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-                <div onClick="{{ incHM }}" class="stepbtn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 9l4-4 4 4" stroke="#FF6B4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                <div style="font:700 22px 'M PLUS Rounded 1c';color:#2B2B2B;min-width:36px;text-align:center">{{ histM }}</div>
-                <div onClick="{{ decHM }}" class="stepbtn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="#B7AE9F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              </div>
-              <span style="font:700 18px 'M PLUS Rounded 1c';color:#C3B29A">/</span>
-              <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-                <div onClick="{{ incHD }}" class="stepbtn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 9l4-4 4 4" stroke="#FF6B4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                <div style="font:700 22px 'M PLUS Rounded 1c';color:#2B2B2B;min-width:36px;text-align:center">{{ histD }}</div>
-                <div onClick="{{ decHD }}" class="stepbtn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="#B7AE9F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              </div>
-            </div>
-            <input type="text" placeholder="直接入力（例: 2026/7/1）" onBlur="{{ onHistDateBlur }}" style="width:100%;background:#FBFAF7;border:1.5px solid #F0E7DB;border-radius:12px;padding:10px 13px;font:500 13px 'Noto Sans JP';color:#2B2B2B;text-align:center;outline:none;margin-bottom:8px">
-          </sc-if>
-
           <div style="display:flex;gap:10px;margin-top:16px">
             <div onClick="{{ closeEdit }}" style="flex:1;height:50px;border-radius:15px;background:#F1E9DE;display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 14px 'M PLUS Rounded 1c';color:#8C8C8C">キャンセル</div>
             <div onClick="{{ saveEdit }}" style="flex:1;height:50px;border-radius:15px;background:#FF6B4A;display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 14px 'M PLUS Rounded 1c';color:#fff;box-shadow:0 10px 20px -10px rgba(255,90,56,.6)">保存</div>
@@ -573,15 +729,37 @@ class Component extends DCLogic {
     goalCalories: 1900,
     draftWeight: 64.0, draftGoalDate: { y: 2026, m: 10, d: 31 },
     draftBaselineDate: { y: 2026, m: 7, d: 1 }, draftCalories: 1900,
-    histFrom: { y: 2026, m: 6, d: 1 }, histTo: { y: 2026, m: 7, d: 4 },
-    draftHistDate: { y: 2026, m: 6, d: 1 }, histEditTarget: 'from',
+    historyRecords: [
+      { y: 2026, m: 7, d: 4, wd: '金', memo: '筋トレ後', hasMemo: true, weight: 70.6, bodyfat: 22.4, baseline: false },
+      { y: 2026, m: 7, d: 3, wd: '木', memo: '', hasMemo: false, weight: 70.9, bodyfat: null, baseline: false },
+      { y: 2026, m: 7, d: 2, wd: '水', memo: '飲み会翌日', hasMemo: true, weight: 71.5, bodyfat: 22.8, baseline: false },
+      { y: 2026, m: 7, d: 1, wd: '月', memo: '', hasMemo: false, weight: 72.0, bodyfat: 23.1, baseline: true },
+    ],
+    draftWeightRecord: null, weightEditFrom: null,
     mealRecords: [
       { id: 'breakfast', mealType: '朝食', time: '07:30', name: 'トースト+卵', kcal: 420, p: 20, f: 14, c: 52, synced: false },
       { id: 'lunch', mealType: '昼食', time: '12:15', name: '鶏肉と野菜炒め', kcal: 580, p: 38, f: 22, c: 45, synced: true },
+    ],    editingMealId: null, draftMeal: null, mealDeleteConfirmOpen: false,
+    waterEntries: [
+      { id: 'w1', time: '07:40', ml: 200 },
+      { id: 'w2', time: '10:15', ml: 350 },
+      { id: 'w3', time: '12:20', ml: 250 },
+    ], waterTarget: 2000,
+    goalWaterMl: null, draftWaterGoal: 2000,
+    exerciseMasterItems: [
+      { id: 'e1', name: 'ベンチプレス' },
+      { id: 'e2', name: 'スクワット' },
+      { id: 'e3', name: 'デッドリフト' },
+      { id: 'e4', name: 'ラットプルダウン' },
+      { id: 'e5', name: 'ショルダープレス' },
     ],
-    editingMealId: null, draftMeal: null, mealDeleteConfirmOpen: false,
+    diaryMood: null, diaryText: '', diaryDraftMood: null, diaryDraftText: '',
+    strengthExercisesData: [], strengthDraftExercises: [],
   };
   go(s) { this.setState({ screen: s, sheetOpen: false }); }
+  openMealNew(type) {
+    this.setState({ screen: 'meal', editingMealId: null, draftMeal: { mealType: type, time: '12:30', name: '唐揚げ弁当（ご飯少なめ）', kcal: 680, p: 28, f: 24, c: 78 } });
+  }
   mealIconStyle(type) {
     return {
       '朝食': { bg: '#FFF1D9', color: '#E0A62A' },
@@ -604,7 +782,7 @@ class Component extends DCLogic {
   }
   renderVals() {
     const s = this.state.screen;
-    const setActive = s === 'settings' || s === 'master';
+    const setActive = s === 'settings' || s === 'master' || s === 'exerciseMaster';
     const target = this.state.goalCalories;
     const kcal = this.props.caloriesConsumed ?? 1000;
     const over = kcal > target;
@@ -614,37 +792,49 @@ class Component extends DCLogic {
     const graphTab = (this.props.historyTab ?? false) ? false : (this.state.tab === 'graph');
     const reached = this.props.goalReached ?? false;
     const shadow = '0 3px 8px -3px rgba(120,60,20,.35)';
-    const historyRecords = [
-      { y: 2026, m: 7, d: 4, wd: '金', memo: '筋トレ後', hasMemo: true, weight: '70.6', bodyfat: '22.4%', baseline: false },
-      { y: 2026, m: 7, d: 3, wd: '木', memo: '', hasMemo: false, weight: '70.9', bodyfat: '-', baseline: false },
-      { y: 2026, m: 7, d: 2, wd: '水', memo: '飲み会翌日', hasMemo: true, weight: '71.5', bodyfat: '22.8%', baseline: false },
-      { y: 2026, m: 7, d: 1, wd: '月', memo: '', hasMemo: false, weight: '72.0', bodyfat: '23.1%', baseline: true },
-    ];
-    const dateKey = (r) => r.y * 10000 + r.m * 100 + r.d;
-    const fromKey = dateKey(this.state.histFrom);
-    const toKey = dateKey(this.state.histTo);
-    const filteredHistory = historyRecords
-      .filter(r => dateKey(r) >= fromKey && dateKey(r) <= toKey)
-      .map(r => ({ ...r, label: `${r.m}月${r.d}日` }));
-    const meal1 = this.state.mealRecords.find(m => m.id === 'breakfast') || { mealType: '朝食', time: '', name: '', kcal: 0, synced: true };
-    const meal2 = this.state.mealRecords.find(m => m.id === 'lunch') || { mealType: '昼食', time: '', name: '', kcal: 0, synced: true };
-    const ic1 = this.mealIconStyle(meal1.mealType), ic2 = this.mealIconStyle(meal2.mealType);
+    const sortedHistory = [...this.state.historyRecords].sort((a, b) => (b.y * 10000 + b.m * 100 + b.d) - (a.y * 10000 + a.m * 100 + a.d));
+    const mealTypeIcons = {
+      '朝食': 'M12 4v2M5.5 9.5 7 11M18.5 9.5 17 11M4 20h16M8 20a4 4 0 0 1 8 0',
+      '昼食': 'M3.5 11h17M5 11a7 7 0 0 0 14 0M12 5c0 1.1 1 1.4 1 2.4M9.2 6.2c0 .8.6 1 .6 1.8',
+      '夕食': 'M7 3v7a2 2 0 0 0 4 0V3M9 3v18M17 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4v9',
+    };
+    const mealSections = ['朝食', '昼食', '夕食', '間食'].map(type => {
+      const items = this.state.mealRecords.filter(m => m.mealType === type);
+      const ic = this.mealIconStyle(type);
+      return {
+        label: type, isSnack: type === '間食', isNotSnack: type !== '間食', iconPath: mealTypeIcons[type] || '',
+        iconBg: ic.bg, iconColor: ic.color,
+        hasItems: items.length > 0, noItems: items.length === 0,
+        subtotal: items.reduce((a, m) => a + (+m.kcal || 0), 0),
+        onNew: () => this.openMealNew(type),
+        items: items.map(m => ({ time: m.time, name: m.name, kcal: m.kcal, unsynced: !m.synced, onEdit: () => this.openMealEdit(m.id) })),
+      };
+    });
     const dm = this.state.draftMeal || { mealType: '昼食', time: '', name: '', kcal: 0, p: 0, f: 0, c: 0 };
     const pillStyle = (label) => {
       const active = dm.mealType === label;
       return { bg: active ? '#FF6B4A' : '#FFF8F0', color: active ? '#fff' : '#8C8C8C', shadow: active ? '0 6px 14px -6px rgba(255,90,56,.6)' : 'none' };
     };
     const pB = pillStyle('朝食'), pL = pillStyle('昼食'), pD = pillStyle('夕食'), pS = pillStyle('間食');
+    const moodDefs = [
+      { key: 'great', label: '絶好調', eyesDot: true, eyeR: 1.3, mouth: 'M8 13 Q12 18.5 16 13' },
+      { key: 'good', label: '良い', eyesDot: true, eyeR: 1, mouth: 'M8.5 14 Q12 16.8 15.5 14' },
+      { key: 'ok', label: '普通', eyesDot: true, eyeR: 1, mouth: 'M8.5 15 L15.5 15' },
+      { key: 'tired', label: '眠い', eyesClosed: true, eyeLeft: 'M7.7 10 Q9 11.2 10.3 10', eyeRight: 'M13.7 10 Q15 11.2 16.3 10', mouth: 'M9 15.2 Q12 15.8 15 15.2' },
+      { key: 'bad', label: '不調', eyesDot: true, eyeR: 1, hasBrows: true, browLeft: 'M7.8 8.2 L10.2 9.3', browRight: 'M16.2 8.2 L13.8 9.3', mouth: 'M8.5 16.3 Q12 13.3 15.5 16.3' },
+    ];
+    const waterTotalNum = this.state.waterEntries.reduce((a, w) => a + w.ml, 0);
+    const waterGoal = this.state.goalWaterMl;
+    const waterPctNum = waterGoal ? Math.max(0, Math.min(100, (waterTotalNum / waterGoal) * 100)) : 0;
+    const moodLabelOf = (k) => (moodDefs.find(m => m.key === k) || {}).label || '';
+    const nowTime = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
     return {
       isHome: s === 'home', isTrends: s === 'trends', isSettings: s === 'settings',
-      isMaster: s === 'master', isWeight: s === 'weight', isMeal: s === 'meal', isMealEdit: s === 'mealEdit',
-      showNav: ['home', 'trends', 'settings', 'master'].includes(s),
+      isMaster: s === 'master', isExerciseMaster: s === 'exerciseMaster', isWeight: s === 'weight', isMeal: s === 'meal', isMealEdit: s === 'mealEdit',
+      isWater: s === 'water', isDiary: s === 'diary', isStrength: s === 'strength',
+      showNav: ['home', 'trends', 'settings', 'master', 'exerciseMaster'].includes(s),
       // meal cards on home
-      hasMeal1: this.state.mealRecords.some(m => m.id === 'breakfast'), noMeal1: !this.state.mealRecords.some(m => m.id === 'breakfast'),
-      hasMeal2: this.state.mealRecords.some(m => m.id === 'lunch'), noMeal2: !this.state.mealRecords.some(m => m.id === 'lunch'),
-      meal1, meal2, meal1IconBg: ic1.bg, meal1IconColor: ic1.color, meal2IconBg: ic2.bg, meal2IconColor: ic2.color,
-      meal1Unsynced: !meal1.synced, meal2Unsynced: !meal2.synced,
-      openMeal1Edit: () => this.openMealEdit('breakfast'), openMeal2Edit: () => this.openMealEdit('lunch'),
+      mealSections,
       // meal edit sheet
       mealDeleteConfirmOpen: this.state.mealDeleteConfirmOpen,
       pillBreakfastBg: pB.bg, pillBreakfastColor: pB.color, pillBreakfastShadow: pB.shadow,
@@ -672,10 +862,100 @@ class Component extends DCLogic {
         mealRecords: st.mealRecords.filter(m => m.id !== st.editingMealId),
         mealDeleteConfirmOpen: false, screen: 'home',
       })),
+      // new meal entry (from home tap zones)
+      newBreakfast: () => this.openMealNew('朝食'),
+      newLunch: () => this.openMealNew('昼食'),
+      newDinner: () => this.openMealNew('夕食'),
+      newSnack: () => this.openMealNew('間食'),
+      createMeal: () => this.setState(st => {
+        const d = st.draftMeal || {};
+        const item = { id: 'm' + Date.now(), mealType: d.mealType || '間食', time: d.time || nowTime(), name: d.name || '（無題）', kcal: +d.kcal || 0, p: +d.p || 0, f: +d.f || 0, c: +d.c || 0, synced: false };
+        return { mealRecords: [...st.mealRecords, item], screen: 'home', draftMeal: null, editingMealId: null };
+      }),
+      // phase2 navigation
+      goWater: () => this.go('water'),
+      goDiary: () => this.setState({ screen: 'diary', diaryDraftMood: this.state.diaryMood, diaryDraftText: this.state.diaryText }),
+      goStrength: () => this.setState({ screen: 'strength', strengthDraftExercises: this.state.strengthExercisesData.length ? this.state.strengthExercisesData.map(ex => ({ name: ex.name, sets: ex.sets.map(s => ({ ...s })) })) : [{ name: '', sets: [{ weight: '', reps: '' }] }] }),
+      // home summaries
+      waterTotal: waterTotalNum, waterPct: waterPctNum + '%',
+      waterHasGoal: !!waterGoal, waterNoGoal: !waterGoal, goalWaterMl: waterGoal,
+      waterTargetSuffixHome: waterGoal ? `/ ${waterGoal}ml` : 'ml',
+      waterTargetSuffixScreen: waterGoal ? `/ ${waterGoal} ml` : ' ml',
+      diaryMoodLabel: moodLabelOf(this.state.diaryMood), diaryHasMood: !!this.state.diaryMood,
+      diaryPreview: this.state.diaryText ? this.state.diaryText : '未記録',
+      diaryPreviewColor: this.state.diaryText ? '#8C8C8C' : '#B7AE9F',
+      strengthPreview: this.state.strengthExercisesData.length
+        ? `${this.state.strengthExercisesData.length}種目・${this.state.strengthExercisesData.reduce((a, ex) => a + ex.sets.length, 0)}セット`
+        : '未記録',
+      strengthPreviewColor: this.state.strengthExercisesData.length ? '#8C8C8C' : '#B7AE9F',
+      // water screen
+      waterEntries: this.state.waterEntries.map(w => ({ ...w, onRemove: () => this.setState(st => ({ waterEntries: st.waterEntries.filter(x => x.id !== w.id) })) })),
+      waterHasEntries: this.state.waterEntries.length > 0, waterEmpty: this.state.waterEntries.length === 0,
+      addWater100: () => this.setState(st => ({ waterEntries: [...st.waterEntries, { id: 'w' + Date.now(), time: nowTime(), ml: 100 }] })),
+      addWater200: () => this.setState(st => ({ waterEntries: [...st.waterEntries, { id: 'w' + Date.now(), time: nowTime(), ml: 200 }] })),
+      addWater350: () => this.setState(st => ({ waterEntries: [...st.waterEntries, { id: 'w' + Date.now(), time: nowTime(), ml: 350 }] })),
+      addWater500: () => this.setState(st => ({ waterEntries: [...st.waterEntries, { id: 'w' + Date.now(), time: nowTime(), ml: 500 }] })),
+      // diary screen
+      moods: moodDefs.map(m => ({
+        label: m.label, eyesDot: !!m.eyesDot, eyeR: m.eyeR, eyesClosed: !!m.eyesClosed, eyeLeft: m.eyeLeft, eyeRight: m.eyeRight,
+        hasBrows: !!m.hasBrows, browLeft: m.browLeft, browRight: m.browRight, mouth: m.mouth,
+        onSelect: () => this.setState({ diaryDraftMood: m.key }),
+        bg: this.state.diaryDraftMood === m.key ? '#FFF1D9' : '#fff',
+        border: this.state.diaryDraftMood === m.key ? '#E0A62A' : '#F0E7DB',
+      })),
+      diaryDraftText: this.state.diaryDraftText,
+      onDiaryTextChange: (e) => this.setState({ diaryDraftText: e.target.value }),
+      saveDiary: () => this.setState(st => ({ diaryMood: st.diaryDraftMood, diaryText: st.diaryDraftText, screen: 'home' })),
+      // strength screen
+      strengthExercises: this.state.strengthDraftExercises.map((ex, i) => ({
+        no: i + 1, name: ex.name,
+        onName: (e) => this.setState(st => ({ strengthDraftExercises: st.strengthDraftExercises.map((x, j) => j === i ? { ...x, name: e.target.value } : x) })),
+        onRemoveExercise: () => this.setState(st => ({ strengthDraftExercises: st.strengthDraftExercises.filter((x, j) => j !== i) })),
+        onAddSet: () => this.setState(st => ({ strengthDraftExercises: st.strengthDraftExercises.map((x, j) => j === i ? { ...x, sets: [...x.sets, { weight: '', reps: '' }] } : x) })),
+        sets: ex.sets.map((set, k) => ({
+          no: k + 1, weight: set.weight, reps: set.reps,
+          onWeight: (e) => this.setState(st => ({ strengthDraftExercises: st.strengthDraftExercises.map((x, j) => j === i ? { ...x, sets: x.sets.map((s, l) => l === k ? { ...s, weight: e.target.value } : s) } : x) })),
+          onReps: (e) => this.setState(st => ({ strengthDraftExercises: st.strengthDraftExercises.map((x, j) => j === i ? { ...x, sets: x.sets.map((s, l) => l === k ? { ...s, reps: e.target.value } : s) } : x) })),
+          onRemove: () => this.setState(st => ({ strengthDraftExercises: st.strengthDraftExercises.map((x, j) => j === i ? { ...x, sets: x.sets.filter((s, l) => l !== k) } : x) })),
+        })),
+      })),
+      addExercise: () => this.setState(st => ({ strengthDraftExercises: [...st.strengthDraftExercises, { name: '', sets: [{ weight: '', reps: '' }] }] })),
+      saveStrength: () => this.setState(st => {
+        const exercises = st.strengthDraftExercises
+          .map(ex => ({ name: ex.name, sets: ex.sets.filter(s => s.weight !== '' || s.reps !== '') }))
+          .filter(ex => ex.name !== '' || ex.sets.length > 0);
+        return { strengthExercisesData: exercises, screen: 'home' };
+      }),
       // handlers
       goHome: () => this.go('home'), goTrends: () => this.go('trends'),
-      goSettings: () => this.go('settings'), goMaster: () => this.go('master'),
-      goWeight: () => this.go('weight'), goMeal: () => this.go('meal'),
+      goSettings: () => this.go('settings'), goMaster: () => this.go('master'), goExerciseMaster: () => this.go('exerciseMaster'),
+      goWeight: () => {
+        const today = [...this.state.historyRecords].sort((a, b) => (b.y * 10000 + b.m * 100 + b.d) - (a.y * 10000 + a.m * 100 + a.d))[0];
+        this.setState({
+          screen: 'weight', weightEditFrom: 'home',
+          draftWeightRecord: today ? { ...today } : { y: 2026, m: 7, d: 4, wd: '金', weight: 0, bodyfat: null, memo: '', hasMemo: false, baseline: false },
+        });
+      },
+      closeWeightScreen: () => {
+        if (this.state.weightEditFrom === 'history') this.setState({ screen: 'trends', tab: 'hist' });
+        else this.setState({ screen: 'home' });
+      },
+      saveWeightRecord: () => {
+        const dw = this.state.draftWeightRecord;
+        this.setState(st => {
+          const exists = st.historyRecords.some(r => r.y === dw.y && r.m === dw.m && r.d === dw.d);
+          const updated = exists
+            ? st.historyRecords.map(r => (r.y === dw.y && r.m === dw.m && r.d === dw.d) ? { ...r, weight: dw.weight, bodyfat: dw.bodyfat, memo: dw.memo, hasMemo: !!dw.memo } : r)
+            : [...st.historyRecords, { ...dw, hasMemo: !!dw.memo }];
+          return { historyRecords: updated };
+        });
+        if (this.state.weightEditFrom === 'history') this.setState({ screen: 'trends', tab: 'hist' });
+        else this.setState({ screen: 'home' });
+      },
+      onDraftWeightChange: (e) => this.setState(st => ({ draftWeightRecord: { ...st.draftWeightRecord, weight: e.target.value === '' ? 0 : parseFloat(e.target.value) } })),
+      onDraftBodyfatChange: (e) => this.setState(st => ({ draftWeightRecord: { ...st.draftWeightRecord, bodyfat: e.target.value === '' ? null : parseFloat(e.target.value) } })),
+      onDraftMemoChange: (e) => this.setState(st => ({ draftWeightRecord: { ...st.draftWeightRecord, memo: e.target.value } })),
+      goMeal: () => this.go('meal'),
       openSheet: () => this.setState({ sheetOpen: true }),
       closeSheet: () => this.setState({ sheetOpen: false }),
       sheetOpen: this.state.sheetOpen,
@@ -721,20 +1001,21 @@ class Component extends DCLogic {
         ? `${this.state.baselineDate.y}/${this.state.baselineDate.m}/${this.state.baselineDate.d}`
         : '未設定',
       goalCaloriesText: `${fmt(this.state.goalCalories)} kcal`,
+      goalWaterText: this.state.goalWaterMl ? `${fmt(this.state.goalWaterMl)} ml` : '未設定',
 
       // edit sheet open handlers
       openWeightEdit: () => this.setState({ editMode: 'weight', draftWeight: this.state.goalWeight }),
       openGoalDateEdit: () => this.setState({ editMode: 'goalDate', draftGoalDate: { ...this.state.goalDate } }),
       openBaselineEdit: () => this.setState({ editMode: 'baseline', draftBaselineDate: this.state.baselineDate ? { ...this.state.baselineDate } : null }),
       openCaloriesEdit: () => this.setState({ editMode: 'calories', draftCalories: this.state.goalCalories }),
+      openWaterGoalEdit: () => this.setState({ editMode: 'waterGoal', draftWaterGoal: this.state.goalWaterMl || 2000 }),
       closeEdit: () => this.setState({ editMode: null }),
       anyEditOpen: !!this.state.editMode,
       isEditWeight: this.state.editMode === 'weight',
       isEditCalories: this.state.editMode === 'calories',
+      isEditWaterGoal: this.state.editMode === 'waterGoal',
       isEditGoalDate: this.state.editMode === 'goalDate',
       isEditBaseline: this.state.editMode === 'baseline',
-      isEditHistDate: this.state.editMode === 'histDate',
-      histDateTitle: this.state.histEditTarget === 'from' ? '期間（開始日）' : '期間（終了日）',
 
       saveEdit: () => {
         const m = this.state.editMode;
@@ -742,10 +1023,8 @@ class Component extends DCLogic {
         else if (m === 'calories') this.setState({ goalCalories: this.state.draftCalories, editMode: null });
         else if (m === 'goalDate') this.setState({ goalDate: this.state.draftGoalDate, editMode: null });
         else if (m === 'baseline') this.setState({ baselineDate: this.state.draftBaselineDate, editMode: null });
-        else if (m === 'histDate') {
-          if (this.state.histEditTarget === 'from') this.setState({ histFrom: this.state.draftHistDate, editMode: null });
-          else this.setState({ histTo: this.state.draftHistDate, editMode: null });
-        } else this.setState({ editMode: null });
+        else if (m === 'waterGoal') this.setState({ goalWaterMl: this.state.draftWaterGoal, editMode: null });
+        else this.setState({ editMode: null });
       },
 
       // manual text input parsing
@@ -765,10 +1044,6 @@ class Component extends DCLogic {
         const m = e.target.value.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
         if (m) this.setState({ draftBaselineDate: { y: +m[1], m: +m[2], d: +m[3] } });
       },
-      onHistDateBlur: (e) => {
-        const m = e.target.value.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
-        if (m) this.setState({ draftHistDate: { y: +m[1], m: +m[2], d: +m[3] } });
-      },
 
       // weight stepper
       draftWeightText: this.state.draftWeight.toFixed(1),
@@ -782,6 +1057,17 @@ class Component extends DCLogic {
       setCal1600: () => this.setState({ draftCalories: 1600 }),
       setCal1900: () => this.setState({ draftCalories: 1900 }),
       setCal2200: () => this.setState({ draftCalories: 2200 }),
+
+      // water goal stepper
+      hasWaterGoal: !!this.state.draftWaterGoal, noWaterGoal: !this.state.draftWaterGoal,
+      draftWaterGoalText: fmt(this.state.draftWaterGoal || 0),
+      incWaterGoal: () => this.setState(st => ({ draftWaterGoal: Math.min(6000, (st.draftWaterGoal || 0) + 50) })),
+      decWaterGoal: () => this.setState(st => ({ draftWaterGoal: Math.max(0, (st.draftWaterGoal || 0) - 50) })),
+      setWater1500: () => this.setState({ draftWaterGoal: 1500 }),
+      setWater2000: () => this.setState({ draftWaterGoal: 2000 }),
+      setWater2500: () => this.setState({ draftWaterGoal: 2500 }),
+      clearWaterGoal: () => this.setState({ draftWaterGoal: null }),
+      enableWaterGoal: () => this.setState({ draftWaterGoal: 2000 }),
 
       // goal date steppers
       goalY: this.state.draftGoalDate.y, goalM: this.state.draftGoalDate.m, goalD: this.state.draftGoalDate.d,
@@ -807,24 +1093,58 @@ class Component extends DCLogic {
       clearBaseline: () => this.setState({ draftBaselineDate: null }),
       enableBaseline: () => this.setState({ draftBaselineDate: { y: 2026, m: 7, d: 4 } }),
 
-      // history range filter
-      histFromText: `${this.state.histFrom.y}/${this.state.histFrom.m}/${this.state.histFrom.d}`,
-      histToText: `${this.state.histTo.y}/${this.state.histTo.m}/${this.state.histTo.d}`,
-      openHistFromEdit: () => this.setState({ editMode: 'histDate', histEditTarget: 'from', draftHistDate: { ...this.state.histFrom } }),
-      openHistToEdit: () => this.setState({ editMode: 'histDate', histEditTarget: 'to', draftHistDate: { ...this.state.histTo } }),
-      resetHistRange: () => this.setState({ histFrom: { y: 2026, m: 6, d: 1 }, histTo: { y: 2026, m: 7, d: 4 } }),
-      histY: this.state.draftHistDate.y, histM: this.state.draftHistDate.m, histD: this.state.draftHistDate.d,
-      incHY: () => this.setState(st => ({ draftHistDate: this.adjustDate(st.draftHistDate, 'y', 1) })),
-      decHY: () => this.setState(st => ({ draftHistDate: this.adjustDate(st.draftHistDate, 'y', -1) })),
-      incHM: () => this.setState(st => ({ draftHistDate: this.adjustDate(st.draftHistDate, 'm', 1) })),
-      decHM: () => this.setState(st => ({ draftHistDate: this.adjustDate(st.draftHistDate, 'm', -1) })),
-      incHD: () => this.setState(st => ({ draftHistDate: this.adjustDate(st.draftHistDate, 'd', 1) })),
-      decHD: () => this.setState(st => ({ draftHistDate: this.adjustDate(st.draftHistDate, 'd', -1) })),
+      // history list (spec 8.1: no period filter, full period desc, tap row to edit)
+      historyRows: sortedHistory.map((r, i) => ({
+        label: `${r.m}月${r.d}日`, wd: r.wd, baseline: r.baseline,
+        hasMemo: r.hasMemo, memo: r.memo,
+        weight: r.weight.toFixed(1), bodyfat: r.bodyfat != null ? `${r.bodyfat.toFixed(1)}%` : '-',
+        onEdit: () => this.setState({ screen: 'weight', weightEditFrom: 'history', draftWeightRecord: { ...r } }),
+      })),
+      historyCountText: sortedHistory.length > 0 ? `${sortedHistory.length}件・新しい順` : '該当する記録なし',
+      historyEmpty: sortedHistory.length === 0,
 
-      // history records + filtering
-      filteredHistory: filteredHistory,
-      historyCountText: filteredHistory.length > 0 ? `${filteredHistory.length}件・新しい順` : '該当する記録なし',
-      historyEmpty: filteredHistory.length === 0,
+      // weight entry/edit screen
+      weightScreenTitle: this.state.weightEditFrom === 'history' ? '体重記録を編集' : '体重を記録',
+      weightSaveLabel: this.state.weightEditFrom === 'history' ? '更新する' : '保存する',
+      dateFieldOpacity: this.state.weightEditFrom === 'history' ? '0.65' : '1',
+      draftWeightDateText: (() => {
+        const dw = this.state.draftWeightRecord;
+        if (!dw) return '';
+        return `${dw.y}/${dw.m}/${dw.d}（${dw.wd}）`;
+      })(),
+      draftWeightVal: this.state.draftWeightRecord ? this.state.draftWeightRecord.weight : 0,
+      draftBodyfatVal: this.state.draftWeightRecord && this.state.draftWeightRecord.bodyfat != null ? this.state.draftWeightRecord.bodyfat : '',
+      draftMemoVal: this.state.draftWeightRecord ? (this.state.draftWeightRecord.memo || '') : '',
+      hasWeightDiff: (() => {
+        const dw = this.state.draftWeightRecord;
+        if (!dw) return false;
+        const key = dw.y * 10000 + dw.m * 100 + dw.d;
+        const prev = sortedHistory.filter(r => (r.y * 10000 + r.m * 100 + r.d) < key)[0];
+        return !!prev;
+      })(),
+      weightDiffText: (() => {
+        const dw = this.state.draftWeightRecord;
+        if (!dw) return '';
+        const key = dw.y * 10000 + dw.m * 100 + dw.d;
+        const prev = sortedHistory.filter(r => (r.y * 10000 + r.m * 100 + r.d) < key)[0];
+        if (!prev) return '';
+        const diff = Math.round((dw.weight - prev.weight) * 10) / 10;
+        const sign = diff > 0 ? '+' : '';
+        return `前回比 ${sign}${diff.toFixed(1)}kg`;
+      })(),
+      weightDiffColor: (() => {
+        const dw = this.state.draftWeightRecord;
+        if (!dw) return '#2EC4B6';
+        const key = dw.y * 10000 + dw.m * 100 + dw.d;
+        const prev = sortedHistory.filter(r => (r.y * 10000 + r.m * 100 + r.d) < key)[0];
+        if (!prev) return '#2EC4B6';
+        return dw.weight <= prev.weight ? '#2EC4B6' : '#FF6B4A';
+      })(),
+
+      // exercise master
+      exerciseMasterItems: this.state.exerciseMasterItems,
+      exerciseMasterCount: this.state.exerciseMasterItems.length,
+      exerciseMasterCountText: `${this.state.exerciseMasterItems.length}件`,
 
       // master data
       masterItems: [

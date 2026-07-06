@@ -9,6 +9,14 @@ export interface WeightPoint {
  */
 export const MIN_PROJECTION_SPAN_DAYS = 3;
 
+/**
+ * 目標日までの外挿日数が、観測スパンの何倍までなら予測を信頼するかの上限。
+ * 例えば3日分の記録(短期的な水分変動レベルのノイズを含みうる)を4か月先まで外挿すると、
+ * マイナス体重のような非現実的な値になりうる。観測スパンに対して外挿が長すぎる場合は
+ * 表示しない(短いスパンで信頼できるのは、そのスパンの数倍先までの近い将来のみとする)。
+ */
+export const MAX_EXTRAPOLATION_RATIO = 5;
+
 /** 2つのYYYY-MM-DDの日数差(end - start)。ローカル日付の0時基準で計算する。 */
 function daysBetween(startDate: string, endDate: string): number {
   const start = new Date(`${startDate}T00:00:00`).getTime();
@@ -21,6 +29,8 @@ function daysBetween(startDate: string, endDate: string): number {
  * 予測が意味を持たない場合はnullを返す:
  *  - 起点と最新のスパンが {@link MIN_PROJECTION_SPAN_DAYS} 日未満(記録が少ない/期間が短すぎる)
  *  - targetDateが最新記録より前(目標日を既に過ぎている等、外挿する意味がない)
+ *  - targetDateまでの外挿日数が観測スパンの {@link MAX_EXTRAPOLATION_RATIO} 倍を超える
+ *    (短いスパンのノイズを長期間に増幅させないため。詳細は定数のコメント参照)
  */
 export function projectWeightAtDate(
   start: WeightPoint,
@@ -32,6 +42,7 @@ export function projectWeightAtDate(
 
   const daysToTarget = daysBetween(latest.date, targetDate);
   if (daysToTarget < 0) return null;
+  if (daysToTarget > spanDays * MAX_EXTRAPOLATION_RATIO) return null;
 
   const slopePerDay = (latest.weightKg - start.weightKg) / spanDays;
   return latest.weightKg + slopePerDay * daysToTarget;

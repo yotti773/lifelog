@@ -3,13 +3,21 @@ import type { MealRecord, WeightRecord } from "@/types";
 export interface SyncPushPayload {
   weightRecords: WeightRecord[];
   mealRecords: MealRecord[];
+  /** スプレッドシートから削除すべき体重記録のID(=日付)一覧。トゥームストーン由来(Issue #30) */
+  deletedWeightIds: string[];
+  /** スプレッドシートから削除すべき食事記録のID一覧。トゥームストーン由来(Issue #30) */
+  deletedMealIds: string[];
 }
 
 export interface SyncPushResult {
-  /** 送信に成功したWeightRecordのdate一覧 */
+  /** 送信(追記/更新)に成功したWeightRecordのdate一覧 */
   syncedWeightDates: string[];
-  /** 送信に成功したMealRecordのid一覧 */
+  /** 送信(追記/更新)に成功したMealRecordのid一覧 */
   syncedMealIds: string[];
+  /** 削除を確定できた体重記録のID一覧。省略時は空とみなす(Issue #30) */
+  deletedWeightIds?: string[];
+  /** 削除を確定できた食事記録のID一覧。省略時は空とみなす(Issue #30) */
+  deletedMealIds?: string[];
 }
 
 /**

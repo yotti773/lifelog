@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { enqueueDeletion } from "./syncDeletions";
 import { formatDate, localDateRangeToUtcIso } from "@/lib/date";
 import type { MealRecord, MealType } from "@/types";
 
@@ -83,6 +84,8 @@ export async function updateMealRecord(
 
 export async function deleteMealRecord(id: string): Promise<void> {
   await db.mealRecords.delete(id);
+  // スプレッドシート側の該当行も次回同期で削除するためトゥームストーンを残す(Issue #30)
+  await enqueueDeletion("meal", id);
 }
 
 export async function getUnsyncedMealRecords(): Promise<MealRecord[]> {

@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { cancelDeletion, enqueueDeletion } from "./syncDeletions";
 import type { WeightRecord } from "@/types";
 
 export interface SaveWeightRecordInput {
@@ -21,6 +22,8 @@ export async function saveWeightRecord(input: SaveWeightRecordInput): Promise<We
     synced: false,
   };
   await db.weightRecords.put(record);
+  // 同じ日付を削除→再登録した場合、スプレッドシート側は削除ではなく更新すべきなので保留中の削除要求を取り消す(Issue #30)
+  await cancelDeletion("weight", record.id);
   return record;
 }
 
@@ -64,6 +67,8 @@ export async function updateWeightRecord(
 
 export async function deleteWeightRecord(date: string): Promise<void> {
   await db.weightRecords.delete(date);
+  // スプレッドシート側の該当行も次回同期で削除するためトゥームストーンを残す(Issue #30)
+  await enqueueDeletion("weight", date);
 }
 
 export async function getUnsyncedWeightRecords(): Promise<WeightRecord[]> {

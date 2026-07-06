@@ -8,6 +8,8 @@ interface GoalBarProps {
   currentWeightKg: number;
   goalWeightKg: number;
   goalDate: string; // YYYY-MM-DD
+  /** 現在ペースでの目標日時点の予測体重(kg)。記録が少ない等で予測不能な場合はnull(Issue #25) */
+  projectedWeightKg?: number | null;
 }
 
 function daysUntil(dateStr: string): number {
@@ -17,7 +19,13 @@ function daysUntil(dateStr: string): number {
   return Math.max(0, Math.round((target.getTime() - today.getTime()) / 86_400_000));
 }
 
-export default function GoalBar({ startWeightKg, currentWeightKg, goalWeightKg, goalDate }: GoalBarProps) {
+export default function GoalBar({
+  startWeightKg,
+  currentWeightKg,
+  goalWeightKg,
+  goalDate,
+  projectedWeightKg,
+}: GoalBarProps) {
   const total = startWeightKg - goalWeightKg;
   const progressed = startWeightKg - currentWeightKg;
   const ratio = total > 0 ? Math.min(1, Math.max(0, progressed / total)) : 0;
@@ -105,6 +113,20 @@ export default function GoalBar({ startWeightKg, currentWeightKg, goalWeightKg, 
           目標 {goalWeightKg.toFixed(1)}kg
         </Typography>
       </Box>
+      {/* 現在ペースでの着地予測。達成演出用のaccentは使わずink/muted系で静かに見せる(Issue #25) */}
+      {!achieved && projectedWeightKg != null && (
+        <Box sx={{ mt: "14px", pt: "12px", borderTop: `1px solid ${tokens.divider}` }}>
+          <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.6 }}>
+            このペースだと {Number(month)}/{Number(day)} 時点で
+            <Box component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14, color: "text.primary", mx: "5px" }}>
+              約{projectedWeightKg.toFixed(1)}kg
+            </Box>
+            {projectedWeightKg <= goalWeightKg
+              ? "(このままなら目標達成の見込み)"
+              : `(目標まで あと${(projectedWeightKg - goalWeightKg).toFixed(1)}kg)`}
+          </Typography>
+        </Box>
+      )}
     </Card>
   );
 }

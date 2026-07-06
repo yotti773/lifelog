@@ -27,16 +27,28 @@ interface MealRecordInput {
 interface SyncPushPayloadInput {
   weightRecords?: WeightRecordInput[];
   mealRecords?: MealRecordInput[];
+  deletedWeightIds?: string[];
+  deletedMealIds?: string[];
 }
 
 interface SyncPushResultOutput {
   syncedWeightDates: string[];
   syncedMealIds: string[];
+  deletedWeightIds: string[];
+  deletedMealIds: string[];
+}
+
+interface SheetConfig {
+  name: string;
+  /** ID列の列記号(体重記録=F列、食事記録=H列) */
+  idColumnLetter: string;
 }
 
 // タブ名にスペースやアポストロフィが含まれる場合は `'${sheetName}'!A:Z` 形式(埋め込み`'`は`''`にエスケープ)に変更すること。
-const WEIGHT_SHEET_NAME = "体重記録";
-const MEAL_SHEET_NAME = "食事記録";
+const WEIGHT_CONFIG: SheetConfig = { name: "体重記録", idColumnLetter: "F" };
+const MEAL_CONFIG: SheetConfig = { name: "食事記録", idColumnLetter: "H" };
+
+const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
 const JST_TIME_ZONE = "Asia/Tokyo";
 
@@ -92,17 +104,112 @@ function mealRecordToRow(r: MealRecordInput): (string | number)[] {
   ];
 }
 
+// ===== 純粋なプランニング関数(ネットワークに依存せずテスト可能) =====
+
+export interface RowWrite {
+  id: string;
+  cells: (string | number)[];
+}
+
+export interface UpsertPlan {
+  /** 既存行の上書き。rowNumberは1始まり */
+  updates: { rowNumber: number; cells: (string | number)[] }[];
+  /** 新規行の末尾追記 */
+  appends: (string | number)[][];
+}
+
+/**
+ * ID→既存行番号(1始まり)のマップを使い、各行を「既存行の更新」と「新規追記」に振り分ける(Issue #30)。
+ * 同じIDが複数行に存在する場合(過去の追記のみ設計で生じた重複)は最初の行を更新対象にする。
+ */
+export function planUpserts(rows: RowWrite[], idToRows: Map<string, number[]>): UpsertPlan {
+  const updates: { rowNumber: number; cells: (string | number)[] }[] = [];
+  const appends: (string | number)[][] = [];
+  for (const row of rows) {
+    const existing = idToRows.get(row.id);
+    if (existing && existing.length > 0) {
+      updates.push({ rowNumber: existing[0], cells: row.cells });
+    } else {
+      appends.push(row.cells);
+    }
+  }
+  return { updates, appends };
+}
+
+/**
+ * 削除対象IDに一致する既存行の行番号を、降順(下の行から先に削除)で返す(Issue #30)。
+ * 上の行を先に消すと下の行番号がずれるため、削除は必ず降順で行う。同一IDが重複している行はすべて対象にする。
+ */
+export function planRowDeletions(ids: string[], idToRows: Map<string, number[]>): number[] {
+  const rowNumbers = new Set<number>();
+  for (const id of ids) {
+    for (const rowNumber of idToRows.get(id) ?? []) {
+      rowNumbers.add(rowNumber);
+    }
+  }
+  return [...rowNumbers].sort((a, b) => b - a);
+}
+
+// ===== Google Sheets API 呼び出し =====
+
+/** 指定タブのID列を読み、ID値→存在する行番号(1始まり)の一覧マップを返す */
+async function readIdRows(
+  accessToken: string,
+  spreadsheetId: string,
+  config: SheetConfig,
+): Promise<Map<string, number[]>> {
+  const range = encodeURIComponent(`${config.name}!${config.idColumnLetter}:${config.idColumnLetter}`);
+  const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
+  }
+  const data = (await res.json()) as { values?: (string | undefined)[][] };
+  const map = new Map<string, number[]>();
+  (data.values ?? []).forEach((cells, index) => {
+    const raw = cells?.[0];
+    if (raw === undefined || raw === "") return;
+    const id = String(raw);
+    const list = map.get(id) ?? [];
+    list.push(index + 1); // 1始まりの行番号
+    map.set(id, list);
+  });
+  return map;
+}
+
+/** 既存行を一括上書きする(values:batchUpdate)。範囲の先頭列はA固定で、cellsの列数分だけ書き込まれる。 */
+async function batchUpdateRows(
+  accessToken: string,
+  spreadsheetId: string,
+  config: SheetConfig,
+  updates: { rowNumber: number; cells: (string | number)[] }[],
+): Promise<void> {
+  if (updates.length === 0) return;
+  const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values:batchUpdate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      valueInputOption: "USER_ENTERED",
+      data: updates.map((u) => ({ range: `${config.name}!A${u.rowNumber}`, values: [u.cells] })),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
+  }
+}
+
+/** 新規行を末尾に追記する(values.append) */
 async function appendRows(
   accessToken: string,
   spreadsheetId: string,
-  sheetName: string,
+  config: SheetConfig,
   rows: (string | number)[][],
 ): Promise<void> {
   if (rows.length === 0) return;
-
-  const range = encodeURIComponent(`${sheetName}!A:Z`);
+  const range = encodeURIComponent(`${config.name}!A:Z`);
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED`,
+    `${SHEETS_API_BASE}/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
@@ -112,6 +219,78 @@ async function appendRows(
   if (!res.ok) {
     throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
   }
+}
+
+/** タブ名から数値のsheetId(行削除のbatchUpdateで必要)を解決する */
+async function resolveSheetId(accessToken: string, spreadsheetId: string, sheetName: string): Promise<number> {
+  const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}?fields=sheets.properties(sheetId,title)`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
+  }
+  const data = (await res.json()) as { sheets?: { properties?: { sheetId?: number; title?: string } }[] };
+  const found = data.sheets?.find((s) => s.properties?.title === sheetName);
+  if (!found?.properties || found.properties.sheetId === undefined) {
+    throw new Error(`シート「${sheetName}」が見つかりません`);
+  }
+  return found.properties.sheetId;
+}
+
+/** 指定行(降順・1始まり)を物理削除する(batchUpdate deleteDimension)。下の行から順に削除するため行番号ズレは起きない。 */
+async function deleteRows(
+  accessToken: string,
+  spreadsheetId: string,
+  sheetId: number,
+  rowNumbersDesc: number[],
+): Promise<void> {
+  if (rowNumbersDesc.length === 0) return;
+  const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      requests: rowNumbersDesc.map((rowNumber) => ({
+        deleteDimension: {
+          range: { sheetId, dimension: "ROWS", startIndex: rowNumber - 1, endIndex: rowNumber },
+        },
+      })),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
+  }
+}
+
+/**
+ * 1つのタブについて、更新/追記(upsert)と削除をまとめて反映する。
+ * 成功時に「送信を確定したID」と「削除を確定したID」を返す。削除IDがシートに存在しなくても確定扱いにする(冪等)。
+ */
+async function syncOneSheet(
+  accessToken: string,
+  spreadsheetId: string,
+  config: SheetConfig,
+  rows: RowWrite[],
+  deletionIds: string[],
+): Promise<{ syncedIds: string[]; deletedIds: string[] }> {
+  if (rows.length === 0 && deletionIds.length === 0) {
+    return { syncedIds: [], deletedIds: [] };
+  }
+
+  const idToRows = await readIdRows(accessToken, spreadsheetId, config);
+
+  // 更新→追記の順で書き込む。追記は末尾に増えるだけで既存の行番号をずらさないため、
+  // 削除は追記前に読んだidToRowsの行番号をそのまま使える。
+  const { updates, appends } = planUpserts(rows, idToRows);
+  await batchUpdateRows(accessToken, spreadsheetId, config, updates);
+  await appendRows(accessToken, spreadsheetId, config, appends);
+
+  const deleteRowNumbers = planRowDeletions(deletionIds, idToRows);
+  if (deleteRowNumbers.length > 0) {
+    const sheetId = await resolveSheetId(accessToken, spreadsheetId, config.name);
+    await deleteRows(accessToken, spreadsheetId, sheetId, deleteRowNumbers);
+  }
+
+  return { syncedIds: rows.map((r) => r.id), deletedIds: deletionIds };
 }
 
 export async function handleSyncSheets(request: Request, env: Env): Promise<Response> {
@@ -127,6 +306,8 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   }
   const weightRecords = payload.weightRecords ?? [];
   const mealRecords = payload.mealRecords ?? [];
+  const deletedWeightIds = payload.deletedWeightIds ?? [];
+  const deletedMealIds = payload.deletedMealIds ?? [];
 
   let accessToken: string;
   try {
@@ -136,19 +317,36 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     return Response.json({ error: message }, { status: 502 });
   }
 
+  const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
   const [weightResult, mealResult] = await Promise.allSettled([
-    appendRows(accessToken, env.GOOGLE_SHEETS_SPREADSHEET_ID, WEIGHT_SHEET_NAME, weightRecords.map(weightRecordToRow)),
-    appendRows(accessToken, env.GOOGLE_SHEETS_SPREADSHEET_ID, MEAL_SHEET_NAME, mealRecords.map(mealRecordToRow)),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      WEIGHT_CONFIG,
+      weightRecords.map((r) => ({ id: r.id, cells: weightRecordToRow(r) })),
+      deletedWeightIds,
+    ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      MEAL_CONFIG,
+      mealRecords.map((r) => ({ id: r.id, cells: mealRecordToRow(r) })),
+      deletedMealIds,
+    ),
   ]);
 
-  const syncedWeightDates = weightResult.status === "fulfilled" ? weightRecords.map((r) => r.date) : [];
-  const syncedMealIds = mealResult.status === "fulfilled" ? mealRecords.map((r) => r.id) : [];
+  const syncedWeightDates = weightResult.status === "fulfilled" ? weightResult.value.syncedIds : [];
+  const deletedWeightIdsOut = weightResult.status === "fulfilled" ? weightResult.value.deletedIds : [];
+  const syncedMealIds = mealResult.status === "fulfilled" ? mealResult.value.syncedIds : [];
+  const deletedMealIdsOut = mealResult.status === "fulfilled" ? mealResult.value.deletedIds : [];
 
   if (weightResult.status === "rejected") console.error("体重記録の同期に失敗:", weightResult.reason);
   if (mealResult.status === "rejected") console.error("食事記録の同期に失敗:", mealResult.reason);
 
-  const attempted = weightRecords.length > 0 || mealRecords.length > 0;
-  const nothingSynced = syncedWeightDates.length === 0 && syncedMealIds.length === 0;
+  const attempted =
+    weightRecords.length + mealRecords.length + deletedWeightIds.length + deletedMealIds.length > 0;
+  const nothingSynced =
+    syncedWeightDates.length + deletedWeightIdsOut.length + syncedMealIds.length + deletedMealIdsOut.length === 0;
   const anyFailure = weightResult.status === "rejected" || mealResult.status === "rejected";
 
   if (attempted && nothingSynced && anyFailure) {
@@ -158,5 +356,10 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     return Response.json({ error: messages.join(" / ") }, { status: 502 });
   }
 
-  return Response.json({ syncedWeightDates, syncedMealIds } satisfies SyncPushResultOutput);
+  return Response.json({
+    syncedWeightDates,
+    syncedMealIds,
+    deletedWeightIds: deletedWeightIdsOut,
+    deletedMealIds: deletedMealIdsOut,
+  } satisfies SyncPushResultOutput);
 }

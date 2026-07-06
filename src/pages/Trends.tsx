@@ -22,6 +22,7 @@ import {
   getWeightRecordsByDateRange,
 } from "@/db/weightRecords";
 import { dateStringDaysAgo, formatDate, todayDateString } from "@/lib/date";
+import { projectWeightAtDate } from "@/lib/weightProjection";
 import { fontRounded, tokens } from "@/theme";
 import type { MealRecord, WeightRecord } from "@/types";
 
@@ -83,7 +84,7 @@ export default function Trends() {
     return getDailyCalorieTotals(dateStringDaysAgo(days), endDate);
   }, [period]);
 
-  // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書5.1章)。
+  // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書8.1章)。
   // 表示していない種別・タブに対してはDexieへ問い合わせない(無駄なフルスキャンを避ける)
   const historyRecords = useLiveQuery(
     () =>
@@ -116,6 +117,17 @@ export default function Trends() {
   const startWeightKg =
     baselineWeightRecord?.weightKg ?? firstWeightRecord?.weightKg ?? lastWeightRecord?.weightKg;
 
+  // 現在ペースでの着地予測(Issue #25)。起点=基準日の記録(なければ最古の記録)、最新=直近の記録。
+  const projectionStart = baselineWeightRecord ?? firstWeightRecord;
+  const projectedWeightKg =
+    projectionStart && lastWeightRecord
+      ? projectWeightAtDate(
+          { date: projectionStart.date, weightKg: projectionStart.weightKg },
+          { date: lastWeightRecord.date, weightKg: lastWeightRecord.weightKg },
+          settings.goalDate,
+        )
+      : null;
+
   // From/To絞込みは日付文字列(YYYY-MM-DD)の辞書順比較で足りる
   const filteredHistory = historyRecords.filter(
     (record) => (!historyFrom || record.date >= historyFrom) && (!historyTo || record.date <= historyTo),
@@ -141,6 +153,7 @@ export default function Trends() {
               currentWeightKg={lastWeightRecord.weightKg}
               goalWeightKg={settings.goalWeightKg}
               goalDate={settings.goalDate}
+              projectedWeightKg={projectedWeightKg}
             />
           ) : (
             <Card sx={{ p: 2 }}>

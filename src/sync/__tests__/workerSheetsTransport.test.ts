@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
 import type { SyncPushPayload } from "@/sync/types";
 
-const payload: SyncPushPayload = { weightRecords: [], mealRecords: [] };
+const payload: SyncPushPayload = {
+  weightRecords: [],
+  mealRecords: [],
+  deletedWeightIds: [],
+  deletedMealIds: [],
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();

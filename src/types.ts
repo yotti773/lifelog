@@ -39,6 +39,22 @@ export interface FoodMasterItem {
   createdAt: string; // ISO8601
 }
 
+/** どちらのスプレッドシートタブの行を指すかの識別子 */
+export type SyncSheet = "weight" | "meal";
+
+/**
+ * 同期済み(スプレッドシートに書き出し済み)の可能性がある記録を削除したときのトゥームストーン。
+ * ローカルの記録は即座に消えるが、スプレッドシート側の行は次回同期でこの情報を使って削除する(Issue #30)。
+ */
+export interface SyncDeletion {
+  /** `${sheet}:${recordId}` の合成キー(同じ行への削除要求を冪等にまとめる) */
+  id: string;
+  sheet: SyncSheet;
+  /** スプレッドシートのID列に書かれている値(WeightRecord.id=日付 / MealRecord.id=UUID) */
+  recordId: string;
+  deletedAt: string; // ISO8601
+}
+
 export interface Settings {
   goalWeightKg: number;
   goalDate: string; // ISO8601 date

@@ -1,5 +1,6 @@
 import { getUnsyncedMealRecords, markMealRecordsSynced } from "@/db/mealRecords";
 import { updateSettings } from "@/db/settings";
+import { clearDeletions, getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWeightRecords, markWeightRecordsSynced } from "@/db/weightRecords";
 import { notConfiguredTransport } from "./notConfiguredTransport";
 import type { SyncTransport } from "./types";
@@ -27,12 +28,19 @@ export async function runSync({
     return { status: "skipped-offline" };
   }
 
-  const [unsyncedWeightRecords, unsyncedMealRecords] = await Promise.all([
+  const [unsyncedWeightRecords, unsyncedMealRecords, deletedWeightIds, deletedMealIds] = await Promise.all([
     getUnsyncedWeightRecords(),
     getUnsyncedMealRecords(),
+    getPendingDeletionIds("weight"),
+    getPendingDeletionIds("meal"),
   ]);
 
-  if (unsyncedWeightRecords.length === 0 && unsyncedMealRecords.length === 0) {
+  if (
+    unsyncedWeightRecords.length === 0 &&
+    unsyncedMealRecords.length === 0 &&
+    deletedWeightIds.length === 0 &&
+    deletedMealIds.length === 0
+  ) {
     return { status: "skipped-nothing-to-sync" };
   }
 
@@ -40,19 +48,30 @@ export async function runSync({
     const result = await transport.push({
       weightRecords: unsyncedWeightRecords,
       mealRecords: unsyncedMealRecords,
+      deletedWeightIds,
+      deletedMealIds,
     });
+
+    const confirmedWeightDeletions = result.deletedWeightIds ?? [];
+    const confirmedMealDeletions = result.deletedMealIds ?? [];
 
     await Promise.all([
       result.syncedWeightDates.length > 0
         ? markWeightRecordsSynced(result.syncedWeightDates)
         : Promise.resolve(),
       result.syncedMealIds.length > 0 ? markMealRecordsSynced(result.syncedMealIds) : Promise.resolve(),
+      clearDeletions("weight", confirmedWeightDeletions),
+      clearDeletions("meal", confirmedMealDeletions),
     ]);
     await updateSettings({ lastSyncedAt: new Date().toISOString() });
 
     return {
       status: "success",
-      syncedCount: result.syncedWeightDates.length + result.syncedMealIds.length,
+      syncedCount:
+        result.syncedWeightDates.length +
+        result.syncedMealIds.length +
+        confirmedWeightDeletions.length +
+        confirmedMealDeletions.length,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "同期に失敗しました";

@@ -4,6 +4,7 @@ import {
   addMealRecord,
   deleteMealRecord,
   getAllMealRecords,
+  getAllMealRecordsDesc,
   getDailyCalorieTotals,
   getMealRecordsByDateRange,
   getUnsyncedMealRecords,
@@ -58,6 +59,39 @@ describe("mealRecords", () => {
     const all = await getAllMealRecords();
     expect(all).toHaveLength(2);
     expect(all.every((r) => r.mealType === "lunch")).toBe(true);
+  });
+
+  it("lists all records sorted by timestamp descending", async () => {
+    await addMealRecord({
+      mealType: "breakfast",
+      confirmedName: "トースト",
+      confirmedKcal: 300,
+      confirmedProteinG: 10,
+      confirmedFatG: 8,
+      confirmedCarbsG: 40,
+      timestamp: "2026-07-01T07:30:00.000Z",
+    });
+    await addMealRecord({
+      mealType: "dinner",
+      confirmedName: "焼き魚定食",
+      confirmedKcal: 600,
+      confirmedProteinG: 35,
+      confirmedFatG: 15,
+      confirmedCarbsG: 60,
+      timestamp: "2026-07-03T12:00:00.000Z",
+    });
+    await addMealRecord({
+      mealType: "lunch",
+      confirmedName: "パスタ",
+      confirmedKcal: 500,
+      confirmedProteinG: 15,
+      confirmedFatG: 12,
+      confirmedCarbsG: 70,
+      timestamp: "2026-07-02T12:15:00.000Z",
+    });
+
+    const all = await getAllMealRecordsDesc();
+    expect(all.map((r) => r.confirmedName)).toEqual(["焼き魚定食", "パスタ", "トースト"]);
   });
 
   it("filters records by date range (ローカル日付基準)", async () => {

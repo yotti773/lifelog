@@ -515,6 +515,11 @@ export default function MealRecordPage() {
               }
               sx={{ px: "2px", alignItems: "flex-start", "& .MuiCheckbox-root": { pt: 0 } }}
             />
+            {registerToMaster && (
+              <Typography sx={{ fontSize: 11, color: "text.secondary", px: "2px", mt: "4px" }}>
+                外食チェーン・コンビニの商品は「【モス】モスバーガー」のように店名を含めておくと、食事マスタ一覧で見分けやすくなります
+              </Typography>
+            )}
           </>
         )}
 

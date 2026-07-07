@@ -14,7 +14,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { judgeMealPhoto, type MealJudgment } from "@/api/judgeMeal";
+import { judgeMealPhoto, type MealJudgmentItem } from "@/api/judgeMeal";
 import FoodMasterPicker from "@/components/FoodMasterPicker";
 import RecordHeader from "@/components/RecordHeader";
 import SegmentedControl from "@/components/SegmentedControl";
@@ -97,7 +97,11 @@ export default function MealRecordPage() {
   const [note, setNote] = useState("");
   const [isJudging, setJudging] = useState(false);
   const [judgeError, setJudgeError] = useState<string | null>(null);
-  const [aiJudgment, setAiJudgment] = useState<MealJudgment | null>(null);
+  const [judgeUncertain, setJudgeUncertain] = useState(false);
+  const [aiJudgment, setAiJudgment] = useState<MealJudgmentItem | null>(null);
+  const [detectedItems, setDetectedItems] = useState<MealJudgmentItem[]>([]);
+  const [activeDetectedIndex, setActiveDetectedIndex] = useState<number | null>(null);
+  const [addedDetectedIndexes, setAddedDetectedIndexes] = useState<Set<number>>(new Set());
   const [registerToMaster, setRegisterToMaster] = useState(false);
   const [pendingItems, setPendingItems] = useState<PendingMealItem[]>([]);
 
@@ -140,6 +144,16 @@ export default function MealRecordPage() {
   const pfcValues = { protein: proteinG, fat: fatG, carbs: carbsG };
   const pfcSetters = { protein: setProteinG, fat: setFatG, carbs: setCarbsG };
 
+  const applyDetectedItem = (item: MealJudgmentItem, index: number | null) => {
+    setAiJudgment(item);
+    setName(item.dishName);
+    setKcal(String(Math.round(item.kcal)));
+    setProteinG(String(Math.round(item.proteinG)));
+    setFatG(String(Math.round(item.fatG)));
+    setCarbsG(String(Math.round(item.carbsG)));
+    setActiveDetectedIndex(index);
+  };
+
   const handlePhotoSelected = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -148,13 +162,19 @@ export default function MealRecordPage() {
     setJudging(true);
     setJudgeError(null);
     try {
-      const judgment = await judgeMealPhoto(file, mealType, note);
-      setAiJudgment(judgment);
-      setName(judgment.dishName);
-      setKcal(String(Math.round(judgment.kcal)));
-      setProteinG(String(Math.round(judgment.proteinG)));
-      setFatG(String(Math.round(judgment.fatG)));
-      setCarbsG(String(Math.round(judgment.carbsG)));
+      const result = await judgeMealPhoto(file, mealType, note);
+      if (result.items.length === 0) {
+        throw new Error("写真から料理を判定できませんでした");
+      }
+      setJudgeUncertain(result.isUncertain);
+      setAddedDetectedIndexes(new Set());
+      if (result.items.length > 1) {
+        setDetectedItems(result.items);
+        applyDetectedItem(result.items[0], 0);
+      } else {
+        setDetectedItems([]);
+        applyDetectedItem(result.items[0], null);
+      }
     } catch (err) {
       setJudgeError(err instanceof Error ? err.message : "食事の判定に失敗しました");
     } finally {
@@ -162,8 +182,14 @@ export default function MealRecordPage() {
     }
   };
 
+  const handleSelectDetected = (index: number) => {
+    if (addedDetectedIndexes.has(index)) return;
+    applyDetectedItem(detectedItems[index], index);
+  };
+
   const handleSelectMaster = (item: FoodMasterItem) => {
     setAiJudgment(null);
+    setActiveDetectedIndex(null);
     setName(item.name);
     setKcal(String(item.kcal));
     setProteinG(String(item.proteinG));
@@ -208,6 +234,7 @@ export default function MealRecordPage() {
     setNote("");
     setAiJudgment(null);
     setRegisterToMaster(false);
+    setActiveDetectedIndex(null);
   };
 
   const handleAddToList = () => {
@@ -217,8 +244,18 @@ export default function MealRecordPage() {
       return;
     }
     setPendingItems((prev) => [...prev, item]);
+    const justAddedIndex = activeDetectedIndex;
     resetItemFields();
     setError(null);
+
+    if (justAddedIndex !== null) {
+      const nextAdded = new Set(addedDetectedIndexes).add(justAddedIndex);
+      setAddedDetectedIndexes(nextAdded);
+      const nextIndex = detectedItems.findIndex((_, i) => !nextAdded.has(i));
+      if (nextIndex !== -1) {
+        applyDetectedItem(detectedItems[nextIndex], nextIndex);
+      }
+    }
   };
 
   const handleRemovePending = (index: number) => {
@@ -441,15 +478,57 @@ export default function MealRecordPage() {
                 placeholder="補足(任意): 唐揚げ弁当、ご飯少なめ など"
               />
               {judgeError && <Typography sx={{ mt: "10px", fontSize: 12, color: "primary.main" }}>{judgeError}</Typography>}
-              {aiJudgment?.isMixedOrUncertain && (
+              {judgeUncertain && (
                 <Box sx={{ display: "flex", alignItems: "flex-start", gap: "7px", mt: "10px", bgcolor: tokens.warnBg, borderRadius: "10px", p: "9px 11px" }}>
                   <Typography sx={{ fontSize: 13, lineHeight: 1.4 }}>⚠️</Typography>
                   <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#B07E1E", lineHeight: 1.5 }}>
-                    複数の料理が写っている、または判定の自信が低いため、誤差が大きい場合があります。上の内容を確認・修正してください
+                    量や内容の判定の自信が低いため、誤差が大きい場合があります。内容を確認・修正してください
                   </Typography>
                 </Box>
               )}
             </Card>
+
+            {detectedItems.length > 1 && (
+              <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
+                <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "4px" }}>
+                  検出した品目({detectedItems.length}件)
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "10px" }}>
+                  タップしてフォームに反映し、内容を確認してから下の「この品目を追加してもう1品記録」でリストに入れてください
+                </Typography>
+                {detectedItems.map((item, index) => {
+                  const isAdded = addedDetectedIndexes.has(index);
+                  const isActive = activeDetectedIndex === index;
+                  return (
+                    <ButtonBase
+                      key={index}
+                      onClick={() => handleSelectDetected(index)}
+                      disabled={isAdded}
+                      sx={{
+                        width: "100%",
+                        justifyContent: "space-between",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        py: "9px",
+                        px: "8px",
+                        borderRadius: "10px",
+                        bgcolor: isActive ? tokens.secondarySoft : "transparent",
+                        opacity: isAdded ? 0.5 : 1,
+                        borderBottom: index < detectedItems.length - 1 ? `1px solid ${tokens.divider}` : "none",
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 13, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {item.dishName}({Math.round(item.kcal)}kcal)
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: isAdded ? "text.secondary" : "primary.main", flexShrink: 0 }}>
+                        {isAdded ? "追加済み" : isActive ? "選択中" : "選ぶ"}
+                      </Typography>
+                    </ButtonBase>
+                  );
+                })}
+              </Card>
+            )}
 
             <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
               <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "12px" }}>

@@ -41,4 +41,27 @@ describe("workerSheetsTransport", () => {
 
     await expect(workerSheetsTransport.push(payload)).rejects.toThrow("同期に失敗しました (500)");
   });
+
+  it("pull: passes through the server's import result on success", async () => {
+    const result = {
+      weightRecords: [{ id: "2026-07-01", date: "2026-07-01", timestamp: "2026-06-30T22:00:00.000Z", weightKg: 72.1 }],
+      mealRecords: [],
+      skippedWeightRows: 0,
+      skippedMealRows: 1,
+    };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(result), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(workerSheetsTransport.pull()).resolves.toEqual(result);
+    expect(fetchMock).toHaveBeenCalledWith("/api/import-sheets");
+  });
+
+  it("pull: throws with the server-provided error message on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "Sheets APIエラー" }), { status: 502 })),
+    );
+
+    await expect(workerSheetsTransport.pull()).rejects.toThrow("Sheets APIエラー");
+  });
 });

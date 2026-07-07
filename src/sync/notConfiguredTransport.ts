@@ -1,4 +1,4 @@
-import type { SyncTransport } from "./types";
+import type { SyncPullTransport, SyncTransport } from "./types";
 
 export class SyncNotConfiguredError extends Error {
   constructor() {
@@ -8,8 +8,11 @@ export class SyncNotConfiguredError extends Error {
 }
 
 /** Cloudflare Workers連携が実装されるまでのデフォルト送信先。常に未設定エラーを返す。 */
-export const notConfiguredTransport: SyncTransport = {
+export const notConfiguredTransport: SyncTransport & SyncPullTransport = {
   async push() {
+    throw new SyncNotConfiguredError();
+  },
+  async pull() {
     throw new SyncNotConfiguredError();
   },
 };

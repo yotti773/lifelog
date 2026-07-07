@@ -4,6 +4,7 @@ import {
   type MealJudgmentResult,
 } from "./mealJudgment";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
+import { handleImportSheets } from "./sheetsImport";
 import { handleSyncSheets } from "./sheetsSync";
 
 export interface Env {
@@ -111,6 +112,10 @@ export default {
 
     if (url.pathname === "/api/sync-sheets" && request.method === "POST") {
       return handleSyncSheets(request, env);
+    }
+
+    if (url.pathname === "/api/import-sheets" && request.method === "GET") {
+      return handleImportSheets(env);
     }
 
     if (url.pathname === "/api/judge-meal" && request.method === "POST") {

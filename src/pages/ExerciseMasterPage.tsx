@@ -21,6 +21,7 @@ import {
 import {
   addExerciseMasterItem,
   deleteExerciseMasterItem,
+  DuplicateExerciseNameError,
   getAllExerciseMasterItems,
   updateExerciseMasterItem,
 } from "@/db/exerciseMaster";
@@ -40,6 +41,8 @@ export default function ExerciseMasterPage() {
   const [editName, setEditName] = useState("");
   const [isAdding, setAdding] = useState(false);
   const [addName, setAddName] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
 
   if (items === undefined) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
@@ -54,20 +57,38 @@ export default function ExerciseMasterPage() {
   const startEdit = (item: ExerciseMasterItem) => {
     setEditingId(item.id);
     setEditName(item.name);
+    setEditError(null);
   };
 
   const saveEdit = async () => {
     if (!editingId || !editName.trim()) return;
-    await updateExerciseMasterItem(editingId, editName.trim());
+    try {
+      await updateExerciseMasterItem(editingId, editName.trim());
+    } catch (e) {
+      if (e instanceof DuplicateExerciseNameError) {
+        setEditError("同じ名前の種目が既に登録されています");
+        return;
+      }
+      throw e;
+    }
     setEditingId(null);
   };
 
   const saveAdd = async () => {
     const name = addName.trim();
     if (!name) return;
-    await addExerciseMasterItem(name);
+    try {
+      await addExerciseMasterItem(name);
+    } catch (e) {
+      if (e instanceof DuplicateExerciseNameError) {
+        setAddError("同じ名前の種目が既に登録されています");
+        return;
+      }
+      throw e;
+    }
     setAddName("");
     setAdding(false);
+    setAddError(null);
     // 追加直後の種目を一覧で見つけやすいよう、絞り込みを解除して先頭ページへ戻す
     setQuery("");
     setPage(0);
@@ -136,7 +157,12 @@ export default function ExerciseMasterPage() {
                   fullWidth
                   size="small"
                   value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  onChange={(e) => {
+                    setEditName(e.target.value);
+                    setEditError(null);
+                  }}
+                  error={editError !== null}
+                  helperText={editError ?? undefined}
                   sx={{ mb: "8px" }}
                 />
                 <Box sx={{ display: "flex", gap: "8px" }}>
@@ -237,7 +263,12 @@ export default function ExerciseMasterPage() {
             fullWidth
             size="small"
             value={addName}
-            onChange={(e) => setAddName(e.target.value)}
+            onChange={(e) => {
+              setAddName(e.target.value);
+              setAddError(null);
+            }}
+            error={addError !== null}
+            helperText={addError ?? undefined}
             placeholder="種目名(例: ベンチプレス)"
             autoFocus
             sx={{ mb: "8px" }}
@@ -253,6 +284,7 @@ export default function ExerciseMasterPage() {
               onClick={() => {
                 setAddName("");
                 setAdding(false);
+                setAddError(null);
               }}
               sx={{ color: "text.secondary", borderColor: tokens.border }}
             >

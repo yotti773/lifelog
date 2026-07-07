@@ -41,6 +41,7 @@ export default function StrengthRecordPage() {
 
   const [isLoading, setLoading] = useState(true);
   const [exercises, setExercises] = useState<DraftExercise[]>([]);
+  const [error, setError] = useState<string | null>(null);
   // 種目名の入力候補(種目マスタ。画面設計書7.1章)
   const masterItems = useLiveQuery(() => getAllExerciseMasterItems(), []);
 
@@ -66,10 +67,12 @@ export default function StrengthRecordPage() {
   }, [today]);
 
   const updateExercise = (index: number, patch: Partial<DraftExercise>) => {
+    setError(null);
     setExercises((prev) => prev.map((exercise, i) => (i === index ? { ...exercise, ...patch } : exercise)));
   };
 
   const updateSet = (exerciseIndex: number, setIndex: number, patch: Partial<DraftSet>) => {
+    setError(null);
     setExercises((prev) =>
       prev.map((exercise, i) =>
         i === exerciseIndex
@@ -81,12 +84,19 @@ export default function StrengthRecordPage() {
 
   const handleSave = async () => {
     // 重量・回数がどちらも空のセットと、名前もセットも空の種目は除外して当日分を置き換える(画面設計書7章)
-    const cleaned = exercises
-      .map((exercise) => ({
-        name: exercise.name.trim(),
-        sets: exercise.sets.filter((set) => set.weight !== "" || set.reps !== ""),
-      }))
-      .filter((exercise) => exercise.name !== "" || exercise.sets.length > 0)
+    const drafts = exercises.map((exercise) => ({
+      name: exercise.name.trim(),
+      sets: exercise.sets.filter((set) => set.weight !== "" || set.reps !== ""),
+    }));
+    // 1セット=1レコードのデータモデルではセット0件の種目を保存できず、そのまま進めると無言で消えてしまう。
+    // 名前だけ入力された種目はエラーにして保存をブロックする(画面設計書7章)
+    const nameOnly = drafts.find((exercise) => exercise.name !== "" && exercise.sets.length === 0);
+    if (nameOnly) {
+      setError(`「${nameOnly.name}」にセットが入力されていません。種目ごと取り消す場合はごみ箱ボタンで削除してください`);
+      return;
+    }
+    const cleaned = drafts
+      .filter((exercise) => exercise.sets.length > 0)
       .map((exercise) => ({
         name: exercise.name,
         sets: exercise.sets.map((set) => ({ weightKg: Number(set.weight) || 0, reps: Number(set.reps) || 0 })),
@@ -98,6 +108,9 @@ export default function StrengthRecordPage() {
   if (isLoading || masterItems === undefined) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
+
+  // マスタに同名が重複していてもAutocompleteのキー(=文字列オプション)が衝突しないよう一意化する
+  const nameOptions = [...new Set(masterItems.map((item) => item.name))];
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "110px" }}>
@@ -129,7 +142,7 @@ export default function StrengthRecordPage() {
               freeSolo
               fullWidth
               size="small"
-              options={masterItems.map((item) => item.name)}
+              options={nameOptions}
               inputValue={exercise.name}
               onInputChange={(_, value) => updateExercise(exerciseIndex, { name: value })}
               renderInput={(params) => (
@@ -141,7 +154,10 @@ export default function StrengthRecordPage() {
               )}
             />
             <IconButton
-              onClick={() => setExercises((prev) => prev.filter((_, i) => i !== exerciseIndex))}
+              onClick={() => {
+                setError(null);
+                setExercises((prev) => prev.filter((_, i) => i !== exerciseIndex));
+              }}
               aria-label={`種目${exerciseIndex + 1}を削除`}
               sx={{ width: 30, height: 30, borderRadius: "9px", bgcolor: tokens.beigeSoft, color: tokens.faint, flexShrink: 0 }}
             >
@@ -258,6 +274,8 @@ export default function StrengthRecordPage() {
           種目を追加
         </Typography>
       </ButtonBase>
+
+      {error && <Typography sx={{ mt: "12px", fontSize: 13, color: "primary.main" }}>{error}</Typography>}
 
       {/* 下部固定の保存ボタン */}
       <Box

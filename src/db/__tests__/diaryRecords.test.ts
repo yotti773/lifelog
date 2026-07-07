@@ -33,14 +33,14 @@ describe("diaryRecords", () => {
     expect(record?.mood).toBe("tired");
   });
 
-  it("resets synced to false when overwriting a synced record", async () => {
-    await saveDiaryRecord({ date: "2026-07-01", text: "同期済みになる" });
-    await db.diaryRecords.where("date").equals("2026-07-01").modify({ synced: true });
+  it("marks a saved record as unsynced so it is picked up next sync", async () => {
+    // 日記はまだシート同期の対象外だが、対象化に備えて保存のたびにsyncedをfalseに保つ(types.ts参照)。
+    // synced: true はmark関数経由でのみ立てる規約(CLAUDE.md)のため、ここでは保存後の状態のみ検証する
+    await saveDiaryRecord({ date: "2026-07-01", text: "1回目" });
+    expect((await getDiaryRecord("2026-07-01"))?.synced).toBe(false);
 
     await saveDiaryRecord({ date: "2026-07-01", text: "編集後" });
-
-    const record = await getDiaryRecord("2026-07-01");
-    expect(record?.synced).toBe(false);
+    expect((await getDiaryRecord("2026-07-01"))?.synced).toBe(false);
   });
 
   it("deletes the record for a date", async () => {

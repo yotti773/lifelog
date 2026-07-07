@@ -45,11 +45,13 @@ export default function DiaryRecordPage() {
   }, [today]);
 
   const handleSave = async () => {
-    // 本文・気分の両方が空なら「未記録に戻す」扱いで当日分を削除する(画面設計書6章)
-    if (text.trim() === "" && mood === null) {
+    // 本文・気分の両方が空なら「未記録に戻す」扱いで当日分を削除する(画面設計書6章)。
+    // 判定と保存でtrim済みの本文をそろえ、空白のみの本文が「記録あり」として残らないようにする
+    const trimmedText = text.trim();
+    if (trimmedText === "" && mood === null) {
       await deleteDiaryRecord(today);
     } else {
-      await saveDiaryRecord({ date: today, text, mood: mood ?? undefined });
+      await saveDiaryRecord({ date: today, text: trimmedText, mood: mood ?? undefined });
     }
     navigate("/");
   };

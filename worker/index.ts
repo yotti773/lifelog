@@ -1,3 +1,8 @@
+import {
+  parseMealJudgment,
+  type LegacyMealJudgmentFields,
+  type MealJudgmentResult,
+} from "./mealJudgment";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 import { handleSyncSheets } from "./sheetsSync";
 
@@ -8,19 +13,6 @@ export interface Env {
   GOOGLE_SERVICE_ACCOUNT_EMAIL: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
-}
-
-interface MealJudgmentItem {
-  dishName: string;
-  kcal: number;
-  proteinG: number;
-  fatG: number;
-  carbsG: number;
-}
-
-interface MealJudgmentResult {
-  items: MealJudgmentItem[];
-  isUncertain: boolean;
 }
 
 interface JudgeMealRequestBody {
@@ -58,7 +50,7 @@ async function judgeMeal(
   mimeType: string,
   mealType: string,
   note: string | undefined,
-): Promise<MealJudgmentResult> {
+): Promise<MealJudgmentResult & LegacyMealJudgmentFields> {
   const model = env.GEMINI_MODEL || "gemini-2.5-flash";
   const mealLabel = MEAL_TYPE_LABELS[mealType] ?? mealType;
 
@@ -74,7 +66,7 @@ async function judgeMeal(
   - proteinG: その品目単体の推定たんぱく質(g、数値のみ)
   - fatG: その品目単体の推定脂質(g、数値のみ)
   - carbsG: その品目単体の推定炭水化物(g、数値のみ)
-- isUncertain: 量や内容の判定に自信が低い場合はtrue
+- isUncertain: 量や内容の判定に自信が低い場合、または複数の料理をやむを得ず1つの品目にまとめて返す場合はtrue
 
 一般的な日本の家庭料理・外食の分量を前提に、常識的な範囲で推定してください。${noteSection}`;
 
@@ -109,7 +101,8 @@ async function judgeMeal(
   if (!text) {
     throw new Error("Gemini APIから判定結果が得られませんでした");
   }
-  return JSON.parse(text) as MealJudgmentResult;
+
+  return parseMealJudgment(text);
 }
 
 export default {

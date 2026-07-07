@@ -33,5 +33,9 @@ export async function judgeMealPhoto(
     throw new Error(body?.error ?? "食事の判定に失敗しました");
   }
 
-  return (await res.json()) as MealJudgmentResult;
+  const result = (await res.json()) as MealJudgmentResult;
+  if (!Array.isArray(result.items) || result.items.length === 0) {
+    throw new Error("写真から料理を判定できませんでした");
+  }
+  return result;
 }

@@ -56,9 +56,32 @@ interface PendingMealItem {
   aiEstimatedFatG?: number;
   aiEstimatedCarbsG?: number;
   registerToMaster: boolean;
+  // 由来が写真判定の場合、PhotoJudgeState.items内のindex。リストから削除したときに
+  // 検出品目の「追加済み」を解除して再選択できるようにするために持つ
+  detectedIndex?: number;
+}
+
+// 写真AI判定の結果一式。リセット(撮り直し・失敗時)を1代入で済ませるため、
+// 判定に属する状態は個別のuseStateに分けずこのオブジェクトにまとめて持つ
+interface PhotoJudgeState {
+  items: MealJudgmentItem[];
+  isUncertain: boolean;
+  // フォームに反映中の品目のindex(手入力・マスタ選択に切り替えたらnull)
+  activeIndex: number | null;
+  // 「まとめて記録リスト」に追加済みの品目のindex
+  addedIndexes: ReadonlySet<number>;
 }
 
 type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
+
+// 検出品目リストと「まとめて記録する品目」リストで共通の品目名表示
+function ItemRowLabel({ name, kcal }: { name: string; kcal: number }) {
+  return (
+    <Typography sx={{ fontSize: 13, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      {name}({Math.round(kcal)}kcal)
+    </Typography>
+  );
+}
 
 function FieldLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
   return (
@@ -97,13 +120,15 @@ export default function MealRecordPage() {
   const [note, setNote] = useState("");
   const [isJudging, setJudging] = useState(false);
   const [judgeError, setJudgeError] = useState<string | null>(null);
-  const [judgeUncertain, setJudgeUncertain] = useState(false);
-  const [aiJudgment, setAiJudgment] = useState<MealJudgmentItem | null>(null);
-  const [detectedItems, setDetectedItems] = useState<MealJudgmentItem[]>([]);
-  const [activeDetectedIndex, setActiveDetectedIndex] = useState<number | null>(null);
-  const [addedDetectedIndexes, setAddedDetectedIndexes] = useState<Set<number>>(new Set());
+  const [judge, setJudge] = useState<PhotoJudgeState | null>(null);
   const [registerToMaster, setRegisterToMaster] = useState(false);
   const [pendingItems, setPendingItems] = useState<PendingMealItem[]>([]);
+  // 保存時に未追加の検出品目が残っていた場合の確認ダイアログ(保存対象を保持)
+  const [saveConfirm, setSaveConfirm] = useState<{ items: PendingMealItem[]; unaddedCount: number } | null>(null);
+
+  // フォームに反映中のAI判定品目(judgeから導出。独立したstateにすると同期漏れの温床になる)
+  const aiJudgment: MealJudgmentItem | null =
+    judge !== null && judge.activeIndex !== null ? judge.items[judge.activeIndex] : null;
 
   const foodMasterItems = useLiveQuery(() => getAllFoodMasterItems(), []);
 
@@ -144,14 +169,21 @@ export default function MealRecordPage() {
   const pfcValues = { protein: proteinG, fat: fatG, carbs: carbsG };
   const pfcSetters = { protein: setProteinG, fat: setFatG, carbs: setCarbsG };
 
-  const applyDetectedItem = (item: MealJudgmentItem, index: number | null) => {
-    setAiJudgment(item);
-    setName(item.dishName);
-    setKcal(String(Math.round(item.kcal)));
-    setProteinG(String(Math.round(item.proteinG)));
-    setFatG(String(Math.round(item.fatG)));
-    setCarbsG(String(Math.round(item.carbsG)));
-    setActiveDetectedIndex(index);
+  // フォームの5項目(料理名・kcal・PFC)を埋める共通処理。AI推定値は丸めて表示する
+  const fillItemForm = (
+    itemName: string,
+    itemKcal: number,
+    itemProteinG: number,
+    itemFatG: number,
+    itemCarbsG: number,
+    options?: { round?: boolean },
+  ) => {
+    const format = (value: number) => String(options?.round ? Math.round(value) : value);
+    setName(itemName);
+    setKcal(format(itemKcal));
+    setProteinG(format(itemProteinG));
+    setFatG(format(itemFatG));
+    setCarbsG(format(itemCarbsG));
   };
 
   const handlePhotoSelected = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -161,20 +193,15 @@ export default function MealRecordPage() {
 
     setJudging(true);
     setJudgeError(null);
+    // 判定が失敗しても前回の写真の検出品目リストが残らないよう、先にクリアする
+    setJudge(null);
     try {
       const result = await judgeMealPhoto(file, mealType, note);
-      if (result.items.length === 0) {
-        throw new Error("写真から料理を判定できませんでした");
-      }
-      setJudgeUncertain(result.isUncertain);
-      setAddedDetectedIndexes(new Set());
-      if (result.items.length > 1) {
-        setDetectedItems(result.items);
-        applyDetectedItem(result.items[0], 0);
-      } else {
-        setDetectedItems([]);
-        applyDetectedItem(result.items[0], null);
-      }
+      setJudge({ items: result.items, isUncertain: result.isUncertain, activeIndex: 0, addedIndexes: new Set() });
+      // 前の写真由来の品目とindexで対応づかないよう、pendingItems側の紐づけは切っておく
+      setPendingItems((prev) => prev.map(({ detectedIndex: _detectedIndex, ...rest }) => rest));
+      const first = result.items[0];
+      fillItemForm(first.dishName, first.kcal, first.proteinG, first.fatG, first.carbsG, { round: true });
     } catch (err) {
       setJudgeError(err instanceof Error ? err.message : "食事の判定に失敗しました");
     } finally {
@@ -183,18 +210,15 @@ export default function MealRecordPage() {
   };
 
   const handleSelectDetected = (index: number) => {
-    if (addedDetectedIndexes.has(index)) return;
-    applyDetectedItem(detectedItems[index], index);
+    if (!judge || judge.addedIndexes.has(index)) return;
+    setJudge({ ...judge, activeIndex: index });
+    const item = judge.items[index];
+    fillItemForm(item.dishName, item.kcal, item.proteinG, item.fatG, item.carbsG, { round: true });
   };
 
   const handleSelectMaster = (item: FoodMasterItem) => {
-    setAiJudgment(null);
-    setActiveDetectedIndex(null);
-    setName(item.name);
-    setKcal(String(item.kcal));
-    setProteinG(String(item.proteinG));
-    setFatG(String(item.fatG));
-    setCarbsG(String(item.carbsG));
+    setJudge((prev) => (prev ? { ...prev, activeIndex: null } : prev));
+    fillItemForm(item.name, item.kcal, item.proteinG, item.fatG, item.carbsG);
   };
 
   const isCurrentItemFilled =
@@ -222,6 +246,7 @@ export default function MealRecordPage() {
       aiEstimatedFatG: aiJudgment?.fatG,
       aiEstimatedCarbsG: aiJudgment?.carbsG,
       registerToMaster,
+      detectedIndex: judge !== null && judge.activeIndex !== null ? judge.activeIndex : undefined,
     };
   };
 
@@ -232,9 +257,8 @@ export default function MealRecordPage() {
     setFatG("");
     setCarbsG("");
     setNote("");
-    setAiJudgment(null);
     setRegisterToMaster(false);
-    setActiveDetectedIndex(null);
+    setJudge((prev) => (prev ? { ...prev, activeIndex: null } : prev));
   };
 
   const handleAddToList = () => {
@@ -244,22 +268,27 @@ export default function MealRecordPage() {
       return;
     }
     setPendingItems((prev) => [...prev, item]);
-    const justAddedIndex = activeDetectedIndex;
+    if (judge !== null && judge.activeIndex !== null) {
+      const added = new Set(judge.addedIndexes);
+      added.add(judge.activeIndex);
+      setJudge({ ...judge, activeIndex: null, addedIndexes: added });
+    }
     resetItemFields();
     setError(null);
-
-    if (justAddedIndex !== null) {
-      const nextAdded = new Set(addedDetectedIndexes).add(justAddedIndex);
-      setAddedDetectedIndexes(nextAdded);
-      const nextIndex = detectedItems.findIndex((_, i) => !nextAdded.has(i));
-      if (nextIndex !== -1) {
-        applyDetectedItem(detectedItems[nextIndex], nextIndex);
-      }
-    }
   };
 
   const handleRemovePending = (index: number) => {
+    const removed = pendingItems[index];
     setPendingItems((prev) => prev.filter((_, i) => i !== index));
+    // 写真判定由来の品目なら「追加済み」を解除し、検出リストから選び直せるようにする
+    if (removed?.detectedIndex !== undefined) {
+      setJudge((prev) => {
+        if (!prev) return prev;
+        const added = new Set(prev.addedIndexes);
+        added.delete(removed.detectedIndex!);
+        return { ...prev, addedIndexes: added };
+      });
+    }
   };
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
@@ -289,6 +318,24 @@ export default function MealRecordPage() {
       setError("料理名・カロリー・PFC(たんぱく質/脂質/炭水化物)を入力してください");
       return;
     }
+
+    // 複数品目を検出したのに未追加のまま保存しようとしたら、記録漏れでないか確認を挟む
+    // (旧挙動では全品目の合計値が記録されていたため、気づかないと黙って過小記録になる)
+    if (judge !== null && judge.items.length > 1) {
+      const savedActiveIndex = currentItem !== null ? judge.activeIndex : null;
+      const unaddedCount = judge.items.filter(
+        (_, i) => !judge.addedIndexes.has(i) && i !== savedActiveIndex,
+      ).length;
+      if (unaddedCount > 0) {
+        setSaveConfirm({ items, unaddedCount });
+        return;
+      }
+    }
+
+    await saveItems(items);
+  };
+
+  const saveItems = async (items: PendingMealItem[]) => {
     for (const item of items) {
       await addMealRecord({
         mealType,
@@ -478,7 +525,7 @@ export default function MealRecordPage() {
                 placeholder="補足(任意): 唐揚げ弁当、ご飯少なめ など"
               />
               {judgeError && <Typography sx={{ mt: "10px", fontSize: 12, color: "primary.main" }}>{judgeError}</Typography>}
-              {judgeUncertain && (
+              {judge?.isUncertain && aiJudgment !== null && (
                 <Box sx={{ display: "flex", alignItems: "flex-start", gap: "7px", mt: "10px", bgcolor: tokens.warnBg, borderRadius: "10px", p: "9px 11px" }}>
                   <Typography sx={{ fontSize: 13, lineHeight: 1.4 }}>⚠️</Typography>
                   <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#B07E1E", lineHeight: 1.5 }}>
@@ -488,17 +535,17 @@ export default function MealRecordPage() {
               )}
             </Card>
 
-            {detectedItems.length > 1 && (
+            {judge !== null && judge.items.length > 1 && (
               <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
                 <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "4px" }}>
-                  検出した品目({detectedItems.length}件)
+                  検出した品目({judge.items.length}件)
                 </Typography>
                 <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "10px" }}>
                   タップしてフォームに反映し、内容を確認してから下の「この品目を追加してもう1品記録」でリストに入れてください
                 </Typography>
-                {detectedItems.map((item, index) => {
-                  const isAdded = addedDetectedIndexes.has(index);
-                  const isActive = activeDetectedIndex === index;
+                {judge.items.map((item, index) => {
+                  const isAdded = judge.addedIndexes.has(index);
+                  const isActive = judge.activeIndex === index;
                   return (
                     <ButtonBase
                       key={index}
@@ -515,12 +562,10 @@ export default function MealRecordPage() {
                         borderRadius: "10px",
                         bgcolor: isActive ? tokens.secondarySoft : "transparent",
                         opacity: isAdded ? 0.5 : 1,
-                        borderBottom: index < detectedItems.length - 1 ? `1px solid ${tokens.divider}` : "none",
+                        borderBottom: index < judge.items.length - 1 ? `1px solid ${tokens.divider}` : "none",
                       }}
                     >
-                      <Typography sx={{ fontSize: 13, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {item.dishName}({Math.round(item.kcal)}kcal)
-                      </Typography>
+                      <ItemRowLabel name={item.dishName} kcal={item.kcal} />
                       <Typography sx={{ fontSize: 11, fontWeight: 700, color: isAdded ? "text.secondary" : "primary.main", flexShrink: 0 }}>
                         {isAdded ? "追加済み" : isActive ? "選択中" : "選ぶ"}
                       </Typography>
@@ -547,9 +592,7 @@ export default function MealRecordPage() {
                     key={index}
                     sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", py: "6px", borderBottom: index < pendingItems.length - 1 ? `1px solid ${tokens.divider}` : "none" }}
                   >
-                    <Typography sx={{ fontSize: 13, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.name}({item.kcal}kcal)
-                    </Typography>
+                    <ItemRowLabel name={item.name} kcal={item.kcal} />
                     <Button size="small" onClick={() => handleRemovePending(index)} sx={{ fontSize: 12, color: "primary.main", flexShrink: 0 }}>
                       削除
                     </Button>
@@ -647,6 +690,34 @@ export default function MealRecordPage() {
           </Box>
         </Box>
       </Box>
+
+      <Dialog open={saveConfirm !== null} onClose={() => setSaveConfirm(null)}>
+        <DialogTitle sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>
+          追加していない検出品目があります
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: 14 }}>
+            写真から検出した品目のうち{saveConfirm?.unaddedCount}件がまだリストに追加されていません。追加していない品目は記録されませんが、このまま保存しますか?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button fullWidth variant="outlined" onClick={() => setSaveConfirm(null)} sx={{ color: "text.secondary", borderColor: tokens.border }}>
+            戻る
+          </Button>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={() => {
+              if (!saveConfirm) return;
+              const { items } = saveConfirm;
+              setSaveConfirm(null);
+              void saveItems(items);
+            }}
+          >
+            このまま保存する
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
         <DialogTitle sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>この記録を削除しますか?</DialogTitle>

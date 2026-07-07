@@ -27,3 +27,35 @@ export interface SyncPushResult {
 export interface SyncTransport {
   push(payload: SyncPushPayload): Promise<SyncPushResult>;
 }
+
+/** スプレッドシートから取り込んだ体重記録。シートに無い`synced`を除きWeightRecordと同形 */
+export type PulledWeightRecord = Omit<WeightRecord, "synced">;
+
+/**
+ * スプレッドシートから取り込んだ食事記録。シートに無い`synced`・AI推定値・写真参照を除き
+ * MealRecordと同形(シートは確定値のみを持つため、これらは復元できない。Issue #54)
+ */
+export type PulledMealRecord = Omit<
+  MealRecord,
+  | "synced"
+  | "photoLocalRef"
+  | "aiEstimatedName"
+  | "aiEstimatedKcal"
+  | "aiEstimatedProteinG"
+  | "aiEstimatedFatG"
+  | "aiEstimatedCarbsG"
+>;
+
+export interface SyncPullResult {
+  weightRecords: PulledWeightRecord[];
+  mealRecords: PulledMealRecord[];
+  /** 解釈できずスキップされた体重タブの行数(見出し行とみなす1行目を除く) */
+  skippedWeightRows: number;
+  /** 解釈できずスキップされた食事タブの行数(見出し行とみなす1行目を除く) */
+  skippedMealRows: number;
+}
+
+/** スプレッドシートからの取り込み(復元・過去データ移行)を担うインターフェース(Issue #54) */
+export interface SyncPullTransport {
+  pull(): Promise<SyncPullResult>;
+}

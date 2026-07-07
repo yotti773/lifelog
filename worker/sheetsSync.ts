@@ -38,17 +38,17 @@ interface SyncPushResultOutput {
   deletedMealIds: string[];
 }
 
-interface SheetConfig {
+export interface SheetConfig {
   name: string;
   /** ID列の列記号(体重記録=F列、食事記録=H列) */
   idColumnLetter: string;
 }
 
 // タブ名にスペースやアポストロフィが含まれる場合は `'${sheetName}'!A:Z` 形式(埋め込み`'`は`''`にエスケープ)に変更すること。
-const WEIGHT_CONFIG: SheetConfig = { name: "体重記録", idColumnLetter: "F" };
-const MEAL_CONFIG: SheetConfig = { name: "食事記録", idColumnLetter: "H" };
+export const WEIGHT_CONFIG: SheetConfig = { name: "体重記録", idColumnLetter: "F" };
+export const MEAL_CONFIG: SheetConfig = { name: "食事記録", idColumnLetter: "H" };
 
-const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
+export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
 const JST_TIME_ZONE = "Asia/Tokyo";
 

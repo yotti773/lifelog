@@ -26,6 +26,7 @@ import { getSettings, updateSettings } from "@/db/settings";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWeightRecords } from "@/db/weightRecords";
 import { formatDateTime } from "@/lib/date";
+import { runImport, type ImportOutcome } from "@/sync/importEngine";
 import { runSync, type SyncOutcome } from "@/sync/syncEngine";
 import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
 import { fontRounded, tokens } from "@/theme";
@@ -47,6 +48,34 @@ function syncOutcomeMessage(outcome: SyncOutcome): string {
       return "オフラインのため同期できませんでした";
     case "skipped-nothing-to-sync":
       return "同期する記録はありません";
+    case "error":
+      return outcome.message;
+  }
+}
+
+function importOutcomeMessage(outcome: ImportOutcome): string {
+  switch (outcome.status) {
+    case "success": {
+      const { importedWeightCount, importedMealCount, skippedExistingCount, skippedRowCount } = outcome;
+      let message: string;
+      if (importedWeightCount + importedMealCount === 0) {
+        message =
+          skippedExistingCount > 0
+            ? "新しく取り込む記録はありませんでした(すべて取り込み済みです)"
+            : "取り込める記録がシートにありませんでした";
+      } else {
+        message = `体重${importedWeightCount}件・食事${importedMealCount}件を取り込みました`;
+        if (skippedExistingCount > 0) {
+          message += `(既にある${skippedExistingCount}件はスキップ)`;
+        }
+      }
+      if (skippedRowCount > 0) {
+        message += `。読み取れなかった${skippedRowCount}行は対象外です`;
+      }
+      return message;
+    }
+    case "skipped-offline":
+      return "オフラインのため取り込みできませんでした";
     case "error":
       return outcome.message;
   }
@@ -133,6 +162,8 @@ export default function Settings() {
   const [draft, setDraft] = useState("");
   const [isSyncing, setSyncing] = useState(false);
   const [syncOutcome, setSyncOutcome] = useState<SyncOutcome | null>(null);
+  const [isImporting, setImporting] = useState(false);
+  const [importOutcome, setImportOutcome] = useState<ImportOutcome | null>(null);
   const [isSeeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
 
@@ -201,6 +232,17 @@ export default function Settings() {
     }
   };
 
+  const handleImport = async () => {
+    setImporting(true);
+    setImportOutcome(null);
+    try {
+      const outcome = await runImport({ transport: workerSheetsTransport });
+      setImportOutcome(outcome);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleSeedMaster = async () => {
     setSeeding(true);
     setSeedMessage(null);
@@ -257,7 +299,7 @@ export default function Settings() {
         />
       </Card>
 
-      <SectionLabel>データ同期(スプレッドシート書き出し)</SectionLabel>
+      <SectionLabel>データ同期・バックアップ(スプレッドシート)</SectionLabel>
       <Card sx={{ p: "16px", mb: "18px" }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "14px" }}>
           <Box>
@@ -286,7 +328,7 @@ export default function Settings() {
           variant="contained"
           color="secondary"
           onClick={handleSyncNow}
-          disabled={isSyncing}
+          disabled={isSyncing || isImporting}
           startIcon={<IconSync />}
           sx={{ height: 46, borderRadius: "13px", fontSize: 14, boxShadow: tokens.secondaryButtonShadow }}
         >
@@ -302,6 +344,31 @@ export default function Settings() {
             </Box>
           ) : (
             <Typography sx={{ mt: "12px", fontSize: 12, color: "text.secondary" }}>{syncOutcomeMessage(syncOutcome)}</Typography>
+          ))}
+        <Button
+          fullWidth
+          variant="outlined"
+          color="secondary"
+          onClick={handleImport}
+          disabled={isImporting || isSyncing}
+          startIcon={<IconDownload />}
+          sx={{ height: 46, borderRadius: "13px", fontSize: 14, mt: "10px" }}
+        >
+          {isImporting ? "取り込み中..." : "シートから取り込み(復元)"}
+        </Button>
+        <Typography sx={{ mt: "8px", fontSize: 11, color: "text.secondary", lineHeight: 1.6 }}>
+          スプレッドシートの記録をアプリに取り込みます。ローカルに既にある記録はそのまま残ります(機種変更時の復元・過去データの移行用)
+        </Typography>
+        {importOutcome &&
+          (importOutcome.status === "error" ? (
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: "7px", mt: "12px", bgcolor: tokens.errorBg, borderRadius: "11px", p: "10px 12px" }}>
+              <Typography sx={{ fontSize: 13, lineHeight: 1.4 }}>⚠️</Typography>
+              <Typography sx={{ fontSize: 11, fontWeight: 500, color: tokens.errorText, lineHeight: 1.5 }}>
+                {importOutcomeMessage(importOutcome)}。ローカルの記録は変更されていません
+              </Typography>
+            </Box>
+          ) : (
+            <Typography sx={{ mt: "12px", fontSize: 12, color: "text.secondary" }}>{importOutcomeMessage(importOutcome)}</Typography>
           ))}
       </Card>
 

@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
+import { IconCelebrate } from "@/components/icons";
 import { accent, fontRounded, tokens } from "@/theme";
 
 interface GoalBarProps {
@@ -39,11 +40,11 @@ export default function GoalBar({
     <Card sx={{ p: "18px", bgcolor: achieved ? accent.cardBg : "background.paper" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "14px" }}>
         <Typography sx={{ fontSize: 12, fontWeight: 500, color: "text.secondary" }}>目標体重まで</Typography>
-        <Typography
+        <Box
           sx={{
-            fontFamily: fontRounded,
-            fontWeight: 700,
-            fontSize: 11,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
             color: achieved ? tokens.warnText : "text.secondary",
             bgcolor: achieved ? tokens.warnBg : tokens.secondarySoft,
             px: "9px",
@@ -51,8 +52,11 @@ export default function GoalBar({
             borderRadius: "20px",
           }}
         >
-          {achieved ? "🎉 目標達成!" : `${Number(month)}/${Number(day)}まで あと${remainingDays}日`}
-        </Typography>
+          {achieved && <IconCelebrate size={13} />}
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 11, color: "inherit" }}>
+            {achieved ? "目標達成!" : `${Number(month)}/${Number(day)}まで あと${remainingDays}日`}
+          </Typography>
+        </Box>
       </Box>
       <Box sx={{ display: "flex", alignItems: "baseline", gap: "6px", mb: "16px" }}>
         <Typography

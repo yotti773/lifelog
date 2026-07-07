@@ -52,6 +52,22 @@ export const tokens = {
   errorText: "#D24A34",
   /** 食事行アイコンチップの背景(朝食) */
   breakfastBg: "#FFF1D9",
+  /** 水分記録のブルー系配色(デザインプロトタイプ参照。水を想起させるため、水分のみコーラルと別系統の配色を使う) */
+  waterMain: "#3AA0DB",
+  waterDeep: "#2B7BB0",
+  waterSoft: "#E4F3FB",
+  waterCardBg: "#EFF7FC",
+  waterTrack: "#DCEAF3",
+  waterInk: "#5A8CA8",
+  waterBarGradient: "linear-gradient(90deg,#5FB6E6,#2B7BB0)",
+  waterButtonShadow: "0 4px 12px -8px rgba(43,123,176,.25)",
+  waterPrimaryButtonShadow: "0 8px 16px -8px rgba(43,123,176,.5)",
+  /** 筋トレのアイコンチップ背景 */
+  strengthBg: "#FFE6DE",
+  /** 日記の気分タイル: 選択中の背景/枠、ラベル文字色 */
+  moodSelectedBg: "#FFF1D9",
+  moodBorder: "#E0A62A",
+  moodLabel: "#A97F2E",
   /** カードの暖色系シャドウ */
   cardShadow: "0 10px 26px -14px rgba(120,60,20,.28), 0 1px 0 rgba(0,0,0,.02)",
   rowCardShadow: "0 8px 20px -14px rgba(120,60,20,.26)",

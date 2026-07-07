@@ -267,6 +267,59 @@ export function IconEdit(props: IconProps) {
   );
 }
 
+/** 水滴(水分記録) */
+export function IconDrop(props: IconProps) {
+  return (
+    <svg {...base({ size: 21, ...props }, "0 0 24 24")}>
+      <path
+        d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** ノート(日記) */
+export function IconDiary(props: IconProps) {
+  return (
+    <svg {...base({ size: 21, ...props }, "0 0 24 24")}>
+      <path
+        d="M5 4h11a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M8 9h7M8 12.5h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** バーベル(筋トレ) */
+export function IconBarbell(props: IconProps) {
+  return (
+    <svg {...base({ size: 21, ...props }, "0 0 24 24")}>
+      <path
+        d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** ×(リスト行の削除) */
+export function IconClose(props: IconProps) {
+  return (
+    <svg {...base({ size: 13, ...props }, "0 0 14 14")}>
+      <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** ごみ箱(削除) */
 export function IconTrash(props: IconProps) {
   return (

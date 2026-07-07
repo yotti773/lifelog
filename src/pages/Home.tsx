@@ -85,9 +85,10 @@ export default function Home() {
   }
 
   const totalKcal = meals.reduce((sum, meal) => sum + meal.confirmedKcal, 0);
-  const totalProteinG = meals.reduce((sum, meal) => sum + meal.confirmedProteinG, 0);
-  const totalFatG = meals.reduce((sum, meal) => sum + meal.confirmedFatG, 0);
-  const totalCarbsG = meals.reduce((sum, meal) => sum + meal.confirmedCarbsG, 0);
+  // PFCは手入力で小数値を取りうるため、合算時の浮動小数点誤差(例: 17.900000000000002)を丸めて吸収する
+  const totalProteinG = Math.round(meals.reduce((sum, meal) => sum + meal.confirmedProteinG, 0) * 10) / 10;
+  const totalFatG = Math.round(meals.reduce((sum, meal) => sum + meal.confirmedFatG, 0) * 10) / 10;
+  const totalCarbsG = Math.round(meals.reduce((sum, meal) => sum + meal.confirmedCarbsG, 0) * 10) / 10;
 
   const now = new Date();
   const weightDiff = weight && previousWeight ? weight.weightKg - previousWeight.weightKg : null;

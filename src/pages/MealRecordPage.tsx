@@ -18,7 +18,7 @@ import { judgeMealPhoto, type MealJudgmentItem } from "@/api/judgeMeal";
 import FoodMasterPicker from "@/components/FoodMasterPicker";
 import RecordHeader from "@/components/RecordHeader";
 import SegmentedControl from "@/components/SegmentedControl";
-import { IconCamera, IconLibrary, IconPlus } from "@/components/icons";
+import { IconCamera, IconLibrary, IconPlus, IconSparkle, IconWarning } from "@/components/icons";
 import { addFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
 import { addMealRecord, deleteMealRecord, getMealRecord, updateMealRecord } from "@/db/mealRecords";
 import { formatDateTime, nearestMealType, toDatetimeLocalValue } from "@/lib/date";
@@ -407,7 +407,9 @@ export default function MealRecordPage() {
 
         {aiJudgment && (
           <Box sx={{ display: "flex", alignItems: "center", gap: "8px", bgcolor: tokens.secondarySoft, borderRadius: "12px", p: "10px 13px", mb: "16px" }}>
-            <Typography sx={{ fontSize: 15 }}>✨</Typography>
+            <Box sx={{ color: tokens.secondaryDeep, display: "flex" }}>
+              <IconSparkle />
+            </Box>
             <Typography sx={{ fontSize: 12, fontWeight: 500, color: tokens.secondaryDeep }}>
               写真AIの判定結果を反映しました。確認して修正できます
             </Typography>
@@ -527,7 +529,9 @@ export default function MealRecordPage() {
               {judgeError && <Typography sx={{ mt: "10px", fontSize: 12, color: "primary.main" }}>{judgeError}</Typography>}
               {judge?.isUncertain && aiJudgment !== null && (
                 <Box sx={{ display: "flex", alignItems: "flex-start", gap: "7px", mt: "10px", bgcolor: tokens.warnBg, borderRadius: "10px", p: "9px 11px" }}>
-                  <Typography sx={{ fontSize: 13, lineHeight: 1.4 }}>⚠️</Typography>
+                  <Box sx={{ color: "#B07E1E", display: "flex", mt: "1px" }}>
+                    <IconWarning />
+                  </Box>
                   <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#B07E1E", lineHeight: 1.5 }}>
                     量や内容の判定の自信が低いため、誤差が大きい場合があります。内容を確認・修正してください
                   </Typography>

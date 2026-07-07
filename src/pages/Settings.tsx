@@ -18,6 +18,7 @@ import {
   IconPerson,
   IconSun,
   IconSync,
+  IconWarning,
 } from "@/components/icons";
 import { getAllFoodMasterItems, bulkAddFoodMasterItems } from "@/db/foodMaster";
 import { foodMasterSeedData } from "@/db/foodMasterSeedData";
@@ -295,7 +296,9 @@ export default function Settings() {
         {syncOutcome &&
           (syncOutcome.status === "error" ? (
             <Box sx={{ display: "flex", alignItems: "flex-start", gap: "7px", mt: "12px", bgcolor: tokens.errorBg, borderRadius: "11px", p: "10px 12px" }}>
-              <Typography sx={{ fontSize: 13, lineHeight: 1.4 }}>⚠️</Typography>
+              <Box sx={{ color: tokens.errorText, display: "flex", mt: "1px" }}>
+                <IconWarning />
+              </Box>
               <Typography sx={{ fontSize: 11, fontWeight: 500, color: tokens.errorText, lineHeight: 1.5 }}>
                 {syncOutcomeMessage(syncOutcome)}。記録は保持され、次回に再試行します
               </Typography>

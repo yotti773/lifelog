@@ -276,3 +276,50 @@ export function IconTrash(props: IconProps) {
     </svg>
   );
 }
+
+/** 警告(注意喚起の三角) */
+export function IconWarning(props: IconProps) {
+  return (
+    <svg {...base({ size: 16, ...props }, "0 0 20 20")}>
+      <path
+        d="M10 3.2 18 16.5H2L10 3.2Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M10 8.2v3.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="10" cy="14" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** きらめき(AI判定結果の反映など、自動処理の目印) */
+export function IconSparkle(props: IconProps) {
+  return (
+    <svg {...base({ size: 15, ...props }, "0 0 18 18")}>
+      <path
+        d="M9 2.5c.4 2.6 1.4 3.6 4 4-2.6.4-3.6 1.4-4 4-.4-2.6-1.4-3.6-4-4 2.6-.4 3.6-1.4 4-4Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path d="M14.5 12v2.4M13.3 13.2h2.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** 達成演出(紙吹雪・スター) */
+export function IconCelebrate(props: IconProps) {
+  return (
+    <svg {...base({ size: 16, ...props }, "0 0 20 20")}>
+      <path
+        d="M9 2.5l1 2.3 2.4.4-1.7 1.8.3 2.4-2-1.2-2 1.2.3-2.4L5.6 5.2l2.4-.4L9 2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path d="M15.5 8.5v2.4M18 11.2h-2.4M4 13.5l1.3 1.3M2.7 16.1l1.3-1.3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}

@@ -5,9 +5,23 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import CalorieCard from "@/components/CalorieCard";
-import { IconArrow, IconBreakfast, IconChevronRight, IconDinner, IconLunch, IconSnack } from "@/components/icons";
+import { moodLabel } from "@/components/MoodIcon";
+import {
+  IconArrow,
+  IconBarbell,
+  IconBreakfast,
+  IconChevronRight,
+  IconDiary,
+  IconDinner,
+  IconDrop,
+  IconLunch,
+  IconSnack,
+} from "@/components/icons";
 import { db } from "@/db/db";
+import { getDiaryRecord } from "@/db/diaryRecords";
 import { getSettings } from "@/db/settings";
+import { getWaterRecordsForDate } from "@/db/waterRecords";
+import { getWorkoutRecordsForDate } from "@/db/workoutRecords";
 import { formatTime, localDateRangeToUtcIso, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 import type { MealRecord, MealType } from "@/types";
@@ -72,8 +86,18 @@ export default function Home() {
     [todayStartIso, todayEndIso],
   );
   const settings = useLiveQuery(() => getSettings(), []);
+  const waterRecords = useLiveQuery(() => getWaterRecordsForDate(today), [today]);
+  // 「未記録」に正当に解決しうるクエリはnullに正規化する(undefined=ロード中と区別するため。Trends.tsx参照)
+  const diary = useLiveQuery(() => getDiaryRecord(today).then((v) => v ?? null), [today]);
+  const workoutRecords = useLiveQuery(() => getWorkoutRecordsForDate(today), [today]);
 
-  if (meals === undefined || settings === undefined) {
+  if (
+    meals === undefined ||
+    settings === undefined ||
+    waterRecords === undefined ||
+    diary === undefined ||
+    workoutRecords === undefined
+  ) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
 
@@ -98,6 +122,12 @@ export default function Home() {
       : null;
 
   const goToWeightRecord = () => navigate(`/record/weight?date=${today}`);
+
+  // その他の記録(水分・日記・筋トレ)のサマリー(画面設計書2章)
+  const waterTotalMl = waterRecords.reduce((sum, record) => sum + record.amountMl, 0);
+  const waterTargetMl = settings.dailyWaterTargetMl;
+  const waterProgress = waterTargetMl ? Math.max(0, Math.min(100, (waterTotalMl / waterTargetMl) * 100)) : 0;
+  const workoutExerciseCount = new Set(workoutRecords.map((record) => record.exerciseOrder)).size;
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "130px" }}>
@@ -309,6 +339,185 @@ export default function Home() {
       <Typography sx={{ mt: "12px", textAlign: "center", fontSize: 11, color: tokens.faint }}>
         区分名をタップすると新規追加、品目をタップすると編集・削除できます
       </Typography>
+
+      {/* その他の記録(水分・日記・筋トレ。画面設計書2章) */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", m: "24px 0 12px", px: "2px" }}>
+        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>その他の記録</Typography>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {/* 水分: 合計+進捗バー、タップで水分記録画面へ */}
+        <ButtonBase
+          onClick={() => navigate("/record/water")}
+          sx={{
+            bgcolor: "background.paper",
+            borderRadius: "18px",
+            boxShadow: tokens.rowCardShadow,
+            p: "14px 15px",
+            display: "flex",
+            alignItems: "center",
+            gap: "13px",
+            textAlign: "left",
+          }}
+        >
+          <Box
+            sx={{
+              width: 42,
+              height: 42,
+              borderRadius: "13px",
+              bgcolor: tokens.waterSoft,
+              color: tokens.waterMain,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <IconDrop size={21} />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: waterTargetMl ? "5px" : 0 }}>
+              水分
+            </Typography>
+            {waterTargetMl && (
+              <Box sx={{ height: 6, bgcolor: tokens.track, borderRadius: "6px", overflow: "hidden" }}>
+                <Box
+                  sx={{
+                    height: "100%",
+                    width: `${waterProgress}%`,
+                    bgcolor: tokens.waterMain,
+                    borderRadius: "6px",
+                    transition: "width .4s",
+                  }}
+                />
+              </Box>
+            )}
+          </Box>
+          <Box sx={{ textAlign: "right", flexShrink: 0 }}>
+            <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>
+              {waterTotalMl.toLocaleString()}
+            </Typography>
+            <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 10, color: "text.secondary", ml: "2px" }}>
+              {waterTargetMl ? `/ ${waterTargetMl.toLocaleString()}ml` : "ml"}
+            </Typography>
+          </Box>
+          <Box sx={{ color: "text.primary", opacity: 0.35, display: "flex", flexShrink: 0 }}>
+            <IconChevronRight size={13} />
+          </Box>
+        </ButtonBase>
+
+        {/* 日記: 気分タグ+本文プレビュー、タップで日記画面へ */}
+        <ButtonBase
+          onClick={() => navigate("/record/diary")}
+          sx={{
+            bgcolor: "background.paper",
+            borderRadius: "18px",
+            boxShadow: tokens.rowCardShadow,
+            p: "14px 15px",
+            display: "flex",
+            alignItems: "center",
+            gap: "13px",
+            textAlign: "left",
+          }}
+        >
+          <Box
+            sx={{
+              width: 42,
+              height: 42,
+              borderRadius: "13px",
+              bgcolor: tokens.warnBg,
+              color: tokens.warnIcon,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <IconDiary size={21} />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: "7px", mb: "2px" }}>
+              <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>日記</Typography>
+              {diary?.mood && (
+                <Typography
+                  sx={{
+                    fontSize: 9,
+                    fontWeight: 500,
+                    color: tokens.warnText,
+                    bgcolor: tokens.warnBg,
+                    px: "6px",
+                    py: "2px",
+                    borderRadius: "6px",
+                  }}
+                >
+                  {moodLabel(diary.mood)}
+                </Typography>
+              )}
+            </Box>
+            <Typography
+              sx={{
+                fontSize: 12,
+                color: diary?.text ? "text.secondary" : tokens.faint,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {diary?.text ? diary.text : "未記録"}
+            </Typography>
+          </Box>
+          <Box sx={{ color: "text.primary", opacity: 0.35, display: "flex", flexShrink: 0 }}>
+            <IconChevronRight size={13} />
+          </Box>
+        </ButtonBase>
+
+        {/* 筋トレ: 当日サマリー(◯種目・◯セット)、タップで筋トレ記録画面へ */}
+        <ButtonBase
+          onClick={() => navigate("/record/strength")}
+          sx={{
+            bgcolor: "background.paper",
+            borderRadius: "18px",
+            boxShadow: tokens.rowCardShadow,
+            p: "14px 15px",
+            display: "flex",
+            alignItems: "center",
+            gap: "13px",
+            textAlign: "left",
+          }}
+        >
+          <Box
+            sx={{
+              width: 42,
+              height: 42,
+              borderRadius: "13px",
+              bgcolor: tokens.strengthBg,
+              color: "primary.main",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <IconBarbell size={21} />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "2px" }}>筋トレ</Typography>
+            <Typography
+              sx={{
+                fontSize: 12,
+                color: workoutRecords.length > 0 ? "text.secondary" : tokens.faint,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {workoutRecords.length > 0 ? `${workoutExerciseCount}種目・${workoutRecords.length}セット` : "未記録"}
+            </Typography>
+          </Box>
+          <Box sx={{ color: "text.primary", opacity: 0.35, display: "flex", flexShrink: 0 }}>
+            <IconChevronRight size={13} />
+          </Box>
+        </ButtonBase>
+      </Box>
     </Box>
   );
 }

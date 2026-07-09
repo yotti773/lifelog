@@ -4,9 +4,11 @@ import Typography from "@mui/material/Typography";
 import BodyFatChart from "./BodyFatChart";
 import CalorieChart from "./CalorieChart";
 import SegmentedControl from "./SegmentedControl";
+import WaterChart from "./WaterChart";
 import WeightChart from "./WeightChart";
-import { fontRounded } from "@/theme";
+import { fontRounded, tokens } from "@/theme";
 import type { DailyCalorieTotal } from "@/db/mealRecords";
+import type { DailyWaterTotal } from "@/db/waterRecords";
 import type { WeightRecord } from "@/types";
 
 export type Period = "week" | "month" | "all";
@@ -22,8 +24,10 @@ interface WeightTrendChartsProps {
   onPeriodChange: (period: Period) => void;
   weightChartRecords: WeightRecord[];
   calorieDailyTotals: DailyCalorieTotal[];
+  waterDailyTotals: DailyWaterTotal[];
   goalWeightKg: number;
   dailyCalorieTarget: number;
+  dailyWaterTargetMl: number | null;
 }
 
 export default function WeightTrendCharts({
@@ -31,8 +35,10 @@ export default function WeightTrendCharts({
   onPeriodChange,
   weightChartRecords,
   calorieDailyTotals,
+  waterDailyTotals,
   goalWeightKg,
   dailyCalorieTarget,
+  dailyWaterTargetMl,
 }: WeightTrendChartsProps) {
   // 直近の体脂肪率(体脂肪率カードのヘッダー表示用)
   const latestBodyFat = [...weightChartRecords].reverse().find((r) => r.bodyFatPercent !== undefined)?.bodyFatPercent;
@@ -77,6 +83,19 @@ export default function WeightTrendCharts({
           </Typography>
         </Box>
         <CalorieChart data={calorieDailyTotals} targetKcal={dailyCalorieTarget} />
+      </Card>
+
+      <Card sx={{ p: "16px" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "14px" }}>
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>水分摂取量</Typography>
+          {dailyWaterTargetMl !== null && (
+            <Typography sx={{ display: "flex", alignItems: "center", gap: "5px", fontSize: 10, fontWeight: 500, color: "text.secondary" }}>
+              <Box component="span" sx={{ width: 14, height: "2px", bgcolor: tokens.waterMain, display: "inline-block" }} />
+              目標 {dailyWaterTargetMl.toLocaleString()}ml
+            </Typography>
+          )}
+        </Box>
+        <WaterChart data={waterDailyTotals} targetMl={dailyWaterTargetMl} />
       </Card>
     </>
   );

@@ -1,5 +1,15 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { FoodMasterItem, MealRecord, Settings, SyncDeletion, WeightRecord } from "@/types";
+import type {
+  DiaryRecord,
+  ExerciseMasterItem,
+  FoodMasterItem,
+  MealRecord,
+  Settings,
+  SyncDeletion,
+  WaterRecord,
+  WeightRecord,
+  WorkoutRecord,
+} from "@/types";
 
 export type SettingsRow = Settings & { id: "default" };
 
@@ -9,6 +19,10 @@ export const db = new Dexie("lifelog") as Dexie & {
   settings: EntityTable<SettingsRow, "id">;
   foodMasterItems: EntityTable<FoodMasterItem, "id">;
   syncDeletions: EntityTable<SyncDeletion, "id">;
+  waterRecords: EntityTable<WaterRecord, "id">;
+  diaryRecords: EntityTable<DiaryRecord, "date">;
+  workoutRecords: EntityTable<WorkoutRecord, "id">;
+  exerciseMasterItems: EntityTable<ExerciseMasterItem, "id">;
 };
 
 // weightRecords: dateを主キーにすることで、同じ日付のput()が自動的に上書き(後勝ち)になる
@@ -25,4 +39,13 @@ db.version(2).stores({
 // syncDeletions: 削除された同期対象記録のトゥームストーン置き場(Issue #30)。sheetでの絞り込み用にインデックスを張る
 db.version(3).stores({
   syncDeletions: "id, sheet",
+});
+
+// フェーズ2(Issue #8〜#10): 水分・日記・筋トレ・種目マスタ。
+// diaryRecordsはweightRecordsと同じく日付を主キーにして「1日1件、後勝ち」を成立させる
+db.version(4).stores({
+  waterRecords: "id, timestamp",
+  diaryRecords: "date, timestamp",
+  workoutRecords: "id, date",
+  exerciseMasterItems: "id, name",
 });

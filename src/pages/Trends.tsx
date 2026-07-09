@@ -15,6 +15,7 @@ import { IconSync } from "@/components/icons";
 import { db } from "@/db/db";
 import { getAllMealRecordsDesc, getDailyCalorieTotals } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
+import { getDailyWaterTotals } from "@/db/waterRecords";
 import {
   getAllWeightRecords,
   getAllWeightRecordsDesc,
@@ -84,6 +85,17 @@ export default function Trends() {
     return getDailyCalorieTotals(dateStringDaysAgo(days), endDate);
   }, [period]);
 
+  const waterDailyTotals = useLiveQuery(async () => {
+    const endDate = todayDateString();
+    if (period === "all") {
+      const firstWaterRecord = await db.waterRecords.orderBy("timestamp").first();
+      const startDate = firstWaterRecord ? formatDate(new Date(firstWaterRecord.timestamp)) : endDate;
+      return getDailyWaterTotals(startDate, endDate);
+    }
+    const days = period === "week" ? 6 : 29;
+    return getDailyWaterTotals(dateStringDaysAgo(days), endDate);
+  }, [period]);
+
   // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書8.1章)。
   // 表示していない種別・タブに対してはDexieへ問い合わせない(無駄なフルスキャンを避ける)
   const historyRecords = useLiveQuery(
@@ -108,6 +120,7 @@ export default function Trends() {
     baselineWeightRecord === undefined ||
     weightChartRecords === undefined ||
     calorieDailyTotals === undefined ||
+    waterDailyTotals === undefined ||
     historyRecords === undefined ||
     mealHistoryRecords === undefined
   ) {
@@ -167,8 +180,10 @@ export default function Trends() {
             onPeriodChange={setPeriod}
             weightChartRecords={weightChartRecords}
             calorieDailyTotals={calorieDailyTotals}
+            waterDailyTotals={waterDailyTotals}
             goalWeightKg={settings.goalWeightKg}
             dailyCalorieTarget={settings.dailyCalorieTarget}
+            dailyWaterTargetMl={settings.dailyWaterTargetMl ?? null}
           />
         </>
       ) : (

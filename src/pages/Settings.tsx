@@ -10,9 +10,11 @@ import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import {
+  IconBarbell,
   IconCalendar,
   IconChevronRight,
   IconClock,
+  IconDrop,
   IconFork,
   IconDownload,
   IconPerson,
@@ -20,6 +22,7 @@ import {
   IconSync,
   IconWarning,
 } from "@/components/icons";
+import { getAllExerciseMasterItems } from "@/db/exerciseMaster";
 import { getAllFoodMasterItems, bulkAddFoodMasterItems } from "@/db/foodMaster";
 import { foodMasterSeedData } from "@/db/foodMasterSeedData";
 import { getUnsyncedMealRecords } from "@/db/mealRecords";
@@ -32,13 +35,20 @@ import { runSync, type SyncOutcome } from "@/sync/syncEngine";
 import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
 import { fontRounded, tokens } from "@/theme";
 
-type EditTarget = "weight" | "goalDate" | "baseline" | "calories";
+type EditTarget = "weight" | "goalDate" | "baseline" | "calories" | "waterGoal";
 
 const EDIT_LABELS: Record<EditTarget, string> = {
   weight: "目標体重",
   goalDate: "目標日",
   baseline: "基準日",
   calories: "1日の目標カロリー",
+  waterGoal: "1日の目標水分摂取量",
+};
+
+const NUMBER_EDIT_UNITS: Partial<Record<EditTarget, string>> = {
+  weight: "kg",
+  calories: "kcal",
+  waterGoal: "ml",
 };
 
 function syncOutcomeMessage(outcome: SyncOutcome): string {
@@ -158,6 +168,7 @@ export default function Settings() {
     return weights.length + meals.length + weightDeletions.length + mealDeletions.length;
   }, []);
   const foodMasterCount = useLiveQuery(async () => (await getAllFoodMasterItems()).length, []);
+  const exerciseMasterCount = useLiveQuery(async () => (await getAllExerciseMasterItems()).length, []);
 
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [draft, setDraft] = useState("");
@@ -187,17 +198,25 @@ export default function Settings() {
       case "calories":
         setDraft(String(settings.dailyCalorieTarget));
         break;
+      case "waterGoal":
+        setDraft(settings.dailyWaterTargetMl !== undefined ? String(settings.dailyWaterTargetMl) : "");
+        break;
     }
   };
 
-  const isNumberEdit = editTarget === "weight" || editTarget === "calories";
+  const isNumberEdit = editTarget === "weight" || editTarget === "calories" || editTarget === "waterGoal";
   const draftNumber = Number(draft);
   const canSave =
     editTarget === "baseline" ||
-    (isNumberEdit ? draft !== "" && !Number.isNaN(draftNumber) && draftNumber > 0 : draft !== "");
+    // 目標水分摂取量は「未設定にする」(空欄での保存)を許容する(画面設計書9章)
+    (editTarget === "waterGoal"
+      ? draft === "" || (!Number.isNaN(draftNumber) && draftNumber > 0)
+      : isNumberEdit
+        ? draft !== "" && !Number.isNaN(draftNumber) && draftNumber > 0
+        : draft !== "");
 
   const stepDraft = (direction: 1 | -1) => {
-    const step = editTarget === "weight" ? 0.1 : 50;
+    const step = editTarget === "weight" ? 0.1 : editTarget === "waterGoal" ? 100 : 50;
     const base = Number.isNaN(draftNumber) ? 0 : draftNumber;
     const next = Math.max(0, base + direction * step);
     setDraft(editTarget === "weight" ? next.toFixed(1) : String(next));
@@ -217,6 +236,9 @@ export default function Settings() {
         break;
       case "calories":
         await updateSettings({ dailyCalorieTarget: draftNumber });
+        break;
+      case "waterGoal":
+        await updateSettings({ dailyWaterTargetMl: draft !== "" ? draftNumber : undefined });
         break;
     }
     setEditTarget(null);
@@ -296,7 +318,16 @@ export default function Settings() {
           iconColor="#FF6B4A"
           label="1日の目標カロリー"
           value={`${settings.dailyCalorieTarget.toLocaleString()} kcal`}
+          divider
           onClick={() => openEditor("calories")}
+        />
+        <SettingRow
+          icon={<IconDrop size={18} />}
+          iconBg={tokens.waterSoft}
+          iconColor={tokens.waterMain}
+          label="1日の目標水分摂取量"
+          value={settings.dailyWaterTargetMl !== undefined ? `${settings.dailyWaterTargetMl.toLocaleString()} ml` : "未設定"}
+          onClick={() => openEditor("waterGoal")}
         />
       </Card>
 
@@ -398,6 +429,18 @@ export default function Settings() {
         <Typography sx={{ fontSize: 12, color: "text.secondary", mt: "-10px", mb: "18px", px: "4px" }}>{seedMessage}</Typography>
       )}
 
+      <SectionLabel>種目マスタ</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "18px" }}>
+        <SettingRow
+          icon={<IconBarbell size={18} />}
+          iconBg={tokens.strengthBg}
+          iconColor="#FF6B4A"
+          label="よく行う種目を管理"
+          value={exerciseMasterCount !== undefined ? `${exerciseMasterCount}件` : ""}
+          onClick={() => navigate("/settings/exercise-master")}
+        />
+      </Card>
+
       {/* 目標値の編集ボトムシート */}
       <Drawer
         anchor="bottom"
@@ -435,7 +478,7 @@ export default function Settings() {
                     input: {
                       endAdornment: (
                         <Typography sx={{ fontFamily: fontRounded, color: "text.secondary", fontSize: 14, ml: "4px" }}>
-                          {editTarget === "weight" ? "kg" : "kcal"}
+                          {NUMBER_EDIT_UNITS[editTarget]}
                         </Typography>
                       ),
                     },
@@ -462,6 +505,23 @@ export default function Settings() {
               <>
                 <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "12px", textAlign: "center" }}>
                   未設定の場合、一番古い体重記録を起点にします
+                </Typography>
+                {draft && (
+                  <Button
+                    fullWidth
+                    variant="text"
+                    onClick={() => setDraft("")}
+                    sx={{ mb: "6px", color: "text.secondary" }}
+                  >
+                    未設定にする
+                  </Button>
+                )}
+              </>
+            )}
+            {editTarget === "waterGoal" && (
+              <>
+                <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "12px", textAlign: "center" }}>
+                  未設定の間はホーム・水分記録画面で合計mlのみ表示します
                 </Typography>
                 {draft && (
                   <Button

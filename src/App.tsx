@@ -6,8 +6,12 @@ import Home from "./pages/Home";
 import Trends from "./pages/Trends";
 import Settings from "./pages/Settings";
 import FoodMasterPage from "./pages/FoodMasterPage";
+import ExerciseMasterPage from "./pages/ExerciseMasterPage";
 import WeightRecordPage from "./pages/WeightRecordPage";
 import MealRecordPage from "./pages/MealRecordPage";
+import WaterRecordPage from "./pages/WaterRecordPage";
+import DiaryRecordPage from "./pages/DiaryRecordPage";
+import StrengthRecordPage from "./pages/StrengthRecordPage";
 import { runSync } from "./sync/syncEngine";
 import { workerSheetsTransport } from "./sync/workerSheetsTransport";
 
@@ -29,8 +33,12 @@ export default function App() {
         <Route path="/trends" element={<Trends />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/food-master" element={<FoodMasterPage />} />
+        <Route path="/settings/exercise-master" element={<ExerciseMasterPage />} />
         <Route path="/record/weight" element={<WeightRecordPage />} />
         <Route path="/record/meal" element={<MealRecordPage />} />
+        <Route path="/record/water" element={<WaterRecordPage />} />
+        <Route path="/record/diary" element={<DiaryRecordPage />} />
+        <Route path="/record/strength" element={<StrengthRecordPage />} />
       </Routes>
 
       {!isRecordFlow && <BottomNav />}

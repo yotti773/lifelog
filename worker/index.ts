@@ -1,4 +1,6 @@
 import {
+  buildMealJudgmentPrompt,
+  MEAL_JUDGMENT_RESPONSE_SCHEMA,
   parseMealJudgment,
   type LegacyMealJudgmentFields,
   type MealJudgmentResult,
@@ -23,28 +25,6 @@ interface JudgeMealRequestBody {
   note?: string;
 }
 
-const RESPONSE_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    items: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          dishName: { type: "STRING" },
-          kcal: { type: "NUMBER" },
-          proteinG: { type: "NUMBER" },
-          fatG: { type: "NUMBER" },
-          carbsG: { type: "NUMBER" },
-        },
-        required: ["dishName", "kcal", "proteinG", "fatG", "carbsG"],
-      },
-    },
-    isUncertain: { type: "BOOLEAN" },
-  },
-  required: ["items", "isUncertain"],
-};
-
 async function judgeMeal(
   env: Env,
   imageBase64: string,
@@ -54,22 +34,7 @@ async function judgeMeal(
 ): Promise<MealJudgmentResult & LegacyMealJudgmentFields> {
   const model = env.GEMINI_MODEL || "gemini-2.5-flash";
   const mealLabel = MEAL_TYPE_LABELS[mealType] ?? mealType;
-
-  const noteSection =
-    note && note.trim() !== ""
-      ? `\nユーザーからの補足情報: 「${note.trim()}」。写真だけでは判別しにくい料理名・分量・品目の内訳などは、この補足情報を優先して判定に反映してください。`
-      : "";
-
-  const prompt = `この写真は${mealLabel}の食事です。写っている料理・食品を判定し、以下の項目をJSONで返してください。
-- items: 写っている料理・食品ごとに1件の配列。例えば「唐揚げ・ご飯・味噌汁」のように見分けられる料理が複数写っている場合は、まとめずにそれぞれを別の要素として分けること。単一の料理しか写っていない場合は1件のみの配列にする
-  - dishName: その品目の料理名(日本語、簡潔に)
-  - kcal: その品目単体の推定カロリー(kcal、数値のみ。他の品目と合算しない)
-  - proteinG: その品目単体の推定たんぱく質(g、数値のみ)
-  - fatG: その品目単体の推定脂質(g、数値のみ)
-  - carbsG: その品目単体の推定炭水化物(g、数値のみ)
-- isUncertain: 量や内容の判定に自信が低い場合、または複数の料理をやむを得ず1つの品目にまとめて返す場合はtrue
-
-一般的な日本の家庭料理・外食の分量を前提に、常識的な範囲で推定してください。${noteSection}`;
+  const prompt = buildMealJudgmentPrompt(mealLabel, note);
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -84,7 +49,7 @@ async function judgeMeal(
         ],
         generationConfig: {
           responseMimeType: "application/json",
-          responseSchema: RESPONSE_SCHEMA,
+          responseSchema: MEAL_JUDGMENT_RESPONSE_SCHEMA,
         },
       }),
     },

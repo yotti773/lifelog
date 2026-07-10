@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseMealJudgment } from "../mealJudgment";
+import {
+  buildMealJudgmentPrompt,
+  MEAL_JUDGMENT_RESPONSE_SCHEMA,
+  parseMealJudgment,
+} from "../mealJudgment";
 
 const ITEM = { dishName: "唐揚げ", kcal: 320, proteinG: 18, fatG: 22, carbsG: 12 };
 const ITEM2 = { dishName: "ご飯", kcal: 250, proteinG: 4, fatG: 0.5, carbsG: 55 };
@@ -46,5 +50,60 @@ describe("parseMealJudgment", () => {
   it("isUncertainが欠落していてもitemsが正当ならfalse扱いで通す", () => {
     const result = parseMealJudgment(JSON.stringify({ items: [ITEM] }));
     expect(result.isUncertain).toBe(false);
+  });
+
+  it("estimatedWeightGなどスキーマ外の余分なフィールドはitemsから除去する", () => {
+    const result = parseMealJudgment(
+      JSON.stringify({
+        items: [{ ...ITEM, estimatedWeightG: 120, memo: "余分" }],
+        isUncertain: false,
+      }),
+    );
+    expect(result.items).toEqual([ITEM]);
+  });
+});
+
+describe("buildMealJudgmentPrompt", () => {
+  it("食事区分ラベルと手順・分量アンカー・整合性チェックを含む", () => {
+    const prompt = buildMealJudgmentPrompt("朝食");
+    expect(prompt).toContain("朝食の食事です");
+    expect(prompt).toContain("## 手順");
+    expect(prompt).toContain("## 分量の目安");
+    expect(prompt).toContain("estimatedWeightG");
+    // PFC→kcalの整合性セルフチェック
+    expect(prompt).toContain("たんぱく質(g)×4 + 脂質(g)×9 + 炭水化物(g)×4");
+  });
+
+  it("補足情報があれば最優先セクションとして埋め込む(前後の空白はトリム)", () => {
+    const prompt = buildMealJudgmentPrompt("昼食", "  唐揚げ弁当、ご飯少なめ ");
+    expect(prompt).toContain("## ユーザーからの補足情報(最優先)");
+    expect(prompt).toContain("「唐揚げ弁当、ご飯少なめ」");
+  });
+
+  it.each([
+    ["未指定", undefined],
+    ["空文字", ""],
+    ["空白のみ", "   "],
+  ])("補足情報が%sなら補足セクションを含めない", (_label, note) => {
+    expect(buildMealJudgmentPrompt("夕食", note)).not.toContain("補足情報");
+  });
+
+  it("プロンプトの出力例はレスポンススキーマの必須フィールドと整合している", () => {
+    const prompt = buildMealJudgmentPrompt("間食");
+    const exampleLine = prompt.split("\n").find((line) => line.startsWith('{"items"'));
+    expect(exampleLine).toBeDefined();
+    const example = JSON.parse(exampleLine!) as {
+      items: Record<string, unknown>[];
+      isUncertain: boolean;
+    };
+    const requiredKeys = (
+      MEAL_JUDGMENT_RESPONSE_SCHEMA.properties.items.items as { required: string[] }
+    ).required;
+    for (const item of example.items) {
+      for (const key of requiredKeys) {
+        expect(item).toHaveProperty(key);
+      }
+    }
+    expect(typeof example.isUncertain).toBe("boolean");
   });
 });

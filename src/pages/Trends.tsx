@@ -201,6 +201,9 @@ export default function Trends() {
       ) : viewMode === "review" ? (
         reviewDigest && (
           <WeeklyReview
+            // 週を切り替えるたびに再マウントし、生成中フラグ・エラー表示・反映済み表示などの
+            // ローカル状態が前の週から持ち越されないようにする(週ごとに独立した状態であるべきため)
+            key={reviewWeekStart}
             digest={reviewDigest}
             onPrevWeek={() => setReviewWeekStart(addDaysToDateString(reviewWeekStart, -7))}
             onNextWeek={() => setReviewWeekStart(addDaysToDateString(reviewWeekStart, 7))}

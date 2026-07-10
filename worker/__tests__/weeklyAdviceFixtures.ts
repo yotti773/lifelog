@@ -14,6 +14,7 @@ const base = {
     weeklyChangeKg: -0.5,
     projectedKg: 63.5,
     requiredWeeklyPaceKg: -0.47,
+    paceBaseKg: 71.4,
   },
   calories: {
     avgIntakeKcal: 1850,
@@ -72,6 +73,7 @@ export const digestInsufficientData = {
     weeklyChangeKg: null,
     projectedKg: null,
     requiredWeeklyPaceKg: 0,
+    paceBaseKg: null,
   },
   calories: {
     avgIntakeKcal: null,

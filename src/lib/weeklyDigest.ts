@@ -130,6 +130,7 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
       weeklyChangeKg,
       projectedKg: src.projectedKg !== null ? round2(src.projectedKg) : null,
       requiredWeeklyPaceKg,
+      paceBaseKg: paceBaseKg !== null ? round2(paceBaseKg) : null,
     },
     calories: {
       avgIntakeKcal,

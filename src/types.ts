@@ -155,6 +155,8 @@ export interface WeeklyDigest {
     weeklyChangeKg: number | null; // 週平均同士の差(単日比較はノイズが大きいため使わない)
     projectedKg: number | null; // 現在ペースでの着地予測(Issue #25の線形予測を流用)
     requiredWeeklyPaceKg: number; // 必要ペース(kg/週)。減量が必要なら負の値
+    /** 必要ペース計算の基準体重(週平均、無ければ全期間の最新体重にフォールバック)。体重記録が1件も無い場合のみnull */
+    paceBaseKg: number | null;
   };
   calories: {
     avgIntakeKcal: number | null; // 食事記録がある日の平均

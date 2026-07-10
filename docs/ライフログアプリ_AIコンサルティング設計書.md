@@ -42,6 +42,7 @@ interface WeeklyDigest {
     weeklyChangeKg: number | null;               // 週平均同士の差(単日比較はノイズが大きいため使わない)
     projectedKg: number | null;                  // 現在ペースでの着地予測(実装済みの線形予測を流用。Issue #25)
     requiredWeeklyPaceKg: number;                // 必要ペース = 残り減量幅 ÷ 残り週数
+    paceBaseKg: number | null;                   // 必要ペース計算の基準体重(週平均、無ければ最新体重にフォールバック。体重記録が皆無ならnull)
   };
   calories: {
     avgIntakeKcal: number | null;                // 記録がある日の平均
@@ -80,6 +81,7 @@ interface WeeklyDigest {
 補足(実装時の確定事項):
 - `mood` は日記の気分タグ(5段階。画面設計書6章)を3区分へ集計する: 絶好調・良い → `good` / 普通 → `normal` / 眠い・不調 → `bad`。日記が無い週は `mood` 自体を省略する
 - `requiredWeeklyPaceKg` は「減量が必要なら負」の符号で持つ(`weeklyChangeKg` と直接比較できるように)。体重記録が皆無・目標日超過の場合は `0` とし、状況はフラグ側で伝える
+- `paceBaseKg` は `requiredWeeklyPaceKg` の計算に使った基準体重(週平均、無ければ全期間の最新体重)をそのまま持つ。UI側で「必要ペース0.00kg/週(既に目標体重付近)」と「計算不能(体重記録が無い・目標日超過)」を区別するために使う。週次レビュー画面のTDEE補正提案(実測消費カロリー節)でも、Settings.tsxの自動計算(#43)と同じ `suggestCalorieTarget()` の入力(現在体重)として再利用し、ガードレール(基礎代謝クランプ・ペース超過警告)を画面間で一貫させている
 
 ## 4. データ契約(2): WeeklyAdvice(出力)
 

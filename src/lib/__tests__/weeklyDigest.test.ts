@@ -42,6 +42,8 @@ describe("buildWeeklyDigest", () => {
     expect(digest.weight.weeklyChangeKg).toBe(-0.5);
     // 必要ペース = -(71.4-64)/110*7 ≈ -0.47kg/週
     expect(digest.weight.requiredWeeklyPaceKg).toBeCloseTo(-0.47, 2);
+    // 基準体重は週平均を優先する(latestWeightKg=71.2ではなくweekAvgKg=71.4)
+    expect(digest.weight.paceBaseKg).toBe(71.4);
     expect(digest.calories.avgIntakeKcal).toBe(1850);
     expect(digest.calories.daysOnTarget).toBe(6); // 2000kcalの1日だけ超過
     expect(digest.calories.recordedDays).toBe(7);
@@ -105,14 +107,17 @@ describe("buildWeeklyDigest", () => {
     expect(digest.pfc.avgProteinG).toBeNull();
     // 週平均が無い場合は最新体重でフォールバックして必要ペースを出す
     expect(digest.weight.requiredWeeklyPaceKg).toBeCloseTo(-((71.2 - 64) / 110) * 7, 2);
+    expect(digest.weight.paceBaseKg).toBe(71.2);
     expect(digest.mood).toBeUndefined();
   });
 
-  it("体重記録が1件も無い(latestWeightKgもnull)場合の必要ペースは0", () => {
+  it("体重記録が1件も無い(latestWeightKgもnull)場合の必要ペースは0・paceBaseKgもnull", () => {
     const src = goodWeekSource();
     src.weekWeights = [];
     src.latestWeightKg = null;
-    expect(buildWeeklyDigest(src).weight.requiredWeeklyPaceKg).toBe(0);
+    const digest = buildWeeklyDigest(src);
+    expect(digest.weight.requiredWeeklyPaceKg).toBe(0);
+    expect(digest.weight.paceBaseKg).toBeNull();
   });
 
   it("目標日を過ぎている場合はremainingDays=0・必要ペース0", () => {

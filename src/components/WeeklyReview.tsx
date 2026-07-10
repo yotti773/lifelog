@@ -11,6 +11,7 @@ import { requestWeeklyAdvice } from "@/api/weeklyAdvice";
 import { getAdviceRecord, saveAdviceRecord } from "@/db/adviceRecords";
 import { updateSettings } from "@/db/settings";
 import { formatDateTime, formatMonthDay } from "@/lib/date";
+import { suggestCalorieTarget } from "@/lib/nutritionCalc";
 import { fontRounded, tokens } from "@/theme";
 import type { DigestFlag, WeeklyAdvice, WeeklyDigest } from "@/types";
 
@@ -117,15 +118,21 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
         : ("behind" as const)
       : null;
 
-  // 実測TDEEに基づく目標カロリーの補正提案(Issue #44)。反映はユーザーの明示操作でのみ行う
-  const requiredDailyDeficitKcal = (-weight.requiredWeeklyPaceKg * 7700) / 7;
-  const rawProposal =
-    calories.estimatedTdeeKcal !== null && digest.goal.remainingDays > 0
-      ? Math.round((calories.estimatedTdeeKcal - requiredDailyDeficitKcal) / 10) * 10
+  // 実測TDEEに基づく目標カロリーの補正提案(Issue #44)。反映はユーザーの明示操作でのみ行う。
+  // 計算はSettings.tsxの自動計算パネルと同じsuggestCalorieTarget()を再利用し、BMR下限クランプと
+  // ペース超過警告(要件定義書4.7.1章)の両方のガードレールを常に適用する(画面によって安全性が変わらないように)
+  const calorieProposal =
+    calories.estimatedTdeeKcal !== null && calories.bmrKcal !== null && weight.paceBaseKg !== null
+      ? suggestCalorieTarget({
+          bmrKcal: calories.bmrKcal,
+          tdeeKcal: calories.estimatedTdeeKcal,
+          tdeeSource: "measured",
+          currentWeightKg: weight.paceBaseKg,
+          goalWeightKg: digest.goal.targetWeightKg,
+          remainingDays: digest.goal.remainingDays,
+        })
       : null;
-  // ガードレール: 提案が基礎代謝を下回る場合はBMRを下限にする(要件定義書4.7.1章と同じ方針)
-  const proposalClamped = rawProposal !== null && calories.bmrKcal !== null && rawProposal < calories.bmrKcal;
-  const proposedTargetKcal = proposalClamped ? calories.bmrKcal! : rawProposal;
+  const proposedTargetKcal = calorieProposal?.suggestedKcal ?? null;
   const proposalDiffers = proposedTargetKcal !== null && Math.abs(proposedTargetKcal - calories.targetKcal) >= 10;
 
   const handleApplyProposal = async () => {
@@ -210,7 +217,12 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
               <StatRow
                 label={`必要ペース(残り${digest.goal.remainingDays}日)`}
                 value={
-                  weight.requiredWeeklyPaceKg !== 0 ? `${weight.requiredWeeklyPaceKg.toFixed(2)} kg/週` : "-"
+                  // paceBaseKg===0の場合とrequiredWeeklyPaceKg===0の場合を区別する:
+                  // 基準体重が計算できない(目標日超過・体重記録皆無)ときだけ「-」とし、
+                  // 既に目標体重に到達している場合は「0.00 kg/週」を表示する(「データ無し」との混同を避ける)
+                  digest.goal.remainingDays > 0 && weight.paceBaseKg !== null
+                    ? `${weight.requiredWeeklyPaceKg.toFixed(2)} kg/週`
+                    : "-"
                 }
               />
               {paceStatus && (
@@ -325,7 +337,7 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
             <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "5px", lineHeight: 1.6 }}>
               摂取カロリーと体重変化からの逆算(直近の有効週 最大3週の平均)
             </Typography>
-            {proposedTargetKcal !== null && proposalDiffers && digest.goal.remainingDays > 0 && (
+            {calorieProposal && proposedTargetKcal !== null && proposalDiffers && (
               <Box sx={{ bgcolor: tokens.secondarySoft, borderRadius: "14px", p: "12px 14px", mt: "12px" }}>
                 <Typography sx={{ fontSize: 12, color: tokens.secondaryDeep, lineHeight: 1.7 }}>
                   目標カロリーを{" "}
@@ -333,8 +345,18 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
                     {proposedTargetKcal.toLocaleString()} kcal
                   </Box>{" "}
                   に調整すると必要ペースを維持できます(現在 {calories.targetKcal.toLocaleString()} kcal)
-                  {proposalClamped && " ※基礎代謝を下限にしています"}
+                  {calorieProposal.clampedToBmr && " ※基礎代謝を下限にしています"}
                 </Typography>
+                {calorieProposal.paceTooFast && (
+                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: "6px", mt: "10px", bgcolor: tokens.errorBg, borderRadius: "10px", p: "8px 10px" }}>
+                    <Box sx={{ color: tokens.errorText, display: "flex", mt: "1px" }}>
+                      <IconWarning size={13} />
+                    </Box>
+                    <Typography sx={{ fontSize: 11, color: tokens.errorText, lineHeight: 1.5 }}>
+                      必要ペースが週あたり体重の1%を超えています。目標日または目標体重の見直しをおすすめします
+                    </Typography>
+                  </Box>
+                )}
                 {adjustApplied ? (
                   <Box sx={{ display: "flex", alignItems: "center", gap: "5px", mt: "8px", color: tokens.secondaryDeep }}>
                     <IconCheck size={13} />

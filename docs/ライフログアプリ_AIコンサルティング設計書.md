@@ -66,16 +66,20 @@ interface WeeklyDigest {
 
 ### DigestFlag(コード側で判定する注意フラグ)
 
-| フラグ | 判定条件(コード側) |
+| フラグ | 判定条件(コード側。`src/lib/weeklyDigest.ts` で実装済み) |
 |---|---|
-| `PACE_TOO_AGGRESSIVE` | 週の減少幅が現在体重の1%を超えている |
-| `INTAKE_BELOW_BMR` | 週平均摂取カロリーが基礎代謝を下回っている |
-| `BEHIND_PACE` | 着地予測が目標体重を上回っている(ペース不足) |
+| `PACE_TOO_AGGRESSIVE` | 週の減少幅(週平均の前週比)が週平均体重の1%を超えている(増加時は判定しない) |
+| `INTAKE_BELOW_BMR` | 週平均摂取カロリーが基礎代謝を下回っている(身体プロフィール未設定でBMRが無い場合は判定しない) |
+| `BEHIND_PACE` | 着地予測が目標体重を上回っている(ペース不足。予測が計算できない場合は判定しない) |
 | `LOW_RECORDING_RATE` | 記録した日が5日未満 |
 | `NO_WEIGHT_DATA` | 当該週に体重記録が無い |
-| `INSUFFICIENT_DATA` | ダイジェスト全体としてデータが少なく評価に適さない(利用開始直後など) |
+| `INSUFFICIENT_DATA` | 記録した日が2日未満(利用開始直後など、評価に適さない週) |
 
 フラグの一覧・判定条件は実装時にこの表を起点に確定し、変更したらこの表を更新する。**AIに新しい警告を発明させない**(プロンプトで「flagsに無い問題を指摘しない」ことを指示する。5章)。
+
+補足(実装時の確定事項):
+- `mood` は日記の気分タグ(5段階。画面設計書6章)を3区分へ集計する: 絶好調・良い → `good` / 普通 → `normal` / 眠い・不調 → `bad`。日記が無い週は `mood` 自体を省略する
+- `requiredWeeklyPaceKg` は「減量が必要なら負」の符号で持つ(`weeklyChangeKg` と直接比較できるように)。体重記録が皆無・目標日超過の場合は `0` とし、状況はフラグ側で伝える
 
 ## 4. データ契約(2): WeeklyAdvice(出力)
 
@@ -107,6 +111,7 @@ interface WeeklyAdvice {
 ## 6. モデル選定・コスト・品質担保
 
 - **モデル**: Gemini Flash-Lite系(その時点の最新世代の最安モデル)から始める。言語化の質に不満が出たら同世代のFlashに上げる。既存契約のAPIキー・既存のWorker中継を流用するため、新しい契約・インフラは不要
+  - 実装時の既定値は `gemini-2.5-flash-lite`(`worker/weeklyAdvice.ts`)。Workerの環境変数 `GEMINI_ADVICE_MODEL` で写真判定用の `GEMINI_MODEL` とは独立に上書きできる
 - **コスト試算**: 入力(システムプロンプト+digest)約2Kトークン+出力約500トークン × 週1〜数回(再生成含む)。Flash-Lite級の単価では月1円未満のオーダーであり、実質無料。トークン節約のための特別な工夫(圧縮・キャッシュ)は不要
 - **品質の回帰確認**:
   - 代表的な `WeeklyDigest` のフィクスチャを5〜6パターン用意する(順調な週 / 停滞週 / 記録サボり週 / ペース超過(危険)週 / データ不足週 など)。`worker/__tests__/` に置く
@@ -133,3 +138,5 @@ interface WeeklyAdvice {
 
 1. **土台(AI無し)**: #43 → #44 → #45(+#46・#47)。週次レビューはコードだけの決定論的サマリーとして先に価値を出す
 2. **AI統合(#12)**: 本設計書の3〜8章を実装する。`WeeklyDigest` は段階1で実装済みのものをそのまま入力契約として使う
+
+※実装状況: 両段階とも実装済み(2026-07-10)。主な実装場所: ダイジェスト生成 `src/lib/weeklyDigest.ts` + `src/db/weeklyReview.ts`、実測TDEE `src/lib/tdee.ts` + `src/db/weeklyNutrition.ts`、Workerエンドポイント `worker/weeklyAdvice.ts`(フィクスチャは `worker/__tests__/weeklyAdviceFixtures.ts`)、キャッシュ `src/db/adviceRecords.ts`、画面 `src/components/WeeklyReview.tsx`。日記本文を読ませるオプトイン(7章)は未実装のまま(引き続きオープンな論点)。

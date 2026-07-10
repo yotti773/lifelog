@@ -48,6 +48,28 @@ export function dateStringDaysAgo(days: number, from: Date = new Date()): string
   return formatDate(d);
 }
 
+/** YYYY-MM-DDにdays日を加えた日付(YYYY-MM-DD)を返す(負数で過去方向) */
+export function addDaysToDateString(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return formatDate(d);
+}
+
+/** 2つのYYYY-MM-DDの日数差(end − start)。ローカル日付の0時基準 */
+export function daysBetween(startDate: string, endDate: string): number {
+  const start = new Date(`${startDate}T00:00:00`).getTime();
+  const end = new Date(`${endDate}T00:00:00`).getTime();
+  return Math.round((end - start) / 86_400_000);
+}
+
+/** その日が属する週の開始日(月曜、YYYY-MM-DD)を返す。週の定義は月曜〜日曜(画面設計書8.2章) */
+export function weekStartOf(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  // getDay(): 日曜=0。月曜起点のオフセットに変換する(月曜=0、日曜=6)
+  const offset = (d.getDay() + 6) % 7;
+  return addDaysToDateString(date, -offset);
+}
+
 /** YYYY-MM-DD形式の日付文字列をM/D形式(例: 7/1)に変換する。グラフのX軸ラベルや履歴一覧の日付表示で共通利用する */
 export function formatMonthDay(date: string): string {
   const [, month, day] = date.split("-");

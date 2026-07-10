@@ -17,11 +17,15 @@ import {
   IconDrop,
   IconFork,
   IconDownload,
+  IconFlame,
   IconPerson,
+  IconRuler,
+  IconSparkle,
   IconSun,
   IconSync,
   IconWarning,
 } from "@/components/icons";
+import { db } from "@/db/db";
 import { getAllExerciseMasterItems } from "@/db/exerciseMaster";
 import { getAllFoodMasterItems, bulkAddFoodMasterItems } from "@/db/foodMaster";
 import { foodMasterSeedData } from "@/db/foodMasterSeedData";
@@ -29,13 +33,31 @@ import { getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getSettings, updateSettings } from "@/db/settings";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWeightRecords } from "@/db/weightRecords";
-import { formatDateTime } from "@/lib/date";
+import { daysBetween, formatDateTime, todayDateString } from "@/lib/date";
+import {
+  ACTIVITY_LEVELS,
+  activityLevelLabel,
+  calcBmr,
+  calcFormulaTdee,
+  suggestCalorieTarget,
+  type CalorieTargetSuggestion,
+} from "@/lib/nutritionCalc";
 import { runImport, type ImportOutcome } from "@/sync/importEngine";
 import { runSync, type SyncOutcome } from "@/sync/syncEngine";
 import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
 import { fontRounded, tokens } from "@/theme";
+import type { Sex } from "@/types";
 
-type EditTarget = "weight" | "goalDate" | "baseline" | "calories" | "waterGoal";
+type EditTarget =
+  | "weight"
+  | "goalDate"
+  | "baseline"
+  | "calories"
+  | "waterGoal"
+  | "height"
+  | "birthYear"
+  | "sex"
+  | "activityLevel";
 
 const EDIT_LABELS: Record<EditTarget, string> = {
   weight: "目標体重",
@@ -43,13 +65,24 @@ const EDIT_LABELS: Record<EditTarget, string> = {
   baseline: "基準日",
   calories: "1日の目標カロリー",
   waterGoal: "1日の目標水分摂取量",
+  height: "身長",
+  birthYear: "生年",
+  sex: "性別",
+  activityLevel: "活動レベル",
 };
 
 const NUMBER_EDIT_UNITS: Partial<Record<EditTarget, string>> = {
   weight: "kg",
   calories: "kcal",
   waterGoal: "ml",
+  height: "cm",
+  birthYear: "年",
 };
+
+const SEX_OPTIONS: { value: Sex; label: string }[] = [
+  { value: "male", label: "男性" },
+  { value: "female", label: "女性" },
+];
 
 function syncOutcomeMessage(outcome: SyncOutcome): string {
   switch (outcome.status) {
@@ -169,9 +202,16 @@ export default function Settings() {
   }, []);
   const foodMasterCount = useLiveQuery(async () => (await getAllFoodMasterItems()).length, []);
   const exerciseMasterCount = useLiveQuery(async () => (await getAllExerciseMasterItems()).length, []);
+  // 自動計算(Issue #43)は直近の体重記録を使う。「記録なし」とロード中を区別するためnullに正規化する
+  const latestWeightRecord = useLiveQuery(
+    () => db.weightRecords.orderBy("date").last().then((v) => v ?? null),
+    [],
+  );
 
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [draft, setDraft] = useState("");
+  // 目標カロリーの自動計算シート内の提案(提案→確定の2段階。自動では反映しない。Issue #43)
+  const [calorieSuggestion, setCalorieSuggestion] = useState<CalorieTargetSuggestion | null>(null);
   const [isSyncing, setSyncing] = useState(false);
   const [syncOutcome, setSyncOutcome] = useState<SyncOutcome | null>(null);
   const [isImporting, setImporting] = useState(false);
@@ -185,6 +225,7 @@ export default function Settings() {
 
   const openEditor = (target: EditTarget) => {
     setEditTarget(target);
+    setCalorieSuggestion(null);
     switch (target) {
       case "weight":
         setDraft(String(settings.goalWeightKg));
@@ -201,22 +242,43 @@ export default function Settings() {
       case "waterGoal":
         setDraft(settings.dailyWaterTargetMl !== undefined ? String(settings.dailyWaterTargetMl) : "");
         break;
+      case "height":
+        setDraft(settings.heightCm !== undefined ? String(settings.heightCm) : "");
+        break;
+      case "birthYear":
+        setDraft(settings.birthYear !== undefined ? String(settings.birthYear) : "");
+        break;
+      case "sex":
+        setDraft(settings.sex ?? "");
+        break;
+      case "activityLevel":
+        setDraft(settings.activityLevel !== undefined ? String(settings.activityLevel) : "");
+        break;
     }
   };
 
-  const isNumberEdit = editTarget === "weight" || editTarget === "calories" || editTarget === "waterGoal";
+  const isChoiceEdit = editTarget === "sex" || editTarget === "activityLevel";
+  const isNumberEdit =
+    editTarget === "weight" ||
+    editTarget === "calories" ||
+    editTarget === "waterGoal" ||
+    editTarget === "height" ||
+    editTarget === "birthYear";
   const draftNumber = Number(draft);
   const canSave =
     editTarget === "baseline" ||
     // 目標水分摂取量は「未設定にする」(空欄での保存)を許容する(画面設計書9章)
     (editTarget === "waterGoal"
       ? draft === "" || (!Number.isNaN(draftNumber) && draftNumber > 0)
-      : isNumberEdit
-        ? draft !== "" && !Number.isNaN(draftNumber) && draftNumber > 0
-        : draft !== "");
+      : editTarget === "birthYear"
+        ? !Number.isNaN(draftNumber) && draftNumber >= 1900 && draftNumber <= new Date().getFullYear()
+        : isNumberEdit
+          ? draft !== "" && !Number.isNaN(draftNumber) && draftNumber > 0
+          : draft !== "");
 
   const stepDraft = (direction: 1 | -1) => {
-    const step = editTarget === "weight" ? 0.1 : editTarget === "waterGoal" ? 100 : 50;
+    const step =
+      editTarget === "weight" ? 0.1 : editTarget === "waterGoal" ? 100 : editTarget === "height" ? 0.5 : editTarget === "birthYear" ? 1 : 50;
     const base = Number.isNaN(draftNumber) ? 0 : draftNumber;
     const next = Math.max(0, base + direction * step);
     setDraft(editTarget === "weight" ? next.toFixed(1) : String(next));
@@ -240,7 +302,62 @@ export default function Settings() {
       case "waterGoal":
         await updateSettings({ dailyWaterTargetMl: draft !== "" ? draftNumber : undefined });
         break;
+      case "height":
+        await updateSettings({ heightCm: draftNumber });
+        break;
+      case "birthYear":
+        await updateSettings({ birthYear: draftNumber });
+        break;
+      case "sex":
+        await updateSettings({ sex: draft as Sex });
+        break;
+      case "activityLevel":
+        await updateSettings({ activityLevel: draftNumber });
+        break;
     }
+    setEditTarget(null);
+  };
+
+  // 目標カロリーの自動計算(Issue #43)。身体プロフィール・体重記録・残り日数が揃って初めて使える
+  const today = todayDateString();
+  const hasProfile =
+    settings.heightCm !== undefined &&
+    settings.birthYear !== undefined &&
+    settings.sex !== undefined &&
+    settings.activityLevel !== undefined;
+  const remainingDays = daysBetween(today, settings.goalDate);
+  const calorieAutoCalcHint = !hasProfile
+    ? "「あなたのプロフィール」をすべて入力すると自動計算できます"
+    : !latestWeightRecord
+      ? "体重を記録すると自動計算できます"
+      : remainingDays <= 0
+        ? "目標日を過ぎているため自動計算できません(目標日を見直してください)"
+        : null;
+
+  const handleAutoCalcCalories = () => {
+    if (!hasProfile || !latestWeightRecord || remainingDays <= 0) return;
+    const profile = {
+      heightCm: settings.heightCm!,
+      birthYear: settings.birthYear!,
+      sex: settings.sex!,
+    };
+    const bmrKcal = calcBmr(profile, latestWeightRecord.weightKg, today);
+    // 実測TDEE(Issue #44)が得られていれば実測を優先する(画面設計書9章)
+    const suggestion = suggestCalorieTarget({
+      bmrKcal,
+      tdeeKcal: calcFormulaTdee(bmrKcal, settings.activityLevel!),
+      tdeeSource: "formula",
+      currentWeightKg: latestWeightRecord.weightKg,
+      goalWeightKg: settings.goalWeightKg,
+      remainingDays,
+    });
+    setCalorieSuggestion(suggestion);
+  };
+
+  const handleAdoptCalorieSuggestion = async () => {
+    if (!calorieSuggestion) return;
+    // 「この値を目標にする」が確定操作。ここまで設定値は一切書き換えない(要件定義書4.7章)
+    await updateSettings({ dailyCalorieTarget: calorieSuggestion.suggestedKcal });
     setEditTarget(null);
   };
 
@@ -282,6 +399,48 @@ export default function Settings() {
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "130px" }}>
       <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22, mb: "14px" }}>設定</Typography>
+
+      <SectionLabel>あなたのプロフィール</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "8px" }}>
+        <SettingRow
+          icon={<IconRuler />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label="身長"
+          value={settings.heightCm !== undefined ? `${settings.heightCm} cm` : "未設定"}
+          divider
+          onClick={() => openEditor("height")}
+        />
+        <SettingRow
+          icon={<IconCalendar />}
+          iconBg={tokens.warnBg}
+          iconColor={tokens.warnIcon}
+          label="生年"
+          value={settings.birthYear !== undefined ? `${settings.birthYear}年` : "未設定"}
+          divider
+          onClick={() => openEditor("birthYear")}
+        />
+        <SettingRow
+          icon={<IconPerson />}
+          iconBg={tokens.primarySoft}
+          iconColor="#FF6B4A"
+          label="性別"
+          value={SEX_OPTIONS.find((o) => o.value === settings.sex)?.label ?? "未設定"}
+          divider
+          onClick={() => openEditor("sex")}
+        />
+        <SettingRow
+          icon={<IconBarbell size={18} />}
+          iconBg={tokens.strengthBg}
+          iconColor="#FF6B4A"
+          label="活動レベル"
+          value={settings.activityLevel !== undefined ? activityLevelLabel(settings.activityLevel) : "未設定"}
+          onClick={() => openEditor("activityLevel")}
+        />
+      </Card>
+      <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
+        目標カロリー・PFC目標の自動計算にのみ使います。未入力でも各目標値の手動入力はできます
+      </Typography>
 
       <SectionLabel>目標</SectionLabel>
       <Card sx={{ overflow: "hidden", mb: "18px" }}>
@@ -458,7 +617,40 @@ export default function Settings() {
             <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16, textAlign: "center", mb: "18px" }}>
               {EDIT_LABELS[editTarget]}
             </Typography>
-            {isNumberEdit ? (
+            {isChoiceEdit ? (
+              // 性別・活動レベルは選択式(画面設計書9章)。選択中はコーラルの枠で示す
+              <Box sx={{ display: "flex", flexDirection: "column", gap: "8px", mb: "18px" }}>
+                {(editTarget === "sex"
+                  ? SEX_OPTIONS
+                  : ACTIVITY_LEVELS.map((level) => ({ value: String(level.factor), label: level.label }))
+                ).map((option) => {
+                  const active = draft === option.value;
+                  return (
+                    <ButtonBase
+                      key={option.value}
+                      onClick={() => setDraft(option.value)}
+                      sx={{
+                        p: "13px 16px",
+                        borderRadius: "14px",
+                        bgcolor: active ? tokens.primarySoft : "background.paper",
+                        border: `1.5px solid ${active ? "#FF6B4A" : tokens.border}`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        textAlign: "left",
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 14, fontWeight: active ? 700 : 500 }}>{option.label}</Typography>
+                      {editTarget === "activityLevel" && (
+                        <Typography sx={{ fontFamily: fontRounded, fontSize: 12, color: "text.secondary" }}>
+                          ×{option.value}
+                        </Typography>
+                      )}
+                    </ButtonBase>
+                  );
+                })}
+              </Box>
+            ) : isNumberEdit ? (
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", mb: "18px" }}>
                 <IconButton
                   onClick={() => stepDraft(-1)}
@@ -472,7 +664,7 @@ export default function Settings() {
                   type="text"
                   slotProps={{
                     htmlInput: {
-                      inputMode: editTarget === "weight" ? "decimal" : "numeric",
+                      inputMode: editTarget === "weight" || editTarget === "height" ? "decimal" : "numeric",
                       style: { textAlign: "center", fontFamily: fontRounded, fontWeight: 800, fontSize: 28 },
                     },
                     input: {
@@ -500,6 +692,94 @@ export default function Settings() {
                 onChange={(e) => setDraft(e.target.value)}
                 sx={{ mb: "18px" }}
               />
+            )}
+            {editTarget === "calories" && (
+              // 目標カロリーの自動計算(Issue #43)。計算根拠を行で見せ、確定操作を経て初めて反映する(画面設計書9章)
+              <Box sx={{ mb: "18px" }}>
+                {calorieSuggestion === null ? (
+                  <>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      color="secondary"
+                      onClick={handleAutoCalcCalories}
+                      disabled={calorieAutoCalcHint !== null}
+                      startIcon={<IconSparkle />}
+                      sx={{ height: 44, borderRadius: "13px", fontSize: 13 }}
+                    >
+                      プロフィールから自動計算
+                    </Button>
+                    {calorieAutoCalcHint && (
+                      <Typography sx={{ mt: "8px", fontSize: 11, color: "text.secondary", textAlign: "center", lineHeight: 1.6 }}>
+                        {calorieAutoCalcHint}
+                      </Typography>
+                    )}
+                  </>
+                ) : (
+                  <Box sx={{ bgcolor: tokens.secondarySoft, borderRadius: "16px", p: "14px 16px" }}>
+                    {[
+                      { label: "基礎代謝(Mifflin-St Jeor)", value: `${calorieSuggestion.bmrKcal.toLocaleString()} kcal` },
+                      {
+                        label:
+                          calorieSuggestion.tdeeSource === "measured"
+                            ? "消費カロリー(実測TDEE)"
+                            : `消費カロリー(基礎代謝×${settings.activityLevel})`,
+                        value: `${calorieSuggestion.tdeeKcal.toLocaleString()} kcal`,
+                      },
+                      {
+                        label: `必要ペース(残り${remainingDays}日)`,
+                        value: `-${calorieSuggestion.requiredWeeklyLossKg.toFixed(2)} kg/週`,
+                      },
+                      { label: "必要日次赤字", value: `${calorieSuggestion.requiredDailyDeficitKcal.toLocaleString()} kcal/日` },
+                    ].map((row) => (
+                      <Box key={row.label} sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", mb: "6px" }}>
+                        <Typography sx={{ fontSize: 11, color: tokens.secondaryDeep }}>{row.label}</Typography>
+                        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 12, color: tokens.secondaryDeep }}>
+                          {row.value}
+                        </Typography>
+                      </Box>
+                    ))}
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", pt: "8px", borderTop: `1px solid rgba(27,139,128,.18)` }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: "5px", color: tokens.secondaryDeep }}>
+                        <IconFlame size={15} />
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.secondaryDeep }}>提案目標カロリー</Typography>
+                      </Box>
+                      <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 20, color: tokens.secondaryDeep }}>
+                        {calorieSuggestion.suggestedKcal.toLocaleString()} kcal
+                      </Typography>
+                    </Box>
+                    {calorieSuggestion.clampedToBmr && (
+                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: "6px", mt: "10px", bgcolor: tokens.warnBg, borderRadius: "10px", p: "8px 10px" }}>
+                        <Box sx={{ color: tokens.warnIcon, display: "flex", mt: "1px" }}>
+                          <IconWarning size={13} />
+                        </Box>
+                        <Typography sx={{ fontSize: 11, color: tokens.warnText, lineHeight: 1.5 }}>
+                          計算上の値が基礎代謝を下回るため、基礎代謝を下限として提案しています
+                        </Typography>
+                      </Box>
+                    )}
+                    {calorieSuggestion.paceTooFast && (
+                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: "6px", mt: "10px", bgcolor: tokens.errorBg, borderRadius: "10px", p: "8px 10px" }}>
+                        <Box sx={{ color: tokens.errorText, display: "flex", mt: "1px" }}>
+                          <IconWarning size={13} />
+                        </Box>
+                        <Typography sx={{ fontSize: 11, color: tokens.errorText, lineHeight: 1.5 }}>
+                          必要ペースが週あたり体重の1%を超えています。目標日または目標体重の見直しをおすすめします
+                        </Typography>
+                      </Box>
+                    )}
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      color="secondary"
+                      onClick={handleAdoptCalorieSuggestion}
+                      sx={{ mt: "12px", height: 44, borderRadius: "13px", fontSize: 13, boxShadow: tokens.secondaryButtonShadow }}
+                    >
+                      この値を目標にする
+                    </Button>
+                  </Box>
+                )}
+              </Box>
             )}
             {editTarget === "baseline" && (
               <>

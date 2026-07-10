@@ -33,7 +33,8 @@ import { getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getSettings, updateSettings } from "@/db/settings";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWeightRecords } from "@/db/weightRecords";
-import { daysBetween, formatDateTime, todayDateString } from "@/lib/date";
+import { getMeasuredTdeeAsOfWeek } from "@/db/weeklyNutrition";
+import { daysBetween, formatDateTime, todayDateString, weekStartOf } from "@/lib/date";
 import {
   ACTIVITY_LEVELS,
   activityLevelLabel,
@@ -334,7 +335,7 @@ export default function Settings() {
         ? "目標日を過ぎているため自動計算できません(目標日を見直してください)"
         : null;
 
-  const handleAutoCalcCalories = () => {
+  const handleAutoCalcCalories = async () => {
     if (!hasProfile || !latestWeightRecord || remainingDays <= 0) return;
     const profile = {
       heightCm: settings.heightCm!,
@@ -342,11 +343,12 @@ export default function Settings() {
       sex: settings.sex!,
     };
     const bmrKcal = calcBmr(profile, latestWeightRecord.weightKg, today);
-    // 実測TDEE(Issue #44)が得られていれば実測を優先する(画面設計書9章)
+    // 実測TDEE(Issue #44)が得られていれば計算式ベースより実測を優先する(画面設計書9章)
+    const measuredTdeeKcal = await getMeasuredTdeeAsOfWeek(weekStartOf(today));
     const suggestion = suggestCalorieTarget({
       bmrKcal,
-      tdeeKcal: calcFormulaTdee(bmrKcal, settings.activityLevel!),
-      tdeeSource: "formula",
+      tdeeKcal: measuredTdeeKcal ?? calcFormulaTdee(bmrKcal, settings.activityLevel!),
+      tdeeSource: measuredTdeeKcal !== null ? "measured" : "formula",
       currentWeightKg: latestWeightRecord.weightKg,
       goalWeightKg: settings.goalWeightKg,
       remainingDays,

@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
 import type {
+  AdviceRecord,
   DiaryRecord,
   ExerciseMasterItem,
   FoodMasterItem,
@@ -23,6 +24,7 @@ export const db = new Dexie("lifelog") as Dexie & {
   diaryRecords: EntityTable<DiaryRecord, "date">;
   workoutRecords: EntityTable<WorkoutRecord, "id">;
   exerciseMasterItems: EntityTable<ExerciseMasterItem, "id">;
+  adviceRecords: EntityTable<AdviceRecord, "weekStart">;
 };
 
 // weightRecords: dateを主キーにすることで、同じ日付のput()が自動的に上書き(後勝ち)になる
@@ -48,4 +50,10 @@ db.version(4).stores({
   diaryRecords: "date, timestamp",
   workoutRecords: "id, date",
   exerciseMasterItems: "id, name",
+});
+
+// フェーズ3(Issue #12): AIコーチコメントのキャッシュ。
+// 週の開始日(月曜)を主キーにして「1週1件、再生成で上書き(後勝ち)」を成立させる
+db.version(5).stores({
+  adviceRecords: "weekStart",
 });

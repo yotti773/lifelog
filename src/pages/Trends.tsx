@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import GoalBar from "@/components/GoalBar";
 import MealHistoryList from "@/components/MealHistoryList";
 import SegmentedControl from "@/components/SegmentedControl";
+import WeeklyReview from "@/components/WeeklyReview";
 import WeightHistoryList from "@/components/WeightHistoryList";
 import WeightTrendCharts, { type Period } from "@/components/WeightTrendCharts";
 import { IconSync } from "@/components/icons";
@@ -22,17 +23,19 @@ import {
   getWeightRecord,
   getWeightRecordsByDateRange,
 } from "@/db/weightRecords";
-import { dateStringDaysAgo, formatDate, todayDateString } from "@/lib/date";
+import { getWeeklyDigest } from "@/db/weeklyReview";
+import { addDaysToDateString, dateStringDaysAgo, formatDate, todayDateString, weekStartOf } from "@/lib/date";
 import { projectWeightAtDate } from "@/lib/weightProjection";
 import { fontRounded, tokens } from "@/theme";
 import type { MealRecord, WeightRecord } from "@/types";
 
-type ViewMode = "chart" | "history";
+type ViewMode = "chart" | "history" | "review";
 type HistoryKind = "weight" | "meal";
 
 const VIEW_MODE_OPTIONS = [
   { value: "chart", label: "グラフ" },
   { value: "history", label: "履歴" },
+  { value: "review", label: "レビュー" },
 ] as const;
 
 const HISTORY_KIND_OPTIONS = [
@@ -50,6 +53,8 @@ export default function Trends() {
   const [historyKind, setHistoryKind] = useState<HistoryKind>("weight");
   const [historyFrom, setHistoryFrom] = useState("");
   const [historyTo, setHistoryTo] = useState("");
+  // 週次レビューの表示週(月曜起点)。デフォルトは今週(画面設計書8.2章)
+  const [reviewWeekStart, setReviewWeekStart] = useState(() => weekStartOf(todayDateString()));
 
   const settings = useLiveQuery(() => getSettings(), []);
   // .first()/.last()は記録が1件もないとundefinedを返すが、useLiveQueryは
@@ -112,6 +117,12 @@ export default function Trends() {
         : Promise.resolve<MealRecord[]>([]),
     [viewMode, historyKind],
   );
+  // 週次レビューのダイジェスト(Issue #45)。レビュータブ表示中のみ集計する。
+  // 「未表示」もnullに解決するため、undefined(ロード中)と区別できる(CLAUDE.mdのuseLiveQueryパターン)
+  const reviewDigest = useLiveQuery(
+    () => (viewMode === "review" ? getWeeklyDigest(reviewWeekStart) : Promise.resolve(null)),
+    [viewMode, reviewWeekStart],
+  );
 
   if (
     settings === undefined ||
@@ -122,7 +133,8 @@ export default function Trends() {
     calorieDailyTotals === undefined ||
     waterDailyTotals === undefined ||
     historyRecords === undefined ||
-    mealHistoryRecords === undefined
+    mealHistoryRecords === undefined ||
+    reviewDigest === undefined
   ) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
@@ -186,6 +198,18 @@ export default function Trends() {
             dailyWaterTargetMl={settings.dailyWaterTargetMl ?? null}
           />
         </>
+      ) : viewMode === "review" ? (
+        reviewDigest && (
+          <WeeklyReview
+            // 週を切り替えるたびに再マウントし、生成中フラグ・エラー表示・反映済み表示などの
+            // ローカル状態が前の週から持ち越されないようにする(週ごとに独立した状態であるべきため)
+            key={reviewWeekStart}
+            digest={reviewDigest}
+            onPrevWeek={() => setReviewWeekStart(addDaysToDateString(reviewWeekStart, -7))}
+            onNextWeek={() => setReviewWeekStart(addDaysToDateString(reviewWeekStart, 7))}
+            canGoNext={reviewWeekStart < weekStartOf(todayDateString())}
+          />
+        )
       ) : (
         <>
           <SegmentedControl options={HISTORY_KIND_OPTIONS} value={historyKind} onChange={setHistoryKind} />

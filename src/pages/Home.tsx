@@ -19,10 +19,12 @@ import {
 } from "@/components/icons";
 import { db } from "@/db/db";
 import { getDiaryRecord } from "@/db/diaryRecords";
+import { getRecordedDateSet } from "@/db/recordedDays";
 import { getSettings } from "@/db/settings";
 import { getWaterRecordsForDate } from "@/db/waterRecords";
 import { getWorkoutRecordsForDate } from "@/db/workoutRecords";
 import { formatTime, localDateRangeToUtcIso, todayDateString } from "@/lib/date";
+import { currentStreakDays } from "@/lib/recording";
 import { fontRounded, tokens } from "@/theme";
 import type { MealRecord, MealType } from "@/types";
 
@@ -90,6 +92,11 @@ export default function Home() {
   // 「未記録」に正当に解決しうるクエリはnullに正規化する(undefined=ロード中と区別するため。Trends.tsx参照)
   const diary = useLiveQuery(() => getDiaryRecord(today).then((v) => v ?? null), [today]);
   const workoutRecords = useLiveQuery(() => getWorkoutRecordsForDate(today), [today]);
+  // 連続記録日数(Issue #46)。常時表示のためaccent色は使わない(デザインガイドの制約)
+  const streakDays = useLiveQuery(
+    async () => currentStreakDays(await getRecordedDateSet(), today),
+    [today],
+  );
 
   if (
     meals === undefined ||
@@ -136,12 +143,32 @@ export default function Home() {
         <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary", mb: "3px" }}>
           {greeting(now.getHours())}
         </Typography>
-        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22, letterSpacing: ".01em" }}>
-          {now.getMonth() + 1}月{now.getDate()}日
-          <Box component="span" sx={{ fontSize: 15, color: "text.secondary", ml: "6px", fontWeight: 500 }}>
-            {WEEKDAY_LABELS[now.getDay()]}曜日
-          </Box>
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22, letterSpacing: ".01em" }}>
+            {now.getMonth() + 1}月{now.getDate()}日
+            <Box component="span" sx={{ fontSize: 15, color: "text.secondary", ml: "6px", fontWeight: 500 }}>
+              {WEEKDAY_LABELS[now.getDay()]}曜日
+            </Box>
+          </Typography>
+          {streakDays !== undefined && streakDays > 0 && (
+            <Typography
+              sx={{
+                fontFamily: fontRounded,
+                fontWeight: 700,
+                fontSize: 11,
+                color: tokens.secondaryDeep,
+                bgcolor: tokens.secondarySoft,
+                px: "10px",
+                py: "5px",
+                borderRadius: "20px",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              連続{streakDays}日記録中
+            </Typography>
+          )}
+        </Box>
       </Box>
 
       {/* カロリーカード */}
@@ -152,6 +179,17 @@ export default function Home() {
           proteinG={totalProteinG}
           fatG={totalFatG}
           carbsG={totalCarbsG}
+          pfcTargets={
+            settings.dailyProteinTargetG !== undefined &&
+            settings.dailyFatTargetG !== undefined &&
+            settings.dailyCarbsTargetG !== undefined
+              ? {
+                  proteinG: settings.dailyProteinTargetG,
+                  fatG: settings.dailyFatTargetG,
+                  carbsG: settings.dailyCarbsTargetG,
+                }
+              : null
+          }
         />
       </Box>
 

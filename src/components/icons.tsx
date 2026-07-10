@@ -362,6 +362,39 @@ export function IconSparkle(props: IconProps) {
   );
 }
 
+/** 身長(ものさし。身体プロフィール設定用) */
+export function IconRuler(props: IconProps) {
+  return (
+    <svg {...base({ size: 18, ...props }, "0 0 20 20")}>
+      <rect x="7.2" y="2.5" width="5.6" height="15" rx="1.6" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M7.2 6h2.6M7.2 10h3.6M7.2 14h2.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** チェックマーク(AIコメントの「続けたいこと」、提案の反映済み表示など) */
+export function IconCheck(props: IconProps) {
+  return (
+    <svg {...base({ size: 15, ...props }, "0 0 16 16")}>
+      <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** 炎(消費カロリー・実測TDEEの目印) */
+export function IconFlame(props: IconProps) {
+  return (
+    <svg {...base({ size: 18, ...props }, "0 0 20 20")}>
+      <path
+        d="M10 2.8c.5 2.4-.8 3.7-2.2 5.1C6.4 9.3 5.4 10.7 5.4 12.6a4.6 4.6 0 0 0 9.2 0c0-1.6-.7-2.9-1.5-4-.3 1-.9 1.6-1.7 2 .3-2.7-.3-5.6-1.4-7.8Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** 達成演出(紙吹雪・スター) */
 export function IconCelebrate(props: IconProps) {
   return (

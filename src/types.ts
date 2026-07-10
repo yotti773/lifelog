@@ -100,6 +100,9 @@ export interface SyncDeletion {
   deletedAt: string; // ISO8601
 }
 
+/** 身体プロフィールの性別(Mifflin-St Jeor式の係数分岐に使う。画面設計書9章) */
+export type Sex = "male" | "female";
+
 export interface Settings {
   goalWeightKg: number;
   goalDate: string; // ISO8601 date
@@ -107,4 +110,95 @@ export interface Settings {
   dailyWaterTargetMl?: number; // 1日の目標水分摂取量(ml)。未設定時はホーム・水分記録画面で合計mlのみ表示する(画面設計書5章)
   lastSyncedAt?: string; // ISO8601, 最終同期日時
   baselineDate?: string; // YYYY-MM-DD, 進捗バーの起点日。未設定時は一番古い体重記録を起点とする
+
+  // --- フェーズ3: 身体プロフィール(Issue #43。画面設計書9章) ---
+  // 目標カロリー・PFC目標の自動計算にのみ使う。未入力でも各目標値の手動入力は従来どおり可能
+  heightCm?: number;
+  birthYear?: number;
+  sex?: Sex;
+  activityLevel?: number; // 活動係数(1.2 / 1.375 / 1.55 / 1.725 / 1.9 の5段階)
+
+  // --- フェーズ3: PFC目標値(Issue #47。画面設計書9章) ---
+  dailyProteinTargetG?: number;
+  dailyFatTargetG?: number;
+  dailyCarbsTargetG?: number;
+}
+
+// --- フェーズ3: 週次レビュー・AIコーチング(Issue #45・#12。AIコンサルティング設計書3〜4章) ---
+
+/**
+ * コード側で判定済みの注意フラグ(AIコンサルティング設計書3章の表)。
+ * AIに新しい警告を発明させないため、判定はすべて純関数側で行う(src/lib/weeklyDigest.ts)。
+ */
+export type DigestFlag =
+  | "PACE_TOO_AGGRESSIVE" // 週の減少幅が現在体重(週平均)の1%を超えている
+  | "INTAKE_BELOW_BMR" // 週平均摂取カロリーが基礎代謝を下回っている
+  | "BEHIND_PACE" // 着地予測が目標体重を上回っている(ペース不足)
+  | "LOW_RECORDING_RATE" // 記録した日が5日未満
+  | "NO_WEIGHT_DATA" // 当該週に体重記録が無い
+  | "INSUFFICIENT_DATA"; // データが少なく評価に適さない(記録した日が2日未満)
+
+/**
+ * AIへの入力契約かつ週次レビュー画面の表示データ(画面とAIが同じ事実を見る)。
+ * 生成はsrc/lib/weeklyDigest.tsの純関数で行い、AdviceRecord内のスナップショット以外には永続化しない。
+ */
+export interface WeeklyDigest {
+  period: { start: string; end: string }; // 対象週(月曜〜日曜、YYYY-MM-DD)
+  goal: {
+    targetWeightKg: number;
+    targetDate: string; // YYYY-MM-DD
+    remainingDays: number; // 今日から目標日までの残り日数(過ぎていれば0)
+  };
+  weight: {
+    weekAvgKg: number | null; // 週平均体重(記録が無い週はnull)
+    prevWeekAvgKg: number | null;
+    weeklyChangeKg: number | null; // 週平均同士の差(単日比較はノイズが大きいため使わない)
+    projectedKg: number | null; // 現在ペースでの着地予測(Issue #25の線形予測を流用)
+    requiredWeeklyPaceKg: number; // 必要ペース(kg/週)。減量が必要なら負の値
+    /** 必要ペース計算の基準体重(週平均、無ければ全期間の最新体重にフォールバック)。体重記録が1件も無い場合のみnull */
+    paceBaseKg: number | null;
+  };
+  calories: {
+    avgIntakeKcal: number | null; // 食事記録がある日の平均
+    targetKcal: number;
+    daysOnTarget: number; // 目標以内に収まった日数
+    recordedDays: number; // 食事記録がある日数(0〜7)
+    estimatedTdeeKcal: number | null; // 実測TDEE(Issue #44。有効週が無い間はnull)
+    bmrKcal: number | null; // 基礎代謝(身体プロフィール未設定ならnull)
+  };
+  pfc: {
+    avgProteinG: number | null;
+    avgFatG: number | null;
+    avgCarbsG: number | null;
+    targetProteinG: number | null;
+    targetFatG: number | null;
+    targetCarbsG: number | null;
+  };
+  recording: {
+    recordedDays: number; // 「記録した日」(食事1件以上または体重記録あり)の数(0〜7。Issue #46)
+    currentStreakDays: number;
+  };
+  flags: DigestFlag[];
+  /** 日記の気分タグの件数集計のみ(本文は外部AIに送らない。AIコンサルティング設計書7章)。日記が無い週は省略 */
+  mood?: { good: number; normal: number; bad: number };
+}
+
+/** AIの出力契約(AIコンサルティング設計書4章)。Workerのstructured outputで強制する */
+export interface WeeklyAdvice {
+  verdict: "on_track" | "slightly_behind" | "behind" | "needs_attention";
+  summary: string; // 週の総評(2〜3文)
+  wins: string[]; // 続けるべき良かった点(1〜2個)
+  actions: string[]; // 来週の具体的行動(最大3個)
+}
+
+/**
+ * AIコーチのコメントのキャッシュ(Issue #12。画面設計書11章)。
+ * 週の開始日(月曜)を主キーとし、1週1件・再生成で上書き(後勝ち)。スプレッドシート同期の対象外(ローカルのみ)。
+ * 生成時のdigestも保存し、「何を根拠にこのコメントが出たか」を後から再現できるようにする。
+ */
+export interface AdviceRecord {
+  weekStart: string; // YYYY-MM-DD(月曜)
+  createdAt: string; // ISO8601
+  digest: WeeklyDigest;
+  advice: WeeklyAdvice;
 }

@@ -6,11 +6,14 @@ import {
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 import { handleImportSheets } from "./sheetsImport";
 import { handleSyncSheets } from "./sheetsSync";
+import { handleWeeklyAdvice } from "./weeklyAdvice";
 
 export interface Env {
   ASSETS: Fetcher;
   GEMINI_API_KEY: string;
   GEMINI_MODEL?: string;
+  /** 週次レビューのAIコメント用の軽量モデル(Issue #12)。未設定時はworker/weeklyAdvice.tsのデフォルトを使う */
+  GEMINI_ADVICE_MODEL?: string;
   GOOGLE_SERVICE_ACCOUNT_EMAIL: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
@@ -116,6 +119,10 @@ export default {
 
     if (url.pathname === "/api/import-sheets" && request.method === "GET") {
       return handleImportSheets(env);
+    }
+
+    if (url.pathname === "/api/weekly-advice" && request.method === "POST") {
+      return handleWeeklyAdvice(request, env);
     }
 
     if (url.pathname === "/api/judge-meal" && request.method === "POST") {

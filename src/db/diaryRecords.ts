@@ -26,6 +26,11 @@ export async function getDiaryRecord(date: string): Promise<DiaryRecord | undefi
   return db.diaryRecords.get(date);
 }
 
+/** 指定期間(両端含む)の日記を日付昇順で返す。週次レビューの気分タグ集計に使う(Issue #45) */
+export async function getDiaryRecordsByDateRange(startDate: string, endDate: string): Promise<DiaryRecord[]> {
+  return db.diaryRecords.where("date").between(startDate, endDate, true, true).sortBy("date");
+}
+
 /**
  * 本文・気分タグの両方が空の状態で保存された場合に「未記録に戻す」ために使う(画面設計書6章)。
  * 日記はスプレッドシート同期の対象外のため削除トゥームストーンは残さない(画面設計書10章)

@@ -10,6 +10,8 @@ interface CalorieCardProps {
   proteinG: number;
   fatG: number;
   carbsG: number;
+  /** PFC目標値(Issue #47)。未設定(null)時は従来どおり実績のみ+3栄養素間バランスのバーを表示する */
+  pfcTargets?: { proteinG: number; fatG: number; carbsG: number } | null;
 }
 
 // PFC系列色(ハンドオフモックの指定)。Fの黄色はグラフ系列色としての使用(theme.tsのaccent注記参照)
@@ -19,13 +21,14 @@ const PFC_ROWS = [
   { label: "C", color: "#2EC4B6" },
 ] as const;
 
-export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, carbsG }: CalorieCardProps) {
+export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, carbsG, pfcTargets }: CalorieCardProps) {
   const pct = targetKcal > 0 ? Math.min(100, (consumedKcal / targetKcal) * 100) : 0;
   const over = consumedKcal > targetKcal;
   const diff = Math.abs(targetKcal - consumedKcal);
 
   const grams = [proteinG, fatG, carbsG];
   const maxGrams = Math.max(...grams);
+  const targets = pfcTargets ? [pfcTargets.proteinG, pfcTargets.fatG, pfcTargets.carbsG] : null;
 
   return (
     <Card sx={{ p: "20px" }}>
@@ -82,14 +85,24 @@ export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, 
             <Box sx={{ display: "flex", alignItems: "baseline", gap: "3px", mb: "6px" }}>
               <Typography sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary" }}>{label}</Typography>
               <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 18 }}>{grams[i]}</Typography>
-              <Typography sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 11, color: "text.secondary" }}>g</Typography>
+              <Typography sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 11, color: "text.secondary" }}>
+                {targets ? `/ ${targets[i]}g` : "g"}
+              </Typography>
             </Box>
-            {/* バーは3栄養素間のバランスの目安(最大値に対する比)。目標量に対する充足率ではない */}
+            {/* 目標設定時は目標量に対する充足率、未設定時は3栄養素間のバランスの目安(最大値に対する比) */}
             <Box sx={{ height: 5, bgcolor: tokens.track, borderRadius: "4px", overflow: "hidden" }}>
               <Box
                 sx={{
                   height: "100%",
-                  width: `${maxGrams > 0 ? (grams[i] / maxGrams) * 100 : 0}%`,
+                  width: `${
+                    targets
+                      ? targets[i] > 0
+                        ? Math.min(100, (grams[i] / targets[i]) * 100)
+                        : 0
+                      : maxGrams > 0
+                        ? (grams[i] / maxGrams) * 100
+                        : 0
+                  }%`,
                   bgcolor: color,
                   borderRadius: "4px",
                 }}

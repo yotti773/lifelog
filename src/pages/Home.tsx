@@ -179,6 +179,17 @@ export default function Home() {
           proteinG={totalProteinG}
           fatG={totalFatG}
           carbsG={totalCarbsG}
+          pfcTargets={
+            settings.dailyProteinTargetG !== undefined &&
+            settings.dailyFatTargetG !== undefined &&
+            settings.dailyCarbsTargetG !== undefined
+              ? {
+                  proteinG: settings.dailyProteinTargetG,
+                  fatG: settings.dailyFatTargetG,
+                  carbsG: settings.dailyCarbsTargetG,
+                }
+              : null
+          }
         />
       </Box>
 

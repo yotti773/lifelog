@@ -41,7 +41,9 @@ import {
   calcBmr,
   calcFormulaTdee,
   suggestCalorieTarget,
+  suggestPfcTargets,
   type CalorieTargetSuggestion,
+  type PfcTargetSuggestion,
 } from "@/lib/nutritionCalc";
 import { runImport, type ImportOutcome } from "@/sync/importEngine";
 import { runSync, type SyncOutcome } from "@/sync/syncEngine";
@@ -213,6 +215,12 @@ export default function Settings() {
   const [draft, setDraft] = useState("");
   // 目標カロリーの自動計算シート内の提案(提案→確定の2段階。自動では反映しない。Issue #43)
   const [calorieSuggestion, setCalorieSuggestion] = useState<CalorieTargetSuggestion | null>(null);
+  // PFC目標の編集シート(3項目セットのため単一値の編集シートとは別に持つ。Issue #47)
+  const [pfcEditorOpen, setPfcEditorOpen] = useState(false);
+  const [pfcDraft, setPfcDraft] = useState({ protein: "", fat: "", carbs: "" });
+  const [pfcSuggestion, setPfcSuggestion] = useState<PfcTargetSuggestion | null>(null);
+  // 目標カロリー変更後にPFC目標の再計算を提案するバナー(自動では上書きしない。Issue #47)
+  const [showPfcRecalcHint, setShowPfcRecalcHint] = useState(false);
   const [isSyncing, setSyncing] = useState(false);
   const [syncOutcome, setSyncOutcome] = useState<SyncOutcome | null>(null);
   const [isImporting, setImporting] = useState(false);
@@ -299,6 +307,10 @@ export default function Settings() {
         break;
       case "calories":
         await updateSettings({ dailyCalorieTarget: draftNumber });
+        // PFC目標を設定済みなら、目標カロリー変更に合わせた再計算を提案する(自動では上書きしない。Issue #47)
+        if (draftNumber !== settings.dailyCalorieTarget && settings.dailyProteinTargetG !== undefined) {
+          setShowPfcRecalcHint(true);
+        }
         break;
       case "waterGoal":
         await updateSettings({ dailyWaterTargetMl: draft !== "" ? draftNumber : undefined });
@@ -360,7 +372,74 @@ export default function Settings() {
     if (!calorieSuggestion) return;
     // 「この値を目標にする」が確定操作。ここまで設定値は一切書き換えない(要件定義書4.7章)
     await updateSettings({ dailyCalorieTarget: calorieSuggestion.suggestedKcal });
+    if (calorieSuggestion.suggestedKcal !== settings.dailyCalorieTarget && settings.dailyProteinTargetG !== undefined) {
+      setShowPfcRecalcHint(true);
+    }
     setEditTarget(null);
+  };
+
+  // --- PFC目標(Issue #47) ---
+  const hasPfcTargets =
+    settings.dailyProteinTargetG !== undefined &&
+    settings.dailyFatTargetG !== undefined &&
+    settings.dailyCarbsTargetG !== undefined;
+
+  const openPfcEditor = (withSuggestion = false) => {
+    setShowPfcRecalcHint(false);
+    setPfcDraft({
+      protein: settings.dailyProteinTargetG !== undefined ? String(settings.dailyProteinTargetG) : "",
+      fat: settings.dailyFatTargetG !== undefined ? String(settings.dailyFatTargetG) : "",
+      carbs: settings.dailyCarbsTargetG !== undefined ? String(settings.dailyCarbsTargetG) : "",
+    });
+    setPfcSuggestion(
+      withSuggestion && latestWeightRecord
+        ? suggestPfcTargets(latestWeightRecord.weightKg, settings.dailyCalorieTarget)
+        : null,
+    );
+    setPfcEditorOpen(true);
+  };
+
+  // たんぱく質の提案は直近体重を使うため、体重記録が1件も無い場合は自動計算できない(手動入力は可能。Issue #47)
+  const handleAutoCalcPfc = () => {
+    if (!latestWeightRecord) return;
+    setPfcSuggestion(suggestPfcTargets(latestWeightRecord.weightKg, settings.dailyCalorieTarget));
+  };
+
+  // 提案値は入力欄へ転記するだけに留め、保存(確定操作)はユーザーに委ねる。転記後の手動調整も可能
+  const handleAdoptPfcSuggestion = () => {
+    if (!pfcSuggestion) return;
+    setPfcDraft({
+      protein: String(pfcSuggestion.proteinG),
+      fat: String(pfcSuggestion.fatG),
+      carbs: String(pfcSuggestion.carbsG),
+    });
+    setPfcSuggestion(null);
+  };
+
+  const pfcDraftNumbers = [pfcDraft.protein, pfcDraft.fat, pfcDraft.carbs].map(Number);
+  const pfcAllEmpty = pfcDraft.protein === "" && pfcDraft.fat === "" && pfcDraft.carbs === "";
+  // 3項目セットで持つ(#7の決着): 全部入力して保存するか、全部空にして未設定に戻すかのどちらか
+  const canSavePfc =
+    pfcAllEmpty ||
+    ([pfcDraft.protein, pfcDraft.fat, pfcDraft.carbs].every((v) => v !== "") &&
+      pfcDraftNumbers.every((n) => !Number.isNaN(n) && n >= 0));
+
+  const handleSavePfc = async () => {
+    if (!canSavePfc) return;
+    if (pfcAllEmpty) {
+      await updateSettings({
+        dailyProteinTargetG: undefined,
+        dailyFatTargetG: undefined,
+        dailyCarbsTargetG: undefined,
+      });
+    } else {
+      await updateSettings({
+        dailyProteinTargetG: pfcDraftNumbers[0],
+        dailyFatTargetG: pfcDraftNumbers[1],
+        dailyCarbsTargetG: pfcDraftNumbers[2],
+      });
+    }
+    setPfcEditorOpen(false);
   };
 
   const handleSyncNow = async () => {
@@ -483,6 +562,19 @@ export default function Settings() {
           onClick={() => openEditor("calories")}
         />
         <SettingRow
+          icon={<IconFork size={18} />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label="PFC目標"
+          value={
+            hasPfcTargets
+              ? `P${settings.dailyProteinTargetG} / F${settings.dailyFatTargetG} / C${settings.dailyCarbsTargetG} g`
+              : "未設定"
+          }
+          divider
+          onClick={() => openPfcEditor()}
+        />
+        <SettingRow
           icon={<IconDrop size={18} />}
           iconBg={tokens.waterSoft}
           iconColor={tokens.waterMain}
@@ -491,6 +583,21 @@ export default function Settings() {
           onClick={() => openEditor("waterGoal")}
         />
       </Card>
+      {showPfcRecalcHint && hasPfcTargets && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: "10px", bgcolor: tokens.secondarySoft, borderRadius: "14px", p: "10px 14px", mt: "-8px", mb: "18px" }}>
+          <Typography sx={{ flex: 1, fontSize: 11, color: tokens.secondaryDeep, lineHeight: 1.6 }}>
+            目標カロリーを変更しました。PFC目標の再計算もおすすめします
+          </Typography>
+          <Button
+            size="small"
+            color="secondary"
+            onClick={() => openPfcEditor(true)}
+            sx={{ flexShrink: 0, fontSize: 12 }}
+          >
+            再計算する
+          </Button>
+        </Box>
+      )}
 
       <SectionLabel>データ同期・バックアップ(スプレッドシート)</SectionLabel>
       <Card sx={{ p: "16px", mb: "18px" }}>
@@ -831,6 +938,133 @@ export default function Settings() {
             </Button>
           </>
         )}
+      </Drawer>
+
+      {/* PFC目標の編集ボトムシート(3項目セット+自動計算。Issue #47) */}
+      <Drawer
+        anchor="bottom"
+        open={pfcEditorOpen}
+        onClose={() => setPfcEditorOpen(false)}
+        slotProps={{
+          paper: {
+            sx: { bgcolor: "background.default", borderRadius: "28px 28px 0 0", p: "12px 20px 30px", mx: "auto", maxWidth: 448, width: "100%" },
+          },
+        }}
+      >
+        <Box sx={{ width: 40, height: 5, borderRadius: "3px", bgcolor: "#E2D8C9", mx: "auto", mb: "18px" }} />
+        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16, textAlign: "center", mb: "6px" }}>
+          PFC目標
+        </Typography>
+        <Typography sx={{ fontSize: 11, color: "text.secondary", textAlign: "center", mb: "16px", lineHeight: 1.6 }}>
+          1日のたんぱく質・脂質・炭水化物の目標量(g)
+        </Typography>
+        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", mb: "16px" }}>
+          {(
+            [
+              { key: "protein", label: "P たんぱく質" },
+              { key: "fat", label: "F 脂質" },
+              { key: "carbs", label: "C 炭水化物" },
+            ] as const
+          ).map(({ key, label }) => (
+            <Box key={key}>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, color: "text.secondary", mb: "5px", px: "2px" }}>
+                {label}
+              </Typography>
+              <TextField
+                value={pfcDraft[key]}
+                onChange={(e) => setPfcDraft({ ...pfcDraft, [key]: e.target.value })}
+                type="text"
+                slotProps={{
+                  htmlInput: {
+                    inputMode: "numeric",
+                    style: { textAlign: "center", fontFamily: fontRounded, fontWeight: 800, fontSize: 20 },
+                  },
+                  input: {
+                    endAdornment: (
+                      <Typography sx={{ fontFamily: fontRounded, color: "text.secondary", fontSize: 12 }}>g</Typography>
+                    ),
+                  },
+                }}
+              />
+            </Box>
+          ))}
+        </Box>
+        {pfcSuggestion === null ? (
+          <>
+            <Button
+              fullWidth
+              variant="outlined"
+              color="secondary"
+              onClick={handleAutoCalcPfc}
+              disabled={!latestWeightRecord}
+              startIcon={<IconSparkle />}
+              sx={{ height: 44, borderRadius: "13px", fontSize: 13, mb: "16px" }}
+            >
+              体重と目標カロリーから自動計算
+            </Button>
+            {!latestWeightRecord && (
+              <Typography sx={{ mt: "-8px", mb: "16px", fontSize: 11, color: "text.secondary", textAlign: "center" }}>
+                体重を記録すると自動計算できます(手動入力は可能です)
+              </Typography>
+            )}
+          </>
+        ) : (
+          <Box sx={{ bgcolor: tokens.secondarySoft, borderRadius: "16px", p: "14px 16px", mb: "16px" }}>
+            <Typography sx={{ fontSize: 11, color: tokens.secondaryDeep, mb: "8px", lineHeight: 1.6 }}>
+              提案: たんぱく質 = 体重×2.0g、脂質 = 目標カロリーの25%、炭水化物 = 残余
+            </Typography>
+            <Box sx={{ display: "flex", justifyContent: "space-around", mb: "12px" }}>
+              {(
+                [
+                  ["P", pfcSuggestion.proteinG],
+                  ["F", pfcSuggestion.fatG],
+                  ["C", pfcSuggestion.carbsG],
+                ] as const
+              ).map(([label, grams]) => (
+                <Box key={label} sx={{ textAlign: "center" }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: tokens.secondaryDeep }}>{label}</Typography>
+                  <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 20, color: tokens.secondaryDeep }}>
+                    {grams}
+                    <Box component="span" sx={{ fontSize: 12, fontWeight: 500, ml: "1px" }}>
+                      g
+                    </Box>
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+            <Button
+              fullWidth
+              variant="contained"
+              color="secondary"
+              onClick={handleAdoptPfcSuggestion}
+              sx={{ height: 42, borderRadius: "13px", fontSize: 13, boxShadow: tokens.secondaryButtonShadow }}
+            >
+              この値で入力する(調整できます)
+            </Button>
+          </Box>
+        )}
+        {!pfcAllEmpty && (
+          <Button
+            fullWidth
+            variant="text"
+            onClick={() => setPfcDraft({ protein: "", fat: "", carbs: "" })}
+            sx={{ mb: "6px", color: "text.secondary" }}
+          >
+            未設定にする(3項目とも空にする)
+          </Button>
+        )}
+        <Button
+          fullWidth
+          variant="contained"
+          onClick={handleSavePfc}
+          disabled={!canSavePfc}
+          sx={{ height: 50, borderRadius: "14px", fontSize: 15, boxShadow: tokens.primaryButtonShadow }}
+        >
+          保存する
+        </Button>
+        <Button fullWidth variant="text" onClick={() => setPfcEditorOpen(false)} sx={{ mt: "6px", color: "text.secondary" }}>
+          キャンセル
+        </Button>
       </Drawer>
     </Box>
   );

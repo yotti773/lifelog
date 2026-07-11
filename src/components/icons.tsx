@@ -424,3 +424,13 @@ export function IconCelebrate(props: IconProps) {
     </svg>
   );
 }
+
+/** 鍵(API保護。Issue #87) */
+export function IconKey(props: IconProps) {
+  return (
+    <svg {...base(props, "0 0 24 24")}>
+      <circle cx="8" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M11.5 12H20m-2.5 0v3M14.5 12v2.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

@@ -3,3 +3,6 @@ GEMINI_MODEL=gemini-2.5-flash
 GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
 GOOGLE_SHEETS_SPREADSHEET_ID=your-spreadsheet-id-here
+# APIの共有トークン(Issue #87)。本番はwrangler secret putで登録し、アプリの設定画面に同じ値を入力する。
+# 未設定の場合は認証を要求しない(ローカル開発用)
+API_AUTH_TOKEN=your-random-token-here

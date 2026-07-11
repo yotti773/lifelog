@@ -131,6 +131,7 @@ export interface Settings {
   dailyCalorieTarget: number;
   dailyWaterTargetMl?: number; // 1日の目標水分摂取量(ml)。未設定時はホーム・水分記録画面で合計mlのみ表示する(画面設計書5章)
   lastSyncedAt?: string; // ISO8601, 最終同期日時
+  apiToken?: string; // Worker API(/api/*)の共有トークン(Issue #87)。WorkerのAPI_AUTH_TOKENと同じ値を設定する
   baselineDate?: string; // YYYY-MM-DD, 進捗バーの起点日。未設定時は一番古い体重記録を起点とする
 
   // --- フェーズ3: 身体プロフィール(Issue #43。画面設計書9章) ---

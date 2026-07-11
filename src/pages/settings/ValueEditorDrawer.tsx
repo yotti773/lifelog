@@ -29,7 +29,8 @@ export type EditTarget =
   | "height"
   | "birthYear"
   | "sex"
-  | "activityLevel";
+  | "activityLevel"
+  | "apiToken";
 
 const EDIT_LABELS: Record<EditTarget, string> = {
   weight: "目標体重",
@@ -41,6 +42,7 @@ const EDIT_LABELS: Record<EditTarget, string> = {
   birthYear: "生年",
   sex: "性別",
   activityLevel: "活動レベル",
+  apiToken: "APIトークン",
 };
 
 const NUMBER_EDIT_UNITS: Partial<Record<EditTarget, string>> = {
@@ -76,6 +78,8 @@ function initialDraft(target: EditTarget, settings: Settings): string {
       return settings.sex ?? "";
     case "activityLevel":
       return settings.activityLevel !== undefined ? String(settings.activityLevel) : "";
+    case "apiToken":
+      return settings.apiToken ?? "";
   }
 }
 
@@ -130,6 +134,8 @@ function ValueEditorContent({
   const draftNumber = Number(draft);
   const canSave =
     target === "baseline" ||
+    // APIトークンは「未設定にする」(空欄での保存)を許容する(Issue #87)
+    target === "apiToken" ||
     // 目標水分摂取量は「未設定にする」(空欄での保存)を許容する(画面設計書9章)
     (target === "waterGoal"
       ? draft === "" || (!Number.isNaN(draftNumber) && draftNumber > 0)
@@ -180,6 +186,9 @@ function ValueEditorContent({
         break;
       case "activityLevel":
         await updateSettings({ activityLevel: draftNumber });
+        break;
+      case "apiToken":
+        await updateSettings({ apiToken: draft.trim() || undefined });
         break;
     }
     onClose();
@@ -305,6 +314,18 @@ function ValueEditorContent({
             ＋
           </IconButton>
         </Box>
+      ) : target === "apiToken" ? (
+        <TextField
+          type="text"
+          fullWidth
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="WorkerのAPI_AUTH_TOKENと同じ値"
+          slotProps={{
+            htmlInput: { autoComplete: "off", autoCapitalize: "none", spellCheck: false, style: { fontSize: 14 } },
+          }}
+          sx={{ mb: "18px" }}
+        />
       ) : (
         <TextField
           type="date"
@@ -418,6 +439,13 @@ function ValueEditorContent({
             </Button>
           )}
         </>
+      )}
+      {target === "apiToken" && (
+        <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "12px", textAlign: "center", lineHeight: 1.6 }}>
+          同期・AI判定などのAPI呼び出しに使う合言葉です。
+          <br />
+          Workerのシークレット API_AUTH_TOKEN と同じ値を入力してください
+        </Typography>
       )}
       {target === "waterGoal" && (
         <>

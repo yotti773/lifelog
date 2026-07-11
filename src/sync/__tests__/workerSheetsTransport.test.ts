@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { db } from "@/db/db";
+import { updateSettings } from "@/db/settings";
 import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
 import type { SyncPushPayload } from "@/sync/types";
 
@@ -15,8 +17,9 @@ const payload: SyncPushPayload = {
   deletedDiaryIds: [],
 };
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllGlobals();
+  await db.settings.clear();
 });
 
 describe("workerSheetsTransport", () => {
@@ -59,7 +62,28 @@ describe("workerSheetsTransport", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(workerSheetsTransport.pull()).resolves.toEqual(result);
-    expect(fetchMock).toHaveBeenCalledWith("/api/import-sheets");
+    // APIトークン未設定時はAuthorizationヘッダを付けない(Issue #87)
+    expect(fetchMock).toHaveBeenCalledWith("/api/import-sheets", { headers: {} });
+  });
+
+  it("sends the configured API token as an Authorization header (Issue #87)", async () => {
+    await updateSettings({ apiToken: "test-token" });
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await workerSheetsTransport.push(payload);
+    await workerSheetsTransport.pull();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/sync-sheets",
+      expect.objectContaining({
+        headers: { "content-type": "application/json", authorization: "Bearer test-token" },
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/import-sheets", {
+      headers: { authorization: "Bearer test-token" },
+    });
   });
 
   it("pull: throws with the server-provided error message on failure", async () => {

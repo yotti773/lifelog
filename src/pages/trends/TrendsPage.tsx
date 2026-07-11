@@ -18,7 +18,7 @@ import WeightTrendCharts, { type Period } from "./charts/WeightTrendCharts";
 import WorkoutHistoryList, { groupWorkoutHistoryDays } from "./WorkoutHistoryList";
 import { IconSync } from "@/components/icons";
 import { db } from "@/db/db";
-import { getAllActivityRecordsDesc } from "@/db/activityRecords";
+import { getAllActivityRecordsDesc, getDailyActivityTotals } from "@/db/activityRecords";
 import { getAllDiaryRecordsDesc } from "@/db/diaryRecords";
 import { getAllMealRecordsDesc, getDailyCalorieTotals } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
@@ -115,6 +115,19 @@ export default function TrendsPage() {
     return getDailyWaterTotals(dateStringDaysAgo(days), endDate);
   }, [period]);
 
+  // 歩数・睡眠グラフ(Garmin由来。Issue #82)。活動記録が1件も無い(未連携)ならnullでカードごと非表示。
+  // undefined(ロード中)と区別するためnullへ正規化する(CLAUDE.mdのuseLiveQueryパターン)
+  const activityDailyTotals = useLiveQuery(async () => {
+    const firstActivityRecord = await db.activityRecords.orderBy("date").first();
+    if (!firstActivityRecord) return null;
+    const endDate = todayDateString();
+    if (period === "all") {
+      return getDailyActivityTotals(firstActivityRecord.date, endDate);
+    }
+    const days = period === "week" ? 6 : 29;
+    return getDailyActivityTotals(dateStringDaysAgo(days), endDate);
+  }, [period]);
+
   // 履歴確認画面は期間切り替えと独立して全期間・日付降順で表示する(画面設計書8.1章)。
   // 表示していない種別・タブに対してはDexieへ問い合わせない(無駄なフルスキャンを避ける)
   const historyRecords = useLiveQuery(
@@ -174,6 +187,7 @@ export default function TrendsPage() {
     weightChartRecords === undefined ||
     calorieDailyTotals === undefined ||
     waterDailyTotals === undefined ||
+    activityDailyTotals === undefined ||
     historyRecords === undefined ||
     mealHistoryRecords === undefined ||
     waterHistoryRecords === undefined ||
@@ -250,6 +264,7 @@ export default function TrendsPage() {
             weightChartRecords={weightChartRecords}
             calorieDailyTotals={calorieDailyTotals}
             waterDailyTotals={waterDailyTotals}
+            activityDailyTotals={activityDailyTotals}
             goalWeightKg={settings.goalWeightKg}
             dailyCalorieTarget={settings.dailyCalorieTarget}
             dailyWaterTargetMl={settings.dailyWaterTargetMl ?? null}

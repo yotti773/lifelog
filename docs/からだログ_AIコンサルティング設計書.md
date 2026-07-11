@@ -62,6 +62,12 @@ interface WeeklyDigest {
   };
   flags: DigestFlag[];                           // コード側で判定済みの注意事項(下表)
   mood?: { good: number; normal: number; bad: number };  // 日記の気分タグの件数集計のみ(本文は送らない。7章)
+  activity?: {                                   // Garmin計測の活動サマリー(Issue #82)。活動記録が無い週は省略
+    avgSteps: number | null;                     // 週平均歩数(データがある日の平均)
+    avgTotalKcal: number | null;                 // 週平均総消費カロリー(Garmin計測)
+    avgSleepMinutes: number | null;              // 平均睡眠時間(分)
+    recordedDays: number;                        // 活動データがある日数(0〜7)
+  };
 }
 ```
 
@@ -80,6 +86,7 @@ interface WeeklyDigest {
 
 補足(実装時の確定事項):
 - `mood` は日記の気分タグ(5段階。画面設計書6章)を3区分へ集計する: 絶好調・良い → `good` / 普通 → `normal` / 眠い・不調 → `bad`。日記が無い週は `mood` 自体を省略する
+- `activity` はGarmin連携(CLAUDE.mdのGarmin連携を参照)で取り込んだ活動記録の週集計(Issue #82)。各平均は「その項目のデータがある日」の平均(欠測日は分母に入れない)。週内に活動記録が1日も無ければ省略する(未連携ユーザーのdigest・プロンプトは従来と変わらない)。`avgTotalKcal`(Garmin計測)と `estimatedTdeeKcal`(逆算)は独立した消費カロリー推定値で、画面側は乖離15%超で「記録漏れ等の可能性」の注記を出す。AIには差の計算をさせない(プロンプトで明示。5章)。activity由来の新しい警告フラグは設けない(歩数・睡眠の多寡は安全判定ではなく解釈の領域のため)
 - `requiredWeeklyPaceKg` は「減量が必要なら負」の符号で持つ(`weeklyChangeKg` と直接比較できるように)。体重記録が皆無・目標日超過の場合は `0` とし、状況はフラグ側で伝える
 - `paceBaseKg` は `requiredWeeklyPaceKg` の計算に使った基準体重(週平均、無ければ全期間の最新体重)をそのまま持つ。UI側で「必要ペース0.00kg/週(既に目標体重付近)」と「計算不能(体重記録が無い・目標日超過)」を区別するために使う。週次レビュー画面のTDEE補正提案(実測消費カロリー節)でも、設定画面の自動計算(#43。`src/pages/settings/ValueEditorDrawer.tsx`)と同じ `suggestCalorieTarget()` の入力(現在体重)として再利用し、ガードレール(基礎代謝クランプ・ペース超過警告)を画面間で一貫させている
 

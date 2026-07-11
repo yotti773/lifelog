@@ -4,7 +4,8 @@ import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
-import { IconArrow, IconBack, IconCheck, IconChevronRight, IconFlame, IconWarning } from "@/components/icons";
+import { IconActivity, IconArrow, IconBack, IconCheck, IconChevronRight, IconFlame, IconWarning } from "@/components/icons";
+import { formatSleepDuration } from "./ActivityHistoryList";
 import { updateSettings } from "@/db/settings";
 import { formatMonthDay } from "@/lib/date";
 import { suggestCalorieTarget } from "@/lib/nutritionCalc";
@@ -67,10 +68,13 @@ const PFC_COLUMNS = [
   { label: "C", color: "#2EC4B6", avg: (d: WeeklyDigest) => d.pfc.avgCarbsG, target: (d: WeeklyDigest) => d.pfc.targetCarbsG },
 ] as const;
 
+/** 逆算TDEEとGarmin計測消費の乖離がこの割合を超えたら「記録漏れの可能性」の注記を出す */
+const TDEE_DISCREPANCY_RATIO = 0.15;
+
 export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext }: WeeklyReviewProps) {
   const [adjustApplied, setAdjustApplied] = useState(false);
 
-  const { weight, calories, pfc, recording, flags } = digest;
+  const { weight, calories, pfc, recording, flags, activity } = digest;
 
   // 必要ペースとの比較(体重セクションの判定)。減量が必要な週で週平均比較ができるときのみ判定する
   const paceStatus =
@@ -280,6 +284,35 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
         </Card>
       )}
 
+      {/* 活動サマリー(Garmin由来。Issue #82)。活動記録が無い週(未連携ユーザー含む)はカードごと出さない */}
+      {activity && (
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "4px" }}>
+            <Box sx={{ color: "secondary.main", display: "flex" }}>
+              <IconActivity size={15} />
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>活動(Garmin)</Typography>
+          </Box>
+          <StatRow
+            label="平均歩数"
+            value={activity.avgSteps !== null ? activity.avgSteps.toLocaleString() : "-"}
+            sub="歩/日"
+          />
+          <StatRow
+            label="平均総消費カロリー"
+            value={activity.avgTotalKcal !== null ? activity.avgTotalKcal.toLocaleString() : "-"}
+            sub="kcal/日"
+          />
+          <StatRow
+            label="平均睡眠時間"
+            value={activity.avgSleepMinutes !== null ? formatSleepDuration(activity.avgSleepMinutes) : "-"}
+          />
+          <Box sx={{ borderTop: `1px solid ${tokens.divider}`, mt: "4px", pt: "4px" }}>
+            <StatRow label="活動データがある日" value={`${activity.recordedDays}`} sub="/ 7日" />
+          </Box>
+        </Card>
+      )}
+
       {/* 実測消費カロリー(実測TDEE。Issue #44) */}
       <Card sx={{ p: "18px" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "10px" }}>
@@ -299,6 +332,22 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
             <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "5px", lineHeight: 1.6 }}>
               摂取カロリーと体重変化からの逆算(直近の有効週 最大3週の平均)
             </Typography>
+            {/* Garmin実測との突き合わせ(Issue #82)。独立した2つの推定値の一致度が記録の信頼度の目安になる */}
+            {activity?.avgTotalKcal != null && (
+              <Box sx={{ borderTop: `1px solid ${tokens.divider}`, mt: "10px", pt: "6px" }}>
+                <StatRow
+                  label="Garmin計測(週平均)"
+                  value={activity.avgTotalKcal.toLocaleString()}
+                  sub="kcal/日"
+                />
+                {Math.abs(calories.estimatedTdeeKcal - activity.avgTotalKcal) >
+                  activity.avgTotalKcal * TDEE_DISCREPANCY_RATIO && (
+                  <Typography sx={{ fontSize: 11, color: tokens.warnText, bgcolor: tokens.warnBg, borderRadius: "10px", p: "7px 10px", mt: "4px", lineHeight: 1.6 }}>
+                    逆算値とGarmin計測の差が大きい週です。食事の記録漏れや体重変動のノイズの可能性があります
+                  </Typography>
+                )}
+              </Box>
+            )}
             {calorieProposal && proposedTargetKcal !== null && proposalDiffers && (
               <Box sx={{ bgcolor: tokens.secondarySoft, borderRadius: "14px", p: "12px 14px", mt: "12px" }}>
                 <Typography sx={{ fontSize: 12, color: tokens.secondaryDeep, lineHeight: 1.7 }}>

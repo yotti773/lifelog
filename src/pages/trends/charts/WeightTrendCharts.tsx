@@ -4,9 +4,12 @@ import Typography from "@mui/material/Typography";
 import BodyFatChart from "./BodyFatChart";
 import CalorieChart from "./CalorieChart";
 import SegmentedControl from "@/components/SegmentedControl";
+import SleepChart from "./SleepChart";
+import StepsChart from "./StepsChart";
 import WaterChart from "./WaterChart";
 import WeightChart from "./WeightChart";
 import { fontRounded, tokens } from "@/theme";
+import type { DailyActivityTotal } from "@/db/activityRecords";
 import type { DailyCalorieTotal } from "@/db/mealRecords";
 import type { DailyWaterTotal } from "@/db/waterRecords";
 import type { WeightRecord } from "@/types";
@@ -25,6 +28,8 @@ interface WeightTrendChartsProps {
   weightChartRecords: WeightRecord[];
   calorieDailyTotals: DailyCalorieTotal[];
   waterDailyTotals: DailyWaterTotal[];
+  /** 日別の歩数・睡眠(Garmin由来。Issue #82)。活動記録が1件も無い(未連携)場合はnullでカードごと非表示 */
+  activityDailyTotals: DailyActivityTotal[] | null;
   goalWeightKg: number;
   dailyCalorieTarget: number;
   dailyWaterTargetMl: number | null;
@@ -36,6 +41,7 @@ export default function WeightTrendCharts({
   weightChartRecords,
   calorieDailyTotals,
   waterDailyTotals,
+  activityDailyTotals,
   goalWeightKg,
   dailyCalorieTarget,
   dailyWaterTargetMl,
@@ -97,6 +103,26 @@ export default function WeightTrendCharts({
         </Box>
         <WaterChart data={waterDailyTotals} targetMl={dailyWaterTargetMl} />
       </Card>
+
+      {activityDailyTotals !== null && (
+        <>
+          <Card sx={{ p: "16px" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "14px" }}>
+              <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>歩数</Typography>
+              <Typography sx={{ fontSize: 10, fontWeight: 500, color: "text.secondary" }}>Garmin</Typography>
+            </Box>
+            <StepsChart data={activityDailyTotals} />
+          </Card>
+
+          <Card sx={{ p: "16px" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "14px" }}>
+              <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>睡眠時間</Typography>
+              <Typography sx={{ fontSize: 10, fontWeight: 500, color: "text.secondary" }}>Garmin・時間</Typography>
+            </Box>
+            <SleepChart data={activityDailyTotals} />
+          </Card>
+        </>
+      )}
     </>
   );
 }

@@ -3,6 +3,7 @@ import { db } from "@/db/db";
 import { addMealRecord, getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
+import { addWaterRecord, deleteWaterRecord, getUnsyncedWaterRecords } from "@/db/waterRecords";
 import { deleteWeightRecord, getUnsyncedWeightRecords, saveWeightRecord } from "@/db/weightRecords";
 import { runSync } from "@/sync/syncEngine";
 import { SyncNotConfiguredError } from "@/sync/notConfiguredTransport";
@@ -11,6 +12,9 @@ import type { SyncPushPayload, SyncPushResult, SyncTransport } from "@/sync/type
 beforeEach(async () => {
   await db.weightRecords.clear();
   await db.mealRecords.clear();
+  await db.waterRecords.clear();
+  await db.workoutRecords.clear();
+  await db.diaryRecords.clear();
   await db.settings.clear();
   await db.syncDeletions.clear();
 });
@@ -18,6 +22,15 @@ beforeEach(async () => {
 function fakeTransport(push: (payload: SyncPushPayload) => Promise<SyncPushResult>): SyncTransport {
   return { push };
 }
+
+/** テストで書く量を減らすための空の同期結果(実際のWorkerレスポンスと同じ形にするため全フィールドを埋める) */
+const emptyResult: SyncPushResult = {
+  syncedWeightDates: [],
+  syncedMealIds: [],
+  syncedWaterIds: [],
+  syncedWorkoutIds: [],
+  syncedDiaryDates: [],
+};
 
 describe("runSync", () => {
   it("skips without touching data when offline", async () => {
@@ -40,7 +53,7 @@ describe("runSync", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("marks records synced and updates lastSyncedAt on success", async () => {
+  it("marks records synced (体重・食事・水分)and updates lastSyncedAt on success", async () => {
     await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1 });
     const meal = await addMealRecord({
       mealType: "lunch",
@@ -50,17 +63,21 @@ describe("runSync", () => {
       confirmedFatG: 20,
       confirmedCarbsG: 50,
     });
+    await addWaterRecord(350);
 
     const push = vi.fn(async (payload: SyncPushPayload): Promise<SyncPushResult> => ({
+      ...emptyResult,
       syncedWeightDates: payload.weightRecords.map((r) => r.date),
       syncedMealIds: payload.mealRecords.map((r) => r.id),
+      syncedWaterIds: payload.waterRecords.map((r) => r.id),
     }));
 
     const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
 
-    expect(outcome).toEqual({ status: "success", syncedCount: 2 });
+    expect(outcome).toEqual({ status: "success", syncedCount: 3 });
     expect(await getUnsyncedWeightRecords()).toHaveLength(0);
     expect(await getUnsyncedMealRecords()).toHaveLength(0);
+    expect(await getUnsyncedWaterRecords()).toHaveLength(0);
     const settings = await getSettings();
     expect(settings.lastSyncedAt).toBeTruthy();
     expect(meal.synced).toBe(false); // 送信前のスナップショットは変更されない
@@ -85,8 +102,8 @@ describe("runSync", () => {
     await saveWeightRecord({ date: "2026-07-02", weightKg: 71.9 });
 
     const push = vi.fn(async (payload: SyncPushPayload): Promise<SyncPushResult> => ({
+      ...emptyResult,
       syncedWeightDates: [payload.weightRecords[0].date],
-      syncedMealIds: [],
     }));
 
     await runSync({ transport: fakeTransport(push), isOnline: () => true });
@@ -102,12 +119,7 @@ describe("runSync", () => {
     let received: SyncPushPayload | null = null;
     const push = vi.fn(async (payload: SyncPushPayload): Promise<SyncPushResult> => {
       received = payload;
-      return {
-        syncedWeightDates: [],
-        syncedMealIds: [],
-        deletedWeightIds: payload.deletedWeightIds,
-        deletedMealIds: [],
-      };
+      return { ...emptyResult, deletedWeightIds: payload.deletedWeightIds };
     });
 
     const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
@@ -117,15 +129,26 @@ describe("runSync", () => {
     expect(await getPendingDeletionIds("weight")).toEqual([]);
   });
 
+  it("水分記録の削除トゥームストーンも同期対象になり、確定すれば消える", async () => {
+    const water = await addWaterRecord(200);
+    await deleteWaterRecord(water.id);
+
+    const push = vi.fn(async (payload: SyncPushPayload): Promise<SyncPushResult> => ({
+      ...emptyResult,
+      deletedWaterIds: payload.deletedWaterIds,
+    }));
+
+    const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "success", syncedCount: 1 });
+    expect(await getPendingDeletionIds("water")).toEqual([]);
+  });
+
   it("Workerが確定しなかった削除はトゥームストーンを残して次回再試行する", async () => {
     await saveWeightRecord({ date: "2026-07-01", weightKg: 72.1 });
     await deleteWeightRecord("2026-07-01");
 
-    const push = vi.fn(async (): Promise<SyncPushResult> => ({
-      syncedWeightDates: [],
-      syncedMealIds: [],
-      // 削除の確定を返さない(部分失敗を想定)
-    }));
+    const push = vi.fn(async (): Promise<SyncPushResult> => emptyResult); // 削除の確定を返さない(部分失敗を想定)
 
     await runSync({ transport: fakeTransport(push), isOnline: () => true });
 

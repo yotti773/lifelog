@@ -4,11 +4,14 @@ import {
   addWaterRecord,
   deleteWaterRecord,
   getDailyWaterTotals,
+  getUnsyncedWaterRecords,
   getWaterRecordsForDate,
+  markWaterRecordsSynced,
 } from "@/db/waterRecords";
 
 beforeEach(async () => {
   await db.waterRecords.clear();
+  await db.syncDeletions.clear();
 });
 
 describe("waterRecords", () => {
@@ -39,13 +42,24 @@ describe("waterRecords", () => {
     expect(day2.map((r) => r.amountMl)).toEqual([500]);
   });
 
-  it("deletes a record without leaving a sync tombstone", async () => {
+  it("deletes a record and leaves a sync tombstone", async () => {
     const record = await addWaterRecord(100);
 
     await deleteWaterRecord(record.id);
 
     expect(await db.waterRecords.count()).toBe(0);
-    expect(await db.syncDeletions.count()).toBe(0);
+    expect(await db.syncDeletions.count()).toBe(1);
+  });
+
+  it("lists only unsynced records and marks them synced", async () => {
+    const a = await addWaterRecord(200);
+    const b = await addWaterRecord(350);
+
+    expect((await getUnsyncedWaterRecords()).map((r) => r.id).sort()).toEqual([a.id, b.id].sort());
+
+    await markWaterRecordsSynced([a.id]);
+    const unsynced = await getUnsyncedWaterRecords();
+    expect(unsynced.map((r) => r.id)).toEqual([b.id]);
   });
 
   it("fills days without records with 0ml in daily totals", async () => {

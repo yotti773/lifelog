@@ -4,8 +4,12 @@ import {
   parseCellNumber,
   parseJstDateTime,
   parseMealTypeCell,
+  parseMoodCell,
+  planDiaryImport,
   planMealImport,
+  planWaterImport,
   planWeightImport,
+  planWorkoutImport,
   type CellValue,
 } from "../sheetsImport";
 import { formatCalendarDate, formatJstDateTime } from "../sheetsSync";
@@ -80,6 +84,23 @@ describe("parseMealTypeCell", () => {
   it("未知の値はnull", () => {
     expect(parseMealTypeCell("区分")).toBeNull();
     expect(parseMealTypeCell("")).toBeNull();
+  });
+});
+
+describe("parseMoodCell", () => {
+  it("日本語ラベルをDiaryMoodキーに逆変換する", () => {
+    expect(parseMoodCell("絶好調")).toBe("great");
+    expect(parseMoodCell("不調")).toBe("bad");
+  });
+
+  it("英語キーのままの値も受け付ける", () => {
+    expect(parseMoodCell("good")).toBe("good");
+  });
+
+  it("空・未知の値はundefined", () => {
+    expect(parseMoodCell("")).toBeUndefined();
+    expect(parseMoodCell(undefined)).toBeUndefined();
+    expect(parseMoodCell("最高")).toBeUndefined();
   });
 });
 
@@ -172,6 +193,138 @@ describe("planMealImport", () => {
     const header: CellValue[] = ["日時", "区分", "品名", "kcal", "P", "F", "C", "ID"];
     const invalid: CellValue[] = ["2026年07月05日 12:30", "不明な区分", "何か", "100", "", "", "", ""];
     const plan = planMealImport([header, fullRow, invalid, fullRow], generateId);
+    expect(plan.records).toHaveLength(1);
+    expect(plan.skippedRowCount).toBe(2);
+  });
+});
+
+describe("planWaterImport", () => {
+  const fullRow: CellValue[] = ["2026年07月05日 21:00", "350", "uuid-1"];
+  const generateId = () => "generated-uuid";
+
+  it("書き出し済みの行をレコードに逆変換する", () => {
+    const plan = planWaterImport([fullRow], generateId);
+    expect(plan.records).toEqual([
+      { id: "uuid-1", timestamp: "2026-07-05T12:00:00.000Z", amountMl: 350 },
+    ]);
+    expect(plan.idBackfills).toEqual([]);
+    expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("空のIDは採番して書き戻し対象にする", () => {
+    const plan = planWaterImport([["2026/7/1 08:00", "200", ""]], generateId);
+    expect(plan.records).toEqual([
+      { id: "generated-uuid", timestamp: "2026-06-30T23:00:00.000Z", amountMl: 200 },
+    ]);
+    expect(plan.idBackfills).toEqual([{ rowNumber: 1, id: "generated-uuid" }]);
+  });
+
+  it("解釈できない1行目は見出し行とみなしスキップ数に数えず、2行目以降の不正行・重複IDは数える", () => {
+    const header: CellValue[] = ["記録日時", "摂取量", "ID"];
+    const invalid: CellValue[] = ["2026年07月05日 21:00", "摂取量なし", ""];
+    const plan = planWaterImport([header, fullRow, invalid, fullRow], generateId);
+    expect(plan.records).toHaveLength(1);
+    expect(plan.skippedRowCount).toBe(2);
+  });
+});
+
+describe("planWorkoutImport", () => {
+  const fullRow: CellValue[] = [
+    "2026年07月05日",
+    "ベンチプレス",
+    "1",
+    "2",
+    "60",
+    "8",
+    "2026年07月05日 20:00",
+    "uuid-1",
+  ];
+  const generateId = () => "generated-uuid";
+
+  it("書き出し済みの行をレコードに逆変換する", () => {
+    const plan = planWorkoutImport([fullRow], generateId);
+    expect(plan.records).toEqual([
+      {
+        id: "uuid-1",
+        date: "2026-07-05",
+        timestamp: "2026-07-05T11:00:00.000Z",
+        exerciseName: "ベンチプレス",
+        exerciseOrder: 1,
+        setNumber: 2,
+        weightKg: 60,
+        reps: 8,
+      },
+    ]);
+    expect(plan.idBackfills).toEqual([]);
+    expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("タイムスタンプ・IDが空の手入力行も取り込み、IDは採番して書き戻し対象にする", () => {
+    const plan = planWorkoutImport(
+      [["2026/7/1", "スクワット", "1", "1", "80", "5", "", ""]],
+      generateId,
+    );
+    expect(plan.records).toEqual([
+      {
+        id: "generated-uuid",
+        date: "2026-07-01",
+        // タイムスタンプ省略時はその日のJST 00:00
+        timestamp: "2026-06-30T15:00:00.000Z",
+        exerciseName: "スクワット",
+        exerciseOrder: 1,
+        setNumber: 1,
+        weightKg: 80,
+        reps: 5,
+      },
+    ]);
+    expect(plan.idBackfills).toEqual([{ rowNumber: 1, id: "generated-uuid" }]);
+  });
+
+  it("解釈できない1行目は見出し行とみなしスキップ数に数えず、2行目以降の不正行・重複IDは数える", () => {
+    const header: CellValue[] = ["日付", "種目名", "種目順", "セット番号", "重量", "回数", "記録日時", "ID"];
+    const invalid: CellValue[] = ["2026年07月05日", "", "1", "1", "60", "8", "", ""];
+    const plan = planWorkoutImport([header, fullRow, invalid, fullRow], generateId);
+    expect(plan.records).toHaveLength(1);
+    expect(plan.skippedRowCount).toBe(2);
+  });
+});
+
+describe("planDiaryImport", () => {
+  const fullRow: CellValue[] = ["2026年07月05日", "良い", "よく眠れた", "2026年07月05日 22:00", "2026-07-05"];
+
+  it("書き出し済みの行をレコードに逆変換する", () => {
+    const plan = planDiaryImport([fullRow]);
+    expect(plan.records).toEqual([
+      {
+        id: "2026-07-05",
+        date: "2026-07-05",
+        timestamp: "2026-07-05T13:00:00.000Z",
+        text: "よく眠れた",
+        mood: "good",
+      },
+    ]);
+    expect(plan.idBackfills).toEqual([]);
+    expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("気分・本文・タイムスタンプ・IDが空の手入力行も取り込み、IDは日付で採番して書き戻し対象にする", () => {
+    const plan = planDiaryImport([["2026/7/1", "", "", "", ""]]);
+    expect(plan.records).toEqual([
+      {
+        id: "2026-07-01",
+        date: "2026-07-01",
+        // タイムスタンプ省略時はその日のJST 00:00
+        timestamp: "2026-06-30T15:00:00.000Z",
+        text: "",
+      },
+    ]);
+    expect(plan.idBackfills).toEqual([{ rowNumber: 1, id: "2026-07-01" }]);
+  });
+
+  it("解釈できない1行目は見出し行とみなしスキップ数に数えず、2行目以降の不正行・重複日付は数える", () => {
+    const header: CellValue[] = ["日付", "気分", "本文", "記録日時", "ID"];
+    const invalid: CellValue[] = ["日付なし", "良い", "テスト", "", ""];
+    const plan = planDiaryImport([header, fullRow, invalid, fullRow]);
     expect(plan.records).toHaveLength(1);
     expect(plan.skippedRowCount).toBe(2);
   });

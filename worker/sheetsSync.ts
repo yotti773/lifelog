@@ -1,5 +1,6 @@
 import { getGoogleAccessToken } from "./googleSheetsAuth";
 import type { Env } from "./index";
+import { DIARY_MOOD_LABELS } from "./diaryMoodLabels";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 
 // worker/tsconfig.json は src/ に依存しない独立ビルドのため、必要な形をここにローカルで複製している。
@@ -24,18 +25,55 @@ interface MealRecordInput {
   confirmedCarbsG: number;
 }
 
+interface WaterRecordInput {
+  id: string;
+  timestamp: string;
+  amountMl: number;
+}
+
+interface WorkoutRecordInput {
+  id: string;
+  date: string;
+  timestamp: string;
+  exerciseName: string;
+  exerciseOrder: number;
+  setNumber: number;
+  weightKg: number;
+  reps: number;
+}
+
+interface DiaryRecordInput {
+  id: string;
+  date: string;
+  timestamp: string;
+  text: string;
+  mood?: string;
+}
+
 interface SyncPushPayloadInput {
   weightRecords?: WeightRecordInput[];
   mealRecords?: MealRecordInput[];
+  waterRecords?: WaterRecordInput[];
+  workoutRecords?: WorkoutRecordInput[];
+  diaryRecords?: DiaryRecordInput[];
   deletedWeightIds?: string[];
   deletedMealIds?: string[];
+  deletedWaterIds?: string[];
+  deletedWorkoutIds?: string[];
+  deletedDiaryIds?: string[];
 }
 
 interface SyncPushResultOutput {
   syncedWeightDates: string[];
   syncedMealIds: string[];
+  syncedWaterIds: string[];
+  syncedWorkoutIds: string[];
+  syncedDiaryDates: string[];
   deletedWeightIds: string[];
   deletedMealIds: string[];
+  deletedWaterIds: string[];
+  deletedWorkoutIds: string[];
+  deletedDiaryIds: string[];
 }
 
 export interface SheetConfig {
@@ -47,6 +85,9 @@ export interface SheetConfig {
 // タブ名にスペースやアポストロフィが含まれる場合は `'${sheetName}'!A:Z` 形式(埋め込み`'`は`''`にエスケープ)に変更すること。
 export const WEIGHT_CONFIG: SheetConfig = { name: "体重記録", idColumnLetter: "F" };
 export const MEAL_CONFIG: SheetConfig = { name: "食事記録", idColumnLetter: "H" };
+export const WATER_CONFIG: SheetConfig = { name: "水分記録", idColumnLetter: "C" };
+export const WORKOUT_CONFIG: SheetConfig = { name: "筋トレ記録", idColumnLetter: "H" };
+export const DIARY_CONFIG: SheetConfig = { name: "日記記録", idColumnLetter: "E" };
 
 export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
@@ -100,6 +141,33 @@ function mealRecordToRow(r: MealRecordInput): (string | number)[] {
     r.confirmedProteinG,
     r.confirmedFatG,
     r.confirmedCarbsG,
+    r.id,
+  ];
+}
+
+function waterRecordToRow(r: WaterRecordInput): (string | number)[] {
+  return [formatJstDateTime(r.timestamp), r.amountMl, r.id];
+}
+
+function workoutRecordToRow(r: WorkoutRecordInput): (string | number)[] {
+  return [
+    formatCalendarDate(r.date),
+    r.exerciseName,
+    r.exerciseOrder,
+    r.setNumber,
+    r.weightKg,
+    r.reps,
+    formatJstDateTime(r.timestamp),
+    r.id,
+  ];
+}
+
+function diaryRecordToRow(r: DiaryRecordInput): (string | number)[] {
+  return [
+    formatCalendarDate(r.date),
+    (r.mood && DIARY_MOOD_LABELS[r.mood]) ?? r.mood ?? "",
+    r.text,
+    formatJstDateTime(r.timestamp),
     r.id,
   ];
 }
@@ -306,8 +374,14 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   }
   const weightRecords = payload.weightRecords ?? [];
   const mealRecords = payload.mealRecords ?? [];
+  const waterRecords = payload.waterRecords ?? [];
+  const workoutRecords = payload.workoutRecords ?? [];
+  const diaryRecords = payload.diaryRecords ?? [];
   const deletedWeightIds = payload.deletedWeightIds ?? [];
   const deletedMealIds = payload.deletedMealIds ?? [];
+  const deletedWaterIds = payload.deletedWaterIds ?? [];
+  const deletedWorkoutIds = payload.deletedWorkoutIds ?? [];
+  const deletedDiaryIds = payload.deletedDiaryIds ?? [];
 
   let accessToken: string;
   try {
@@ -318,7 +392,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   }
 
   const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  const [weightResult, mealResult] = await Promise.allSettled([
+  const [weightResult, mealResult, waterResult, workoutResult, diaryResult] = await Promise.allSettled([
     syncOneSheet(
       accessToken,
       spreadsheetId,
@@ -333,24 +407,75 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       mealRecords.map((r) => ({ id: r.id, cells: mealRecordToRow(r) })),
       deletedMealIds,
     ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      WATER_CONFIG,
+      waterRecords.map((r) => ({ id: r.id, cells: waterRecordToRow(r) })),
+      deletedWaterIds,
+    ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      WORKOUT_CONFIG,
+      workoutRecords.map((r) => ({ id: r.id, cells: workoutRecordToRow(r) })),
+      deletedWorkoutIds,
+    ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      DIARY_CONFIG,
+      diaryRecords.map((r) => ({ id: r.id, cells: diaryRecordToRow(r) })),
+      deletedDiaryIds,
+    ),
   ]);
 
   const syncedWeightDates = weightResult.status === "fulfilled" ? weightResult.value.syncedIds : [];
   const deletedWeightIdsOut = weightResult.status === "fulfilled" ? weightResult.value.deletedIds : [];
   const syncedMealIds = mealResult.status === "fulfilled" ? mealResult.value.syncedIds : [];
   const deletedMealIdsOut = mealResult.status === "fulfilled" ? mealResult.value.deletedIds : [];
+  const syncedWaterIds = waterResult.status === "fulfilled" ? waterResult.value.syncedIds : [];
+  const deletedWaterIdsOut = waterResult.status === "fulfilled" ? waterResult.value.deletedIds : [];
+  const syncedWorkoutIds = workoutResult.status === "fulfilled" ? workoutResult.value.syncedIds : [];
+  const deletedWorkoutIdsOut = workoutResult.status === "fulfilled" ? workoutResult.value.deletedIds : [];
+  const syncedDiaryDates = diaryResult.status === "fulfilled" ? diaryResult.value.syncedIds : [];
+  const deletedDiaryIdsOut = diaryResult.status === "fulfilled" ? diaryResult.value.deletedIds : [];
 
   if (weightResult.status === "rejected") console.error("体重記録の同期に失敗:", weightResult.reason);
   if (mealResult.status === "rejected") console.error("食事記録の同期に失敗:", mealResult.reason);
+  if (waterResult.status === "rejected") console.error("水分記録の同期に失敗:", waterResult.reason);
+  if (workoutResult.status === "rejected") console.error("筋トレ記録の同期に失敗:", workoutResult.reason);
+  if (diaryResult.status === "rejected") console.error("日記記録の同期に失敗:", diaryResult.reason);
 
   const attempted =
-    weightRecords.length + mealRecords.length + deletedWeightIds.length + deletedMealIds.length > 0;
+    weightRecords.length +
+      mealRecords.length +
+      waterRecords.length +
+      workoutRecords.length +
+      diaryRecords.length +
+      deletedWeightIds.length +
+      deletedMealIds.length +
+      deletedWaterIds.length +
+      deletedWorkoutIds.length +
+      deletedDiaryIds.length >
+    0;
   const nothingSynced =
-    syncedWeightDates.length + deletedWeightIdsOut.length + syncedMealIds.length + deletedMealIdsOut.length === 0;
-  const anyFailure = weightResult.status === "rejected" || mealResult.status === "rejected";
+    syncedWeightDates.length +
+      deletedWeightIdsOut.length +
+      syncedMealIds.length +
+      deletedMealIdsOut.length +
+      syncedWaterIds.length +
+      deletedWaterIdsOut.length +
+      syncedWorkoutIds.length +
+      deletedWorkoutIdsOut.length +
+      syncedDiaryDates.length +
+      deletedDiaryIdsOut.length ===
+    0;
+  const results = [weightResult, mealResult, waterResult, workoutResult, diaryResult];
+  const anyFailure = results.some((r) => r.status === "rejected");
 
   if (attempted && nothingSynced && anyFailure) {
-    const messages = [weightResult, mealResult]
+    const messages = results
       .filter((r): r is PromiseRejectedResult => r.status === "rejected")
       .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
     return Response.json({ error: messages.join(" / ") }, { status: 502 });
@@ -359,7 +484,13 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   return Response.json({
     syncedWeightDates,
     syncedMealIds,
+    syncedWaterIds,
+    syncedWorkoutIds,
+    syncedDiaryDates,
     deletedWeightIds: deletedWeightIdsOut,
     deletedMealIds: deletedMealIdsOut,
+    deletedWaterIds: deletedWaterIdsOut,
+    deletedWorkoutIds: deletedWorkoutIdsOut,
+    deletedDiaryIds: deletedDiaryIdsOut,
   } satisfies SyncPushResultOutput);
 }

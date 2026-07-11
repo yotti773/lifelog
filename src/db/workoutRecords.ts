@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { enqueueDeletion } from "./syncDeletions";
 import type { WorkoutRecord } from "@/types";
 
 export interface WorkoutSetInput {
@@ -43,7 +44,8 @@ export function groupWorkoutRecordsByExercise(records: WorkoutRecord[]): Workout
  * その日の筋トレ記録を丸ごと置き換える(画面設計書7章)。
  * 記録画面は当日の全種目・全セットを1画面で編集するため、保存=「既存の当日分を消して登録し直す」。
  * exercisesを空にして保存すれば当日分の削除になる。
- * 筋トレはスプレッドシート同期の対象外のため削除トゥームストーンは残さない(画面設計書10章)
+ * 置き換えのたびに全セットへ新しいIDを振り直すため、置き換え前の全セットIDを削除トゥームストーンとして残し、
+ * スプレッドシート側の古いセット行を次回同期で消す(Issue #72)
  */
 export async function replaceWorkoutRecordsForDate(
   date: string,
@@ -63,11 +65,21 @@ export async function replaceWorkoutRecordsForDate(
       synced: false,
     })),
   );
-  await db.transaction("rw", db.workoutRecords, async () => {
+  await db.transaction("rw", db.workoutRecords, db.syncDeletions, async () => {
+    const existing = await db.workoutRecords.where("date").equals(date).toArray();
     await db.workoutRecords.where("date").equals(date).delete();
     if (records.length > 0) {
       await db.workoutRecords.bulkAdd(records);
     }
+    await Promise.all(existing.map((record) => enqueueDeletion("workout", record.id)));
   });
   return records;
+}
+
+export async function getUnsyncedWorkoutRecords(): Promise<WorkoutRecord[]> {
+  return db.workoutRecords.filter((record) => !record.synced).toArray();
+}
+
+export async function markWorkoutRecordsSynced(ids: string[]): Promise<void> {
+  await db.workoutRecords.where("id").anyOf(ids).modify({ synced: true });
 }

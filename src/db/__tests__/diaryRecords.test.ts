@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/db";
-import { deleteDiaryRecord, getDiaryRecord, saveDiaryRecord } from "@/db/diaryRecords";
+import {
+  deleteDiaryRecord,
+  getDiaryRecord,
+  getUnsyncedDiaryRecords,
+  markDiaryRecordsSynced,
+  saveDiaryRecord,
+} from "@/db/diaryRecords";
+import { getPendingDeletionIds } from "@/db/syncDeletions";
 
 beforeEach(async () => {
   await db.diaryRecords.clear();
+  await db.syncDeletions.clear();
 });
 
 describe("diaryRecords", () => {
@@ -34,7 +42,6 @@ describe("diaryRecords", () => {
   });
 
   it("marks a saved record as unsynced so it is picked up next sync", async () => {
-    // 日記はまだシート同期の対象外だが、対象化に備えて保存のたびにsyncedをfalseに保つ(types.ts参照)。
     // synced: true はmark関数経由でのみ立てる規約(CLAUDE.md)のため、ここでは保存後の状態のみ検証する
     await saveDiaryRecord({ date: "2026-07-01", text: "1回目" });
     expect((await getDiaryRecord("2026-07-01"))?.synced).toBe(false);
@@ -43,11 +50,35 @@ describe("diaryRecords", () => {
     expect((await getDiaryRecord("2026-07-01"))?.synced).toBe(false);
   });
 
-  it("deletes the record for a date", async () => {
+  it("deletes the record for a date and leaves a sync tombstone", async () => {
     await saveDiaryRecord({ date: "2026-07-01", text: "消える" });
 
     await deleteDiaryRecord("2026-07-01");
 
     expect(await getDiaryRecord("2026-07-01")).toBeUndefined();
+    expect(await getPendingDeletionIds("diary")).toEqual(["2026-07-01"]);
+  });
+
+  it("同じ日付を削除→再登録すると保留中の削除要求が取り消される", async () => {
+    await saveDiaryRecord({ date: "2026-07-01", text: "消える" });
+    await deleteDiaryRecord("2026-07-01");
+    expect(await getPendingDeletionIds("diary")).toEqual(["2026-07-01"]);
+
+    await saveDiaryRecord({ date: "2026-07-01", text: "書き直し" });
+    expect(await getPendingDeletionIds("diary")).toEqual([]);
+  });
+
+  it("lists only unsynced records and marks them synced", async () => {
+    await saveDiaryRecord({ date: "2026-07-01", text: "A" });
+    await saveDiaryRecord({ date: "2026-07-02", text: "B" });
+
+    expect((await getUnsyncedDiaryRecords()).map((r) => r.date).sort()).toEqual([
+      "2026-07-01",
+      "2026-07-02",
+    ]);
+
+    await markDiaryRecordsSynced(["2026-07-01"]);
+    const unsynced = await getUnsyncedDiaryRecords();
+    expect(unsynced.map((r) => r.date)).toEqual(["2026-07-02"]);
   });
 });

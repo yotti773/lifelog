@@ -5,9 +5,12 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import { IconDownload, IconSync, IconWarning } from "@/components/icons";
+import { getUnsyncedDiaryRecords } from "@/db/diaryRecords";
 import { getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
+import { getUnsyncedWaterRecords } from "@/db/waterRecords";
 import { getUnsyncedWeightRecords } from "@/db/weightRecords";
+import { getUnsyncedWorkoutRecords } from "@/db/workoutRecords";
 import { formatDateTime } from "@/lib/date";
 import { runImport, type ImportOutcome } from "@/sync/importEngine";
 import { runSync, type SyncOutcome } from "@/sync/syncEngine";
@@ -30,15 +33,27 @@ function syncOutcomeMessage(outcome: SyncOutcome): string {
 function importOutcomeMessage(outcome: ImportOutcome): string {
   switch (outcome.status) {
     case "success": {
-      const { importedWeightCount, importedMealCount, skippedExistingCount, skippedRowCount } = outcome;
+      const {
+        importedWeightCount,
+        importedMealCount,
+        importedWaterCount,
+        importedWorkoutCount,
+        importedDiaryCount,
+        skippedExistingCount,
+        skippedRowCount,
+      } = outcome;
+      const totalImported =
+        importedWeightCount + importedMealCount + importedWaterCount + importedWorkoutCount + importedDiaryCount;
       let message: string;
-      if (importedWeightCount + importedMealCount === 0) {
+      if (totalImported === 0) {
         message =
           skippedExistingCount > 0
             ? "新しく取り込む記録はありませんでした(すべて取り込み済みです)"
             : "取り込める記録がシートにありませんでした";
       } else {
-        message = `体重${importedWeightCount}件・食事${importedMealCount}件を取り込みました`;
+        message =
+          `体重${importedWeightCount}件・食事${importedMealCount}件・水分${importedWaterCount}件・` +
+          `筋トレ${importedWorkoutCount}件・日記${importedDiaryCount}件を取り込みました`;
         if (skippedExistingCount > 0) {
           message += `(既にある${skippedExistingCount}件はスキップ)`;
         }
@@ -62,15 +77,43 @@ interface SheetsSyncCardProps {
 
 /** 設定画面の「データ同期・バックアップ」カード。同期・取り込みの実行と結果表示までを自己完結で持つ */
 export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
-  // 未同期件数には未送信レコードに加え、削除待ちのトゥームストーンも含める(Issue #30)
+  // 未同期件数には未送信レコードに加え、削除待ちのトゥームストーンも含める(Issue #30・#72)
   const unsyncedCount = useLiveQuery(async () => {
-    const [weights, meals, weightDeletions, mealDeletions] = await Promise.all([
+    const [
+      weights,
+      meals,
+      waters,
+      workouts,
+      diaries,
+      weightDeletions,
+      mealDeletions,
+      waterDeletions,
+      workoutDeletions,
+      diaryDeletions,
+    ] = await Promise.all([
       getUnsyncedWeightRecords(),
       getUnsyncedMealRecords(),
+      getUnsyncedWaterRecords(),
+      getUnsyncedWorkoutRecords(),
+      getUnsyncedDiaryRecords(),
       getPendingDeletionIds("weight"),
       getPendingDeletionIds("meal"),
+      getPendingDeletionIds("water"),
+      getPendingDeletionIds("workout"),
+      getPendingDeletionIds("diary"),
     ]);
-    return weights.length + meals.length + weightDeletions.length + mealDeletions.length;
+    return (
+      weights.length +
+      meals.length +
+      waters.length +
+      workouts.length +
+      diaries.length +
+      weightDeletions.length +
+      mealDeletions.length +
+      waterDeletions.length +
+      workoutDeletions.length +
+      diaryDeletions.length
+    );
   }, []);
 
   const [isSyncing, setSyncing] = useState(false);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
@@ -18,7 +18,7 @@ import {
   groupWorkoutRecordsByExercise,
   replaceWorkoutRecordsForDate,
 } from "@/db/workoutRecords";
-import { todayDateString } from "@/lib/date";
+import { formatMonthDay, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 
 /** 入力途中の値を文字列のまま保持するドラフト(空欄は保存時に除外する) */
@@ -37,7 +37,15 @@ const emptyExercise = (): DraftExercise => ({ name: "", sets: [{ ...EMPTY_SET }]
 
 export default function StrengthRecordPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const today = todayDateString();
+  // 履歴確認画面から ?date=YYYY-MM-DD 付きで遷移してきた場合、その日付の記録を開く(Issue #73)
+  const dateParam = searchParams.get("date");
+  const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
+  const isToday = date === today;
+  // 過去日を開いたときだけ、戻り先を履歴タブ(筋トレ)にする(体重記録画面と同じ考え方)
+  const backToHistory = () =>
+    isToday ? navigate("/") : navigate("/trends", { state: { viewMode: "history", historyKind: "strength" } });
 
   const [isLoading, setLoading] = useState(true);
   const [exercises, setExercises] = useState<DraftExercise[]>([]);
@@ -45,10 +53,10 @@ export default function StrengthRecordPage() {
   // 種目名の入力候補(種目マスタ。画面設計書7.1章)
   const masterItems = useLiveQuery(() => getAllExerciseMasterItems(), []);
 
-  // 当日分の記録をドラフトとして読み込む(新規/編集で画面を分けない。画面設計書7章)
+  // その日の記録をドラフトとして読み込む(新規/編集で画面を分けない。画面設計書7章)
   useEffect(() => {
     let cancelled = false;
-    void getWorkoutRecordsForDate(today).then((records) => {
+    void getWorkoutRecordsForDate(date).then((records) => {
       if (cancelled) return;
       const grouped = groupWorkoutRecordsByExercise(records);
       setExercises(
@@ -64,7 +72,7 @@ export default function StrengthRecordPage() {
     return () => {
       cancelled = true;
     };
-  }, [today]);
+  }, [date]);
 
   const updateExercise = (index: number, patch: Partial<DraftExercise>) => {
     setError(null);
@@ -101,8 +109,8 @@ export default function StrengthRecordPage() {
         name: exercise.name,
         sets: exercise.sets.map((set) => ({ weightKg: Number(set.weight) || 0, reps: Number(set.reps) || 0 })),
       }));
-    await replaceWorkoutRecordsForDate(today, cleaned);
-    navigate("/");
+    await replaceWorkoutRecordsForDate(date, cleaned);
+    backToHistory();
   };
 
   // マスタに同名が重複していてもAutocompleteのキー(=文字列オプション)が衝突しないよう一意化する
@@ -114,7 +122,7 @@ export default function StrengthRecordPage() {
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "110px" }}>
-      <RecordHeader title="筋トレを記録" onBack={() => navigate("/")} />
+      <RecordHeader title={isToday ? "筋トレを記録" : `${formatMonthDay(date)}の筋トレを記録`} onBack={backToHistory} />
 
       {exercises.map((exercise, exerciseIndex) => (
         <Card key={exerciseIndex} sx={{ p: "14px", mb: "14px", borderRadius: "18px" }}>

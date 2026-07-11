@@ -21,6 +21,11 @@ export async function addWaterRecord(amountMl: number, timestamp?: string): Prom
   return record;
 }
 
+/** 履歴確認画面用に全記録を新しい順(タイムスタンプ降順)で返す(Issue #73) */
+export async function getAllWaterRecordsDesc(): Promise<WaterRecord[]> {
+  return db.waterRecords.orderBy("timestamp").reverse().toArray();
+}
+
 export async function getWaterRecordsForDate(date: string): Promise<WaterRecord[]> {
   const [startIso, endIso] = localDateRangeToUtcIso(date);
   return db.waterRecords.where("timestamp").between(startIso, endIso, true, true).sortBy("timestamp");

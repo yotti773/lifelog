@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/db";
 import {
   deleteDiaryRecord,
+  getAllDiaryRecordsDesc,
   getDiaryRecord,
   getUnsyncedDiaryRecords,
   markDiaryRecordsSynced,
@@ -81,4 +82,14 @@ describe("diaryRecords", () => {
     const unsynced = await getUnsyncedDiaryRecords();
     expect(unsynced.map((r) => r.date)).toEqual(["2026-07-02"]);
   });
+
+  it("returns all records date-descending for the history view", async () => {
+    await saveDiaryRecord({ date: "2026-07-01", text: "A" });
+    await saveDiaryRecord({ date: "2026-07-03", text: "C" });
+    await saveDiaryRecord({ date: "2026-07-02", text: "B" });
+
+    const records = await getAllDiaryRecordsDesc();
+    expect(records.map((r) => r.date)).toEqual(["2026-07-03", "2026-07-02", "2026-07-01"]);
+  });
+
 });

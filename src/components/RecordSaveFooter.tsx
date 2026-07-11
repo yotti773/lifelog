@@ -8,12 +8,14 @@ interface RecordSaveFooterProps {
   /** フォーム内でsubmitさせる場合は"submit"(onClickは不要) */
   type?: "submit" | "button";
   onClick?: () => void;
+  /** 保存ボタンの上に置くコンパクトな操作列(食事記録のマスタ登録チェックなど。Issue #71) */
+  topAccessory?: React.ReactNode;
   /** 保存ボタンの下に置く追加のアクション(食事編集の削除ボタンなど) */
   children?: React.ReactNode;
 }
 
 /** 記録フロー画面共通の下部固定保存バー(RecordHeaderと対。Issue #59)。背景のグラデーションで下部の記録を透かす */
-export default function RecordSaveFooter({ label = "保存する", type = "button", onClick, children }: RecordSaveFooterProps) {
+export default function RecordSaveFooter({ label = "保存する", type = "button", onClick, topAccessory, children }: RecordSaveFooterProps) {
   return (
     <Box
       sx={{
@@ -27,6 +29,7 @@ export default function RecordSaveFooter({ label = "保存する", type = "butto
       }}
     >
       <Box sx={{ mx: "auto", maxWidth: 408, display: "flex", flexDirection: "column", gap: "8px" }}>
+        {topAccessory}
         <Button
           fullWidth
           type={type}

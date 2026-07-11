@@ -25,14 +25,18 @@ export interface PendingMealItem {
 interface PendingItemsCardProps {
   items: PendingMealItem[];
   onRemove: (index: number) => void;
+  /** カードの見出し。省略時は新規記録用の「今回まとめて記録する品目」 */
+  title?: string;
+  /** リスト下の注記(編集時の「追加分は新規レコードとして保存」の説明など。Issue #71) */
+  footnote?: string;
 }
 
 /** 「今回まとめて記録する品目」リスト。保存前の複数品目を一覧し、個別に取り消せる */
-export default function PendingItemsCard({ items, onRemove }: PendingItemsCardProps) {
+export default function PendingItemsCard({ items, onRemove, title = "今回まとめて記録する品目", footnote }: PendingItemsCardProps) {
   return (
     <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
       <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "8px" }}>
-        今回まとめて記録する品目({items.length}件)
+        {title}({items.length}件)
       </Typography>
       {items.map((item, index) => (
         <Box
@@ -45,6 +49,9 @@ export default function PendingItemsCard({ items, onRemove }: PendingItemsCardPr
           </Button>
         </Box>
       ))}
+      {footnote && (
+        <Typography sx={{ fontSize: 10.5, color: tokens.faint, mt: "6px" }}>{footnote}</Typography>
+      )}
     </Card>
   );
 }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/db";
 import {
   addWaterRecord,
+  getAllWaterRecordsDesc,
   deleteWaterRecord,
   getDailyWaterTotals,
   getUnsyncedWaterRecords,
@@ -74,4 +75,14 @@ describe("waterRecords", () => {
       { date: "2026-07-03", amountMl: 350 },
     ]);
   });
+
+  it("returns all records newest first for the history view", async () => {
+    await addWaterRecord(200, new Date("2026-07-01T08:00:00").toISOString());
+    await addWaterRecord(500, new Date("2026-07-03T09:00:00").toISOString());
+    await addWaterRecord(350, new Date("2026-07-02T12:00:00").toISOString());
+
+    const records = await getAllWaterRecordsDesc();
+    expect(records.map((r) => r.amountMl)).toEqual([500, 350, 200]);
+  });
+
 });

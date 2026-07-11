@@ -50,8 +50,9 @@ export default function BodyMetricsCards({ weight, previousWeight, onOpen }: Bod
 
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: "14px", mb: "22px" }}>
+      {/* 2枚のカードはグリッド行いっぱいに伸ばし、記録の有無で縦幅が揃わなくなるのを防ぐ(Issue #74) */}
       <ButtonBase onClick={onOpen} sx={{ display: "block", textAlign: "left", borderRadius: "22px" }}>
-        <Card sx={{ p: "18px", width: "100%" }}>
+        <Card sx={{ p: "18px", width: "100%", height: "100%" }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "10px" }}>
             <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary" }}>体重</Typography>
             {weight && <Typography sx={{ fontSize: 11, color: tokens.faint }}>{formatTime(weight.timestamp)}</Typography>}
@@ -72,7 +73,7 @@ export default function BodyMetricsCards({ weight, previousWeight, onOpen }: Bod
         </Card>
       </ButtonBase>
       <ButtonBase onClick={onOpen} sx={{ display: "block", textAlign: "left", borderRadius: "22px" }}>
-        <Card sx={{ p: "18px", width: "100%" }}>
+        <Card sx={{ p: "18px", width: "100%", height: "100%" }}>
           <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary", mb: "10px" }}>体脂肪率</Typography>
           {weight?.bodyFatPercent !== undefined ? (
             <>
@@ -89,7 +90,7 @@ export default function BodyMetricsCards({ weight, previousWeight, onOpen }: Bod
               )}
             </>
           ) : (
-            <Typography sx={{ fontSize: 13, color: tokens.faint }}>未計測</Typography>
+            <Typography sx={{ fontSize: 13, color: tokens.faint }}>未記録</Typography>
           )}
         </Card>
       </ButtonBase>

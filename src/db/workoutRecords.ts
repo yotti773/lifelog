@@ -24,6 +24,14 @@ export async function getWorkoutRecordsForDate(date: string): Promise<WorkoutRec
   return records.sort((a, b) => a.exerciseOrder - b.exerciseOrder || a.setNumber - b.setNumber);
 }
 
+/**
+ * 履歴確認画面用に全セットレコードを日付降順で返す(Issue #73)。
+ * 同一日付内の並びはインデックス順のままだが、履歴側で日付単位に集約するため問題ない
+ */
+export async function getAllWorkoutRecordsDesc(): Promise<WorkoutRecord[]> {
+  return db.workoutRecords.orderBy("date").reverse().toArray();
+}
+
 /** getWorkoutRecordsForDateの結果を種目単位にグルーピングする(順序は維持) */
 export function groupWorkoutRecordsByExercise(records: WorkoutRecord[]): WorkoutExercise[] {
   const exercises: WorkoutExercise[] = [];

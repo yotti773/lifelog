@@ -96,6 +96,8 @@ export default function MealRecordPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const [note, setNote] = useState("");
+  // 解析対象の写真。選択と解析を分離し、備考入力後に「AIで解析する」で実行する(Issue #71)
+  const [photo, setPhoto] = useState<File | null>(null);
   const [isJudging, setJudging] = useState(false);
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [judge, setJudge] = useState<PhotoJudgeState | null>(null);
@@ -164,22 +166,36 @@ export default function MealRecordPage() {
     setCarbsG(format(itemCarbsG));
   };
 
-  const handlePhotoSelected = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelected = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    setPhoto(file);
+    setJudgeError(null);
+  };
 
+  const handleJudge = async () => {
+    if (!photo) return;
     setJudging(true);
     setJudgeError(null);
-    // 判定が失敗しても前回の写真の検出品目リストが残らないよう、先にクリアする
+    // 解析が失敗しても前回の写真の検出品目リストが残らないよう、先にクリアする
     setJudge(null);
     try {
-      const result = await judgeMealPhoto(file, mealType, note);
-      setJudge({ items: result.items, isUncertain: result.isUncertain, activeIndex: 0, addedIndexes: new Set() });
+      const result = await judgeMealPhoto(photo, mealType, note);
+      // 編集時は検出品目でフォーム(=編集対象レコード)を勝手に上書きせず、
+      // 検出リストから選んで「追加で記録する品目」に積んでもらう(Issue #71)
+      setJudge({
+        items: result.items,
+        isUncertain: result.isUncertain,
+        activeIndex: isEditing ? null : 0,
+        addedIndexes: new Set(),
+      });
       // 前の写真由来の品目とindexで対応づかないよう、pendingItems側の紐づけは切っておく
       setPendingItems((prev) => prev.map(({ detectedIndex: _detectedIndex, ...rest }) => rest));
-      const first = result.items[0];
-      fillItemForm(first.dishName, first.kcal, first.proteinG, first.fatG, first.carbsG, { round: true });
+      if (!isEditing) {
+        const first = result.items[0];
+        fillItemForm(first.dishName, first.kcal, first.proteinG, first.fatG, first.carbsG, { round: true });
+      }
     } catch (err) {
       setJudgeError(err instanceof Error ? err.message : "食事の判定に失敗しました");
     } finally {
@@ -189,12 +205,44 @@ export default function MealRecordPage() {
 
   const handleSelectDetected = (index: number) => {
     if (!judge || judge.addedIndexes.has(index)) return;
-    setJudge({ ...judge, activeIndex: index });
     const item = judge.items[index];
+    if (isEditing) {
+      // 編集対象のフォームには触れず、同じ区分・日時の新規レコード候補として直接積む(Issue #71)
+      setPendingItems((prev) => [
+        ...prev,
+        {
+          name: item.dishName,
+          kcal: Math.round(item.kcal),
+          proteinG: Math.round(item.proteinG),
+          fatG: Math.round(item.fatG),
+          carbsG: Math.round(item.carbsG),
+          aiEstimatedName: item.dishName,
+          aiEstimatedKcal: item.kcal,
+          aiEstimatedProteinG: item.proteinG,
+          aiEstimatedFatG: item.fatG,
+          aiEstimatedCarbsG: item.carbsG,
+          registerToMaster: false,
+          detectedIndex: index,
+        },
+      ]);
+      const added = new Set(judge.addedIndexes);
+      added.add(index);
+      setJudge({ ...judge, addedIndexes: added });
+      return;
+    }
+    setJudge({ ...judge, activeIndex: index });
     fillItemForm(item.dishName, item.kcal, item.proteinG, item.fatG, item.carbsG, { round: true });
   };
 
   const handleSelectMaster = (item: FoodMasterItem) => {
+    if (isEditing) {
+      // 編集時のマスタ選択は「追加で記録する品目」への直接追加(Issue #71)
+      setPendingItems((prev) => [
+        ...prev,
+        { name: item.name, kcal: item.kcal, proteinG: item.proteinG, fatG: item.fatG, carbsG: item.carbsG, registerToMaster: false },
+      ]);
+      return;
+    }
     setJudge((prev) => (prev ? { ...prev, activeIndex: null } : prev));
     fillItemForm(item.name, item.kcal, item.proteinG, item.fatG, item.carbsG);
   };
@@ -234,7 +282,7 @@ export default function MealRecordPage() {
     setProteinG("");
     setFatG("");
     setCarbsG("");
-    setNote("");
+    // 備考(note)は写真解析用の入力なので、品目をリストに追加してもクリアしない(Issue #71)
     setRegisterToMaster(false);
     setJudge((prev) => (prev ? { ...prev, activeIndex: null } : prev));
   };
@@ -253,6 +301,8 @@ export default function MealRecordPage() {
     }
     resetItemFields();
     setError(null);
+    // 次の品目の入力手段(画像解析・マスタ選択)は画面上部にあるため、追加後はトップへ戻す
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleRemovePending = (index: number) => {
@@ -277,16 +327,15 @@ export default function MealRecordPage() {
         setError("料理名・カロリー・PFC(たんぱく質/脂質/炭水化物)を入力してください");
         return;
       }
-      await updateMealRecord(editId, {
-        mealType,
-        confirmedName: name.trim(),
-        confirmedKcal: parsedKcal,
-        confirmedProteinG: parsedProteinG,
-        confirmedFatG: parsedFatG,
-        confirmedCarbsG: parsedCarbsG,
-        timestamp: new Date(dateTime).toISOString(),
-      });
-      navigate("/");
+      // 検出したのに追加していない品目が残っていれば、新規保存時と同様に確認を挟む
+      if (judge !== null) {
+        const unaddedCount = judge.items.filter((_, i) => !judge.addedIndexes.has(i)).length;
+        if (unaddedCount > 0) {
+          setSaveConfirm({ items: pendingItems, unaddedCount });
+          return;
+        }
+      }
+      await finalizeSave(pendingItems);
       return;
     }
 
@@ -310,10 +359,34 @@ export default function MealRecordPage() {
       }
     }
 
-    await saveItems(items);
+    await finalizeSave(items);
   };
 
-  const saveItems = async (items: PendingMealItem[]) => {
+  /**
+   * 保存の最終処理。編集時はフォームの内容で編集対象レコードを上書きしたうえで、
+   * itemsを同じ区分・日時の新規レコードとして追加する(Issue #71。新規時はitemsが全品目)
+   */
+  const finalizeSave = async (items: PendingMealItem[]) => {
+    if (isEditing && editId) {
+      await updateMealRecord(editId, {
+        mealType,
+        confirmedName: name.trim(),
+        confirmedKcal: parsedKcal,
+        confirmedProteinG: parsedProteinG,
+        confirmedFatG: parsedFatG,
+        confirmedCarbsG: parsedCarbsG,
+        timestamp: new Date(dateTime).toISOString(),
+      });
+      if (registerToMaster) {
+        await addFoodMasterItem({
+          name: name.trim(),
+          kcal: parsedKcal,
+          proteinG: parsedProteinG,
+          fatG: parsedFatG,
+          carbsG: parsedCarbsG,
+        });
+      }
+    }
     for (const item of items) {
       await addMealRecord({
         mealType,
@@ -374,7 +447,7 @@ export default function MealRecordPage() {
   }
 
   return (
-    <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: isEditing ? "180px" : "120px" }}>
+    <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: isEditing ? "240px" : "190px" }}>
       <RecordHeader title={isEditing ? "食事を編集" : "食事を記録"} onBack={() => navigate(-1)} />
 
       <Box component="form" onSubmit={handleSubmit}>
@@ -402,6 +475,41 @@ export default function MealRecordPage() {
           onChange={(e) => setDateTime(e.target.value)}
           sx={{ mb: "14px" }}
         />
+
+        {/* 並びは「画像解析→マスタ選択→手入力」(Issue #71)。手入力フォームは反映先なので最後に置く */}
+        <PhotoJudgeCard
+          isJudging={isJudging}
+          photo={photo}
+          note={note}
+          onNoteChange={setNote}
+          onPhotoSelected={handlePhotoSelected}
+          onClearPhoto={() => setPhoto(null)}
+          onJudge={handleJudge}
+          judgeError={judgeError}
+          showUncertainWarning={judge?.isUncertain === true && (isEditing || aiJudgment !== null)}
+        />
+
+        {/* 編集時は1品だけの検出でもリストとして出す(タップで「追加で記録する品目」へ入れるため) */}
+        {judge !== null && (isEditing ? judge.items.length > 0 : judge.items.length > 1) && (
+          <DetectedItemsCard
+            items={judge.items}
+            activeIndex={judge.activeIndex}
+            addedIndexes={judge.addedIndexes}
+            onSelect={handleSelectDetected}
+          />
+        )}
+
+        <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: isEditing ? "4px" : "12px" }}>
+            よく食べるものから選ぶ
+          </Typography>
+          {isEditing && (
+            <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "10px" }}>
+              選ぶと「追加で記録する品目」に入ります(編集中の内容は変わりません)
+            </Typography>
+          )}
+          <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
+        </Card>
 
         <FieldLabel>料理名</FieldLabel>
         <TextField
@@ -467,77 +575,19 @@ export default function MealRecordPage() {
           ))}
         </Box>
 
-        {!isEditing && (
-          <>
-            <PhotoJudgeCard
-              isJudging={isJudging}
-              note={note}
-              onNoteChange={setNote}
-              onPhotoSelected={handlePhotoSelected}
-              judgeError={judgeError}
-              showUncertainWarning={judge?.isUncertain === true && aiJudgment !== null}
-            />
+        {pendingItems.length > 0 && (
+          <PendingItemsCard
+            items={pendingItems}
+            onRemove={handleRemovePending}
+            title={isEditing ? "追加で記録する品目" : undefined}
+            footnote={isEditing ? "追加分は編集中の記録と同じ区分・日時の新しい記録として保存されます" : undefined}
+          />
+        )}
 
-            {judge !== null && judge.items.length > 1 && (
-              <DetectedItemsCard
-                items={judge.items}
-                activeIndex={judge.activeIndex}
-                addedIndexes={judge.addedIndexes}
-                onSelect={handleSelectDetected}
-              />
-            )}
-
-            <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
-              <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "12px" }}>
-                よく食べるものから選ぶ
-              </Typography>
-              <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
-            </Card>
-
-            {pendingItems.length > 0 && <PendingItemsCard items={pendingItems} onRemove={handleRemovePending} />}
-
-            <ButtonBase
-              onClick={handleAddToList}
-              sx={{
-                width: "100%",
-                height: 48,
-                border: "1.5px dashed #E0B7A8",
-                borderRadius: "14px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "7px",
-                color: "primary.main",
-                mb: "8px",
-              }}
-            >
-              <IconPlus size={16} />
-              <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>
-                この品目を追加してもう1品記録
-              </Typography>
-            </ButtonBase>
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={registerToMaster}
-                  onChange={(e) => setRegisterToMaster(e.target.checked)}
-                  sx={{ "&.Mui-checked": { color: "primary.main" } }}
-                />
-              }
-              label={
-                <Typography sx={{ fontSize: 13 }}>
-                  この内容をマスタに登録する(次回から選んで入力できるようになります)
-                </Typography>
-              }
-              sx={{ px: "2px", alignItems: "flex-start", "& .MuiCheckbox-root": { pt: 0 } }}
-            />
-            {registerToMaster && (
-              <Typography sx={{ fontSize: 11, color: "text.secondary", px: "2px", mt: "4px" }}>
-                外食チェーン・コンビニの商品は「【モス】モスバーガー」のように店名を含めておくと、食事マスタ一覧で見分けやすくなります
-              </Typography>
-            )}
-          </>
+        {registerToMaster && (
+          <Typography sx={{ fontSize: 11, color: "text.secondary", px: "2px", mb: "10px" }}>
+            「マスタに登録」にチェック中: 保存時に入力中の内容が食事マスタへ登録されます。外食チェーン・コンビニの商品は「【モス】モスバーガー」のように店名を含めておくと、食事マスタ一覧で見分けやすくなります
+          </Typography>
         )}
 
         {isEditing && (
@@ -551,10 +601,53 @@ export default function MealRecordPage() {
           type="submit"
           label={
             isEditing
-              ? "更新する"
+              ? pendingItems.length > 0
+                ? `更新する(+${pendingItems.length}件追加)`
+                : "更新する"
               : pendingItems.length > 0
                 ? `まとめて保存する(${pendingItems.length + (isCurrentItemFilled ? 1 : 0)}件)`
                 : "保存する"
+          }
+          topAccessory={
+            <Box sx={{ display: "flex", gap: "8px" }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={registerToMaster}
+                    onChange={(e) => setRegisterToMaster(e.target.checked)}
+                    sx={{ py: "6px", "&.Mui-checked": { color: "primary.main" } }}
+                  />
+                }
+                label={<Typography sx={{ fontSize: 12, fontWeight: 500 }}>マスタに登録</Typography>}
+                sx={{
+                  flex: 1,
+                  m: 0,
+                  bgcolor: "background.paper",
+                  border: `1.5px solid ${tokens.border}`,
+                  borderRadius: "12px",
+                  pl: "4px",
+                  boxShadow: tokens.fieldShadow,
+                }}
+              />
+              {/* 編集時の追加はマスタ選択・検出品目タップから直接行うため、このボタンは新規時のみ */}
+              {!isEditing && (
+                <ButtonBase
+                  onClick={handleAddToList}
+                  sx={{
+                    border: "1.5px dashed #E0B7A8",
+                    borderRadius: "12px",
+                    px: "13px",
+                    color: "primary.main",
+                    gap: "5px",
+                    bgcolor: "background.default",
+                  }}
+                >
+                  <IconPlus size={14} />
+                  <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 12 }}>もう1品追加</Typography>
+                </ButtonBase>
+              )}
+            </Box>
           }
         >
           {isEditing && (
@@ -590,7 +683,7 @@ export default function MealRecordPage() {
               if (!saveConfirm) return;
               const { items } = saveConfirm;
               setSaveConfirm(null);
-              void saveItems(items);
+              void finalizeSave(items);
             }}
           >
             このまま保存する

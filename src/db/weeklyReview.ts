@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { getActivityRecordsByDateRange } from "./activityRecords";
 import { getDiaryRecordsByDateRange } from "./diaryRecords";
 import { getRecordedDateSet } from "./recordedDays";
 import { getSettings } from "./settings";
@@ -28,6 +29,7 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     estimatedTdeeKcal,
     recordedDates,
     diaries,
+    activityRecords,
     firstWeight,
     latestWeight,
     baselineWeight,
@@ -38,6 +40,7 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     getMeasuredTdeeAsOfWeek(weekStart),
     getRecordedDateSet(),
     getDiaryRecordsByDateRange(weekStart, weekEnd),
+    getActivityRecordsByDateRange(weekStart, weekEnd),
     db.weightRecords.orderBy("date").first(),
     db.weightRecords.orderBy("date").last(),
     settings.baselineDate ? getWeightRecord(settings.baselineDate) : Promise.resolve(undefined),
@@ -93,5 +96,10 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     estimatedTdeeKcal,
     projectedKg,
     moods: diaries.map((d) => d.mood).filter((mood): mood is DiaryMood => mood !== undefined),
+    activityDays: activityRecords.map((r) => ({
+      ...(r.steps !== undefined && { steps: r.steps }),
+      ...(r.totalKcal !== undefined && { totalKcal: r.totalKcal }),
+      ...(r.sleepMinutes !== undefined && { sleepMinutes: r.sleepMinutes }),
+    })),
   });
 }

@@ -203,6 +203,16 @@ export interface WeeklyDigest {
   flags: DigestFlag[];
   /** 日記の気分タグの件数集計のみ(本文は外部AIに送らない。AIコンサルティング設計書7章)。日記が無い週は省略 */
   mood?: { good: number; normal: number; bad: number };
+  /**
+   * Garmin計測の活動サマリー(Issue #82)。週内に活動記録が1日も無ければ省略(mood と同じ扱い)。
+   * 各平均は「その項目のデータがある日」の平均(欠測日は分母に入れない)。項目ごとに欠測しうるためnull許容
+   */
+  activity?: {
+    avgSteps: number | null; // 週平均歩数
+    avgTotalKcal: number | null; // 週平均総消費カロリー(Garmin計測。逆算TDEEとの突き合わせに使う)
+    avgSleepMinutes: number | null; // 平均睡眠時間(分)
+    recordedDays: number; // 活動データがある日数(0〜7)
+  };
 }
 
 /** AIの出力契約(AIコンサルティング設計書4章)。Workerのstructured outputで強制する */

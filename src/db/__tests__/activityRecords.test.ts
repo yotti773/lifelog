@@ -4,6 +4,7 @@ import {
   bulkSaveActivityRecords,
   getActivityRecordsByDateRange,
   getAllActivityRecordsDesc,
+  getDailyActivityTotals,
 } from "@/db/activityRecords";
 import type { ActivityRecord } from "@/types";
 
@@ -53,5 +54,19 @@ describe("activityRecords", () => {
 
     const records = await getActivityRecordsByDateRange("2026-07-01", "2026-07-02");
     expect(records.map((r) => r.date)).toEqual(["2026-07-01", "2026-07-02"]);
+  });
+
+  it("fills days without records (or missing metrics) with 0 in daily totals for charts", async () => {
+    await bulkSaveActivityRecords([
+      makeRecord("2026-07-01", { steps: 8000, sleepMinutes: 420 }),
+      makeRecord("2026-07-03", { steps: 5000, sleepMinutes: undefined }),
+    ]);
+
+    const totals = await getDailyActivityTotals("2026-07-01", "2026-07-03");
+    expect(totals).toEqual([
+      { date: "2026-07-01", steps: 8000, sleepMinutes: 420 },
+      { date: "2026-07-02", steps: 0, sleepMinutes: 0 },
+      { date: "2026-07-03", steps: 5000, sleepMinutes: 0 },
+    ]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateMoodCounts, buildWeeklyDigest, type WeeklyDigestSource } from "../weeklyDigest";
+import { aggregateActivity, aggregateMoodCounts, buildWeeklyDigest, type WeeklyDigestSource } from "../weeklyDigest";
 
 /** 順調な週(7日全記録・-0.5kg/週・目標以内5日)のベース入力 */
 function goodWeekSource(): WeeklyDigestSource {
@@ -28,6 +28,11 @@ function goodWeekSource(): WeeklyDigestSource {
     estimatedTdeeKcal: 2400,
     projectedKg: 63.5,
     moods: ["great", "good", "ok", "tired"],
+    activityDays: [
+      { steps: 8000, totalKcal: 2400, sleepMinutes: 420 },
+      { steps: 10000, totalKcal: 2600, sleepMinutes: 390 },
+      { steps: 9000, totalKcal: 2500 }, // 睡眠欠測(時計を着けず就寝)
+    ],
   };
 }
 
@@ -52,6 +57,19 @@ describe("buildWeeklyDigest", () => {
     expect(digest.recording).toEqual({ recordedDays: 7, currentStreakDays: 12 });
     expect(digest.flags).toEqual([]);
     expect(digest.mood).toEqual({ good: 2, normal: 1, bad: 1 });
+    // 活動: 平均は「その項目のデータがある日」の平均(睡眠は2日分の平均)
+    expect(digest.activity).toEqual({
+      avgSteps: 9000,
+      avgTotalKcal: 2500,
+      avgSleepMinutes: 405,
+      recordedDays: 3,
+    });
+  });
+
+  it("活動記録が1日も無い週はactivityを省く(Garmin未連携ユーザーのdigestを変えない)", () => {
+    const src = goodWeekSource();
+    src.activityDays = [];
+    expect(buildWeeklyDigest(src).activity).toBeUndefined();
   });
 
   it("PACE_TOO_AGGRESSIVE: 週の減少幅が週平均体重の1%を超える", () => {
@@ -134,6 +152,21 @@ describe("buildWeeklyDigest", () => {
     const digest = buildWeeklyDigest(src);
     expect(digest.pfc.targetProteinG).toBeNull();
     expect(digest.pfc.avgProteinG).not.toBeNull();
+  });
+});
+
+describe("aggregateActivity", () => {
+  it("全日欠測の項目はnull(recordedDaysは活動記録がある日数)", () => {
+    expect(aggregateActivity([{ steps: 5000 }, { steps: 7000 }])).toEqual({
+      avgSteps: 6000,
+      avgTotalKcal: null,
+      avgSleepMinutes: null,
+      recordedDays: 2,
+    });
+  });
+
+  it("活動記録が無ければundefined", () => {
+    expect(aggregateActivity([])).toBeUndefined();
   });
 });
 

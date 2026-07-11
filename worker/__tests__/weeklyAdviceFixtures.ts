@@ -37,8 +37,11 @@ const base = {
   mood: { good: 3, normal: 2, bad: 1 },
 };
 
-/** 順調な週: 全記録・ペースどおり・フラグ無し → on_track想定 */
-export const digestOnTrack = structuredClone(base);
+/** 順調な週: 全記録・ペースどおり・フラグ無し → on_track想定。Garmin活動データあり(Issue #82) */
+export const digestOnTrack = {
+  ...structuredClone(base),
+  activity: { avgSteps: 9200, avgTotalKcal: 2460, avgSleepMinutes: 405, recordedDays: 7 },
+};
 
 /** 停滞週: 体重が減らずペース不足 → behind想定 */
 export const digestStalled = {

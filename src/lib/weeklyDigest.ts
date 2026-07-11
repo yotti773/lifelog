@@ -44,6 +44,8 @@ export interface WeeklyDigestSource {
   projectedKg: number | null;
   /** 週内の日記の気分タグ(本文は含めない。AIコンサルティング設計書7章) */
   moods: DiaryMood[];
+  /** 週内のGarmin活動記録(Issue #82)。1日1件。項目ごとに欠測しうる */
+  activityDays: { steps?: number; totalKcal?: number; sleepMinutes?: number }[];
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -53,6 +55,27 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * 気分タグ(5段階)をdigestの3区分に集計する:
  * 絶好調・良い → good / 普通 → normal / 眠い・不調 → bad
  */
+/**
+ * Garmin活動記録の週サマリーを集計する(Issue #82)。
+ * 各平均は「その項目のデータがある日」の平均(時計を着けなかった日などの欠測日は分母に入れない)。
+ * 活動記録が1日も無い週はundefined(digestからactivityを省く。moodと同じ扱い)
+ */
+export function aggregateActivity(
+  activityDays: WeeklyDigestSource["activityDays"],
+): WeeklyDigest["activity"] | undefined {
+  if (activityDays.length === 0) return undefined;
+  const avgOf = (pick: (d: WeeklyDigestSource["activityDays"][number]) => number | undefined) => {
+    const values = activityDays.map(pick).filter((v): v is number => v !== undefined);
+    return values.length > 0 ? Math.round(values.reduce((s, v) => s + v, 0) / values.length) : null;
+  };
+  return {
+    avgSteps: avgOf((d) => d.steps),
+    avgTotalKcal: avgOf((d) => d.totalKcal),
+    avgSleepMinutes: avgOf((d) => d.sleepMinutes),
+    recordedDays: activityDays.length,
+  };
+}
+
 export function aggregateMoodCounts(moods: DiaryMood[]): { good: number; normal: number; bad: number } | undefined {
   if (moods.length === 0) return undefined;
   const counts = { good: 0, normal: 0, bad: 0 };
@@ -91,6 +114,7 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     mealDays > 0 ? round1(src.mealDailyTotals.reduce((s, d) => s + pick(d), 0) / mealDays) : null;
 
   const mood = aggregateMoodCounts(src.moods);
+  const activity = aggregateActivity(src.activityDays);
 
   const flags: DigestFlag[] = [];
   if (
@@ -154,5 +178,6 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     },
     flags,
     ...(mood !== undefined ? { mood } : {}),
+    ...(activity !== undefined ? { activity } : {}),
   };
 }

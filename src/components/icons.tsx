@@ -396,6 +396,21 @@ export function IconFlame(props: IconProps) {
 }
 
 /** 達成演出(紙吹雪・スター) */
+/** 活動(Garmin由来の歩数・消費カロリー等)。心拍の脈波モチーフ(Issue #82) */
+export function IconActivity(props: IconProps) {
+  return (
+    <svg {...base(props, "0 0 24 24")}>
+      <path
+        d="M3 12h4l2.5-6 4.5 12 2.5-6H21"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function IconCelebrate(props: IconProps) {
   return (
     <svg {...base({ size: 16, ...props }, "0 0 20 20")}>

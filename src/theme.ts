@@ -61,7 +61,6 @@ export const tokens = {
   waterInk: "#5A8CA8",
   waterBarGradient: "linear-gradient(90deg,#5FB6E6,#2B7BB0)",
   waterButtonShadow: "0 4px 12px -8px rgba(43,123,176,.25)",
-  waterPrimaryButtonShadow: "0 8px 16px -8px rgba(43,123,176,.5)",
   /** 筋トレのアイコンチップ背景 */
   strengthBg: "#FFE6DE",
   /** 日記の気分タイル: 選択中の背景/枠、ラベル文字色 */

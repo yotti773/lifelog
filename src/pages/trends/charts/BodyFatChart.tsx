@@ -1,3 +1,4 @@
+import { axisTicks } from "./chartAxis";
 import { formatMonthDay } from "@/lib/date";
 import type { WeightRecord } from "@/types";
 
@@ -7,12 +8,14 @@ interface BodyFatChartProps {
 
 const WIDTH = 320;
 const HEIGHT = 160;
-const PADDING = { top: 22, right: 12, bottom: 20, left: 8 };
+// leftは縦軸の数値ラベル(Issue #60)の分を確保している
+const PADDING = { top: 22, right: 12, bottom: 20, left: 34 };
 const COLORS = {
   line: "#FF6B4A",
   point: "#FF6B4A",
   pointBorder: "#FFF8F0",
   label: "#8C8C8C",
+  grid: "#F0E7DB",
 };
 
 export default function BodyFatChart({ records }: BodyFatChartProps) {
@@ -74,8 +77,26 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
   }
   if (current.length > 0) segments.push(current);
 
+  const ticks = axisTicks(minValue - yPad, maxValue + yPad);
+
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: "100%", display: "block" }} role="img" aria-label="体脂肪率推移グラフ">
+      {ticks.map((tick) => (
+        <g key={tick.value}>
+          <line
+            x1={PADDING.left}
+            x2={WIDTH - PADDING.right}
+            y1={yScale(tick.value)}
+            y2={yScale(tick.value)}
+            stroke={COLORS.grid}
+            strokeWidth={1}
+          />
+          <text x={PADDING.left - 5} y={yScale(tick.value) + 3} textAnchor="end" fontSize={9} fill={COLORS.label}>
+            {tick.label}
+          </text>
+        </g>
+      ))}
+
       {segments.map((segment, i) => (
         <path
           key={i}

@@ -1,3 +1,4 @@
+import { axisTicks } from "./chartAxis";
 import { formatMonthDay } from "@/lib/date";
 import type { WeightRecord } from "@/types";
 
@@ -8,7 +9,8 @@ interface WeightChartProps {
 
 const WIDTH = 320;
 const HEIGHT = 160;
-const PADDING = { top: 22, right: 12, bottom: 20, left: 8 };
+// leftは縦軸の数値ラベル(Issue #60)の分を確保している
+const PADDING = { top: 22, right: 12, bottom: 20, left: 34 };
 const COLORS = {
   line: "#2EC4B6",
   point: "#2EC4B6",
@@ -16,6 +18,7 @@ const COLORS = {
   // アクセントのイエローは「達成した瞬間」専用のため、常時表示される目標線には使わずウォームグレーにする
   goal: "#8C8C8C",
   label: "#8C8C8C",
+  grid: "#F0E7DB",
 };
 
 export default function WeightChart({ records, goalWeightKg }: WeightChartProps) {
@@ -67,9 +70,26 @@ export default function WeightChart({ records, goalWeightKg }: WeightChartProps)
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
 
   const goalY = goalWeightKg !== undefined ? yScale(goalWeightKg) : null;
+  const ticks = axisTicks(minWeight - yPad, maxWeight + yPad);
 
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: "100%", display: "block" }} role="img" aria-label="体重推移グラフ">
+      {ticks.map((tick) => (
+        <g key={tick.value}>
+          <line
+            x1={PADDING.left}
+            x2={WIDTH - PADDING.right}
+            y1={yScale(tick.value)}
+            y2={yScale(tick.value)}
+            stroke={COLORS.grid}
+            strokeWidth={1}
+          />
+          <text x={PADDING.left - 5} y={yScale(tick.value) + 3} textAnchor="end" fontSize={9} fill={COLORS.label}>
+            {tick.label}
+          </text>
+        </g>
+      ))}
+
       {goalY !== null && (
         <>
           <line

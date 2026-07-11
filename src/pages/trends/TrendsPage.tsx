@@ -6,12 +6,12 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import GoalBar from "@/components/GoalBar";
-import MealHistoryList from "@/components/MealHistoryList";
+import GoalBar from "./GoalBar";
+import MealHistoryList from "./MealHistoryList";
 import SegmentedControl from "@/components/SegmentedControl";
-import WeeklyReview from "@/components/WeeklyReview";
-import WeightHistoryList from "@/components/WeightHistoryList";
-import WeightTrendCharts, { type Period } from "@/components/WeightTrendCharts";
+import WeeklyReview from "./WeeklyReview";
+import WeightHistoryList from "./WeightHistoryList";
+import WeightTrendCharts, { type Period } from "./charts/WeightTrendCharts";
 import { IconSync } from "@/components/icons";
 import { db } from "@/db/db";
 import { getAllMealRecordsDesc, getDailyCalorieTotals } from "@/db/mealRecords";
@@ -43,7 +43,7 @@ const HISTORY_KIND_OPTIONS = [
   { value: "meal", label: "食事" },
 ] as const;
 
-export default function Trends() {
+export default function TrendsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [period, setPeriod] = useState<Period>("month");

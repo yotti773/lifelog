@@ -5,7 +5,7 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { IconChevronRight, IconSearch } from "./icons";
+import { IconChevronRight, IconSearch } from "@/components/icons";
 import { fontRounded, tokens } from "@/theme";
 import type { FoodMasterItem } from "@/types";
 

@@ -81,7 +81,7 @@ interface WeeklyDigest {
 補足(実装時の確定事項):
 - `mood` は日記の気分タグ(5段階。画面設計書6章)を3区分へ集計する: 絶好調・良い → `good` / 普通 → `normal` / 眠い・不調 → `bad`。日記が無い週は `mood` 自体を省略する
 - `requiredWeeklyPaceKg` は「減量が必要なら負」の符号で持つ(`weeklyChangeKg` と直接比較できるように)。体重記録が皆無・目標日超過の場合は `0` とし、状況はフラグ側で伝える
-- `paceBaseKg` は `requiredWeeklyPaceKg` の計算に使った基準体重(週平均、無ければ全期間の最新体重)をそのまま持つ。UI側で「必要ペース0.00kg/週(既に目標体重付近)」と「計算不能(体重記録が無い・目標日超過)」を区別するために使う。週次レビュー画面のTDEE補正提案(実測消費カロリー節)でも、Settings.tsxの自動計算(#43)と同じ `suggestCalorieTarget()` の入力(現在体重)として再利用し、ガードレール(基礎代謝クランプ・ペース超過警告)を画面間で一貫させている
+- `paceBaseKg` は `requiredWeeklyPaceKg` の計算に使った基準体重(週平均、無ければ全期間の最新体重)をそのまま持つ。UI側で「必要ペース0.00kg/週(既に目標体重付近)」と「計算不能(体重記録が無い・目標日超過)」を区別するために使う。週次レビュー画面のTDEE補正提案(実測消費カロリー節)でも、設定画面の自動計算(#43。`src/pages/settings/ValueEditorDrawer.tsx`)と同じ `suggestCalorieTarget()` の入力(現在体重)として再利用し、ガードレール(基礎代謝クランプ・ペース超過警告)を画面間で一貫させている
 
 ## 4. データ契約(2): WeeklyAdvice(出力)
 
@@ -141,4 +141,4 @@ interface WeeklyAdvice {
 1. **土台(AI無し)**: #43 → #44 → #45(+#46・#47)。週次レビューはコードだけの決定論的サマリーとして先に価値を出す
 2. **AI統合(#12)**: 本設計書の3〜8章を実装する。`WeeklyDigest` は段階1で実装済みのものをそのまま入力契約として使う
 
-※実装状況: 両段階とも実装済み(2026-07-10)。主な実装場所: ダイジェスト生成 `src/lib/weeklyDigest.ts` + `src/db/weeklyReview.ts`、実測TDEE `src/lib/tdee.ts` + `src/db/weeklyNutrition.ts`、Workerエンドポイント `worker/weeklyAdvice.ts`(フィクスチャは `worker/__tests__/weeklyAdviceFixtures.ts`)、キャッシュ `src/db/adviceRecords.ts`、画面 `src/components/WeeklyReview.tsx`。日記本文を読ませるオプトイン(7章)は未実装のまま(引き続きオープンな論点)。
+※実装状況: 両段階とも実装済み(2026-07-10)。主な実装場所: ダイジェスト生成 `src/lib/weeklyDigest.ts` + `src/db/weeklyReview.ts`、実測TDEE `src/lib/tdee.ts` + `src/db/weeklyNutrition.ts`、Workerエンドポイント `worker/weeklyAdvice.ts`(フィクスチャは `worker/__tests__/weeklyAdviceFixtures.ts`)、キャッシュ `src/db/adviceRecords.ts`、画面 `src/pages/trends/WeeklyReview.tsx`(AIコメントカードは同 `WeeklyAdviceCard.tsx`)。日記本文を読ませるオプトイン(7章)は未実装のまま(引き続きオープンな論点)。

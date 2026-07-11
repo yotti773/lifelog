@@ -301,6 +301,8 @@ export default function MealRecordPage() {
     }
     resetItemFields();
     setError(null);
+    // 次の品目の入力手段(画像解析・マスタ選択)は画面上部にあるため、追加後はトップへ戻す
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleRemovePending = (index: number) => {

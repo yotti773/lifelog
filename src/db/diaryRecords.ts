@@ -29,6 +29,11 @@ export async function getDiaryRecord(date: string): Promise<DiaryRecord | undefi
   return db.diaryRecords.get(date);
 }
 
+/** 履歴確認画面用に全日記を日付降順で返す(Issue #73) */
+export async function getAllDiaryRecordsDesc(): Promise<DiaryRecord[]> {
+  return db.diaryRecords.orderBy("date").reverse().toArray();
+}
+
 /** 指定期間(両端含む)の日記を日付昇順で返す。週次レビューの気分タグ集計に使う(Issue #45) */
 export async function getDiaryRecordsByDateRange(startDate: string, endDate: string): Promise<DiaryRecord[]> {
   return db.diaryRecords.where("date").between(startDate, endDate, true, true).sortBy("date");

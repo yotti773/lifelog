@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/db";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import {
+  getAllWorkoutRecordsDesc,
   getUnsyncedWorkoutRecords,
   getWorkoutRecordsForDate,
   groupWorkoutRecordsByExercise,
@@ -106,4 +107,13 @@ describe("workoutRecords", () => {
     expect(grouped[0].sets.map((s) => s.weightKg)).toEqual([60, 55]);
     expect(grouped[1].sets.map((s) => s.reps)).toEqual([12]);
   });
+
+  it("returns all records date-descending for the history view", async () => {
+    await replaceWorkoutRecordsForDate("2026-07-01", [{ name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }] }]);
+    await replaceWorkoutRecordsForDate("2026-07-03", [{ name: "スクワット", sets: [{ weightKg: 80, reps: 8 }] }]);
+
+    const records = await getAllWorkoutRecordsDesc();
+    expect(records.map((r) => r.date)).toEqual(["2026-07-03", "2026-07-01"]);
+  });
+
 });

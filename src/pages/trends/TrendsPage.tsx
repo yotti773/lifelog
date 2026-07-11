@@ -6,17 +6,22 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import DiaryHistoryList from "./DiaryHistoryList";
 import GoalBar from "./GoalBar";
 import MealHistoryList from "./MealHistoryList";
 import SegmentedControl from "@/components/SegmentedControl";
+import WaterHistoryList, { groupWaterHistoryDays } from "./WaterHistoryList";
 import WeeklyReview from "./WeeklyReview";
 import WeightHistoryList from "./WeightHistoryList";
 import WeightTrendCharts, { type Period } from "./charts/WeightTrendCharts";
+import WorkoutHistoryList, { groupWorkoutHistoryDays } from "./WorkoutHistoryList";
 import { IconSync } from "@/components/icons";
 import { db } from "@/db/db";
+import { getAllDiaryRecordsDesc } from "@/db/diaryRecords";
 import { getAllMealRecordsDesc, getDailyCalorieTotals } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
-import { getDailyWaterTotals } from "@/db/waterRecords";
+import { getAllWaterRecordsDesc, getDailyWaterTotals } from "@/db/waterRecords";
+import { getAllWorkoutRecordsDesc } from "@/db/workoutRecords";
 import {
   getAllWeightRecords,
   getAllWeightRecordsDesc,
@@ -27,10 +32,10 @@ import { getWeeklyDigest } from "@/db/weeklyReview";
 import { addDaysToDateString, dateStringDaysAgo, formatDate, todayDateString, weekStartOf } from "@/lib/date";
 import { projectWeightAtDate } from "@/lib/weightProjection";
 import { fontRounded, tokens } from "@/theme";
-import type { MealRecord, WeightRecord } from "@/types";
+import type { DiaryRecord, MealRecord, WaterRecord, WeightRecord, WorkoutRecord } from "@/types";
 
 type ViewMode = "chart" | "history" | "review";
-type HistoryKind = "weight" | "meal";
+type HistoryKind = "weight" | "meal" | "water" | "strength" | "diary";
 
 const VIEW_MODE_OPTIONS = [
   { value: "chart", label: "グラフ" },
@@ -41,6 +46,9 @@ const VIEW_MODE_OPTIONS = [
 const HISTORY_KIND_OPTIONS = [
   { value: "weight", label: "体重" },
   { value: "meal", label: "食事" },
+  { value: "water", label: "水分" },
+  { value: "strength", label: "筋トレ" },
+  { value: "diary", label: "日記" },
 ] as const;
 
 export default function TrendsPage() {
@@ -50,7 +58,10 @@ export default function TrendsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (location.state as { viewMode?: ViewMode } | null)?.viewMode ?? "chart",
   );
-  const [historyKind, setHistoryKind] = useState<HistoryKind>("weight");
+  // 各記録画面から履歴タブへ戻ってきたとき、編集していた種別を維持する(Issue #73)
+  const [historyKind, setHistoryKind] = useState<HistoryKind>(
+    () => (location.state as { historyKind?: HistoryKind } | null)?.historyKind ?? "weight",
+  );
   const [historyFrom, setHistoryFrom] = useState("");
   const [historyTo, setHistoryTo] = useState("");
   // 週次レビューの表示週(月曜起点)。デフォルトは今週(画面設計書8.2章)
@@ -117,6 +128,27 @@ export default function TrendsPage() {
         : Promise.resolve<MealRecord[]>([]),
     [viewMode, historyKind],
   );
+  const waterHistoryRecords = useLiveQuery(
+    () =>
+      viewMode === "history" && historyKind === "water"
+        ? getAllWaterRecordsDesc()
+        : Promise.resolve<WaterRecord[]>([]),
+    [viewMode, historyKind],
+  );
+  const workoutHistoryRecords = useLiveQuery(
+    () =>
+      viewMode === "history" && historyKind === "strength"
+        ? getAllWorkoutRecordsDesc()
+        : Promise.resolve<WorkoutRecord[]>([]),
+    [viewMode, historyKind],
+  );
+  const diaryHistoryRecords = useLiveQuery(
+    () =>
+      viewMode === "history" && historyKind === "diary"
+        ? getAllDiaryRecordsDesc()
+        : Promise.resolve<DiaryRecord[]>([]),
+    [viewMode, historyKind],
+  );
   // 週次レビューのダイジェスト(Issue #45)。レビュータブ表示中のみ集計する。
   // 「未表示」もnullに解決するため、undefined(ロード中)と区別できる(CLAUDE.mdのuseLiveQueryパターン)
   const reviewDigest = useLiveQuery(
@@ -134,6 +166,9 @@ export default function TrendsPage() {
     waterDailyTotals === undefined ||
     historyRecords === undefined ||
     mealHistoryRecords === undefined ||
+    waterHistoryRecords === undefined ||
+    workoutHistoryRecords === undefined ||
+    diaryHistoryRecords === undefined ||
     reviewDigest === undefined
   ) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
@@ -154,15 +189,24 @@ export default function TrendsPage() {
       : null;
 
   // From/To絞込みは日付文字列(YYYY-MM-DD)の辞書順比較で足りる
-  const filteredHistory = historyRecords.filter(
-    (record) => (!historyFrom || record.date >= historyFrom) && (!historyTo || record.date <= historyTo),
+  const inHistoryRange = (date: string) =>
+    (!historyFrom || date >= historyFrom) && (!historyTo || date <= historyTo);
+  const filteredHistory = historyRecords.filter((record) => inHistoryRange(record.date));
+  // 食事・水分はtimestamp(UTC ISO)を持つため、ローカル日付に直してからFrom/Toで絞り込む
+  const filteredMealHistory = mealHistoryRecords.filter((record) =>
+    inHistoryRange(formatDate(new Date(record.timestamp))),
   );
-  // 食事はtimestamp(UTC ISO)を持つため、ローカル日付に直してからFrom/Toで絞り込む
-  const filteredMealHistory = mealHistoryRecords.filter((record) => {
-    const date = formatDate(new Date(record.timestamp));
-    return (!historyFrom || date >= historyFrom) && (!historyTo || date <= historyTo);
-  });
-  const historyCount = historyKind === "weight" ? filteredHistory.length : filteredMealHistory.length;
+  const filteredWaterDays = groupWaterHistoryDays(waterHistoryRecords).filter((day) => inHistoryRange(day.date));
+  const filteredWorkoutDays = groupWorkoutHistoryDays(workoutHistoryRecords).filter((day) => inHistoryRange(day.date));
+  const filteredDiaryHistory = diaryHistoryRecords.filter((record) => inHistoryRange(record.date));
+  // 水分・筋トレは日付単位の行になるため、件数も日数を表す
+  const historyCount = {
+    weight: filteredHistory.length,
+    meal: filteredMealHistory.length,
+    water: filteredWaterDays.length,
+    strength: filteredWorkoutDays.length,
+    diary: filteredDiaryHistory.length,
+  }[historyKind];
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, display: "flex", flexDirection: "column", gap: "14px", px: "20px", pt: "24px", pb: "130px" }}>
@@ -261,10 +305,25 @@ export default function TrendsPage() {
               baselineDate={settings.baselineDate}
               onSelect={(date) => navigate(`/record/weight?date=${date}`)}
             />
-          ) : (
+          ) : historyKind === "meal" ? (
             <MealHistoryList
               records={filteredMealHistory}
               onSelect={(id) => navigate(`/record/meal?id=${id}`)}
+            />
+          ) : historyKind === "water" ? (
+            <WaterHistoryList
+              days={filteredWaterDays}
+              onSelect={(date) => navigate(`/record/water?date=${date}`)}
+            />
+          ) : historyKind === "strength" ? (
+            <WorkoutHistoryList
+              days={filteredWorkoutDays}
+              onSelect={(date) => navigate(`/record/strength?date=${date}`)}
+            />
+          ) : (
+            <DiaryHistoryList
+              records={filteredDiaryHistory}
+              onSelect={(date) => navigate(`/record/diary?date=${date}`)}
             />
           )}
         </>

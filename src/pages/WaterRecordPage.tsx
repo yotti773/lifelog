@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
@@ -10,7 +10,7 @@ import SectionLabel from "@/components/SectionLabel";
 import { IconClose, IconDrop } from "@/components/icons";
 import { addWaterRecord, deleteWaterRecord, getWaterRecordsForDate } from "@/db/waterRecords";
 import { getSettings } from "@/db/settings";
-import { formatTime, todayDateString } from "@/lib/date";
+import { formatMonthDay, formatTime, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 
 /** クイック追加ボタンの量(ml)。MVPでは固定値(画面設計書5章) */
@@ -20,9 +20,17 @@ const PRIMARY_AMOUNT = 500;
 
 export default function WaterRecordPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const today = todayDateString();
+  // 履歴確認画面から ?date=YYYY-MM-DD 付きで遷移してきた場合、その日付の記録を開く(Issue #73)
+  const dateParam = searchParams.get("date");
+  const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
+  const isToday = date === today;
+  // 過去日を開いたときだけ、戻り先を履歴タブ(水分)にする(体重記録画面と同じ考え方)
+  const backToHistory = () =>
+    isToday ? navigate("/") : navigate("/trends", { state: { viewMode: "history", historyKind: "water" } });
 
-  const records = useLiveQuery(() => getWaterRecordsForDate(today), [today]);
+  const records = useLiveQuery(() => getWaterRecordsForDate(date), [date]);
   const settings = useLiveQuery(() => getSettings(), []);
 
   if (records === undefined || settings === undefined) {
@@ -37,11 +45,13 @@ export default function WaterRecordPage() {
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "40px" }}>
-      <RecordHeader title="水分を記録" onBack={() => navigate("/")} />
+      <RecordHeader title={isToday ? "水分を記録" : `${formatMonthDay(date)}の水分を記録`} onBack={backToHistory} />
 
-      {/* 今日の合計カード */}
+      {/* その日の合計カード */}
       <Card sx={{ p: "22px 18px", mb: "18px", textAlign: "center", bgcolor: tokens.waterCardBg }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 500, color: tokens.waterInk, mb: "8px" }}>今日の合計</Typography>
+        <Typography sx={{ fontSize: 12, fontWeight: 500, color: tokens.waterInk, mb: "8px" }}>
+          {isToday ? "今日の合計" : "この日の合計"}
+        </Typography>
         <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "6px", mb: "14px" }}>
           <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 44, lineHeight: 1, color: tokens.waterDeep }}>
             {totalMl.toLocaleString()}
@@ -77,7 +87,8 @@ export default function WaterRecordPage() {
           return (
             <ButtonBase
               key={amount}
-              onClick={() => addWaterRecord(amount)}
+              // 過去日への追記は時刻が分からないため正午固定で記録する(当日は現在時刻)
+              onClick={() => addWaterRecord(amount, isToday ? undefined : new Date(`${date}T12:00:00`).toISOString())}
               aria-label={`${amount}mlを記録する`}
               sx={{
                 flexDirection: "column",
@@ -97,8 +108,8 @@ export default function WaterRecordPage() {
         })}
       </Box>
 
-      {/* 今日の記録 */}
-      <SectionLabel>今日の記録</SectionLabel>
+      {/* その日の記録 */}
+      <SectionLabel>{isToday ? "今日の記録" : "この日の記録"}</SectionLabel>
       {newestFirst.length > 0 ? (
         <Card sx={{ overflow: "hidden" }}>
           {newestFirst.map((record, index) => (

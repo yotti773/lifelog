@@ -213,26 +213,26 @@ export default function TrendsPage() {
       ) : (
         <>
           <SegmentedControl options={HISTORY_KIND_OPTIONS} value={historyKind} onChange={setHistoryKind} />
-          <Box sx={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <TextField
-              type="date"
-              label="From"
-              size="small"
-              value={historyFrom}
-              onChange={(e) => setHistoryFrom(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-              sx={{ flex: 1 }}
-            />
-            <Typography sx={{ color: tokens.faint }}>-</Typography>
-            <TextField
-              type="date"
-              label="To"
-              size="small"
-              value={historyTo}
-              onChange={(e) => setHistoryTo(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-              sx={{ flex: 1 }}
-            />
+          {/* From/Toは横並びだとスマホ幅で日付が切れるため縦に積む(Issue #75) */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>
+              <TextField
+                type="date"
+                label="From"
+                size="small"
+                value={historyFrom}
+                onChange={(e) => setHistoryFrom(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                type="date"
+                label="To"
+                size="small"
+                value={historyTo}
+                onChange={(e) => setHistoryTo(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </Box>
             <ButtonBase
               onClick={() => {
                 setHistoryFrom("");

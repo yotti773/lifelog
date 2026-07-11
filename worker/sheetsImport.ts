@@ -59,17 +59,31 @@ export interface ImportedDiaryRecordOutput {
   mood?: string;
 }
 
+export interface ImportedActivityRecordOutput {
+  date: string;
+  steps?: number;
+  totalKcal?: number;
+  activeKcal?: number;
+  sleepMinutes?: number;
+  sleepScore?: number;
+  restingHeartRate?: number;
+  moderateIntensityMinutes?: number;
+  vigorousIntensityMinutes?: number;
+}
+
 interface SheetsImportResultOutput {
   weightRecords: ImportedWeightRecordOutput[];
   mealRecords: ImportedMealRecordOutput[];
   waterRecords: ImportedWaterRecordOutput[];
   workoutRecords: ImportedWorkoutRecordOutput[];
   diaryRecords: ImportedDiaryRecordOutput[];
+  activityRecords: ImportedActivityRecordOutput[];
   skippedWeightRows: number;
   skippedMealRows: number;
   skippedWaterRows: number;
   skippedWorkoutRows: number;
   skippedDiaryRows: number;
+  skippedActivityRows: number;
 }
 
 /** Sheets APIのvalues.get(FORMATTED_VALUE)が返しうるセル値 */
@@ -409,6 +423,60 @@ export function planDiaryImport(rows: CellValue[][]): SheetImportPlan<ImportedDi
   return { records, idBackfills, skippedRowCount };
 }
 
+/**
+ * 活動記録タブ(Garmin連携が書き込む。scripts/garmin/README.md 参照)の全行をレコードに
+ * 逆変換する(Issue #81)。列構成は「日付・歩数・総消費・活動消費・睡眠分・睡眠スコア・
+ * 安静時心拍・中強度分・高強度分」。日付が読めない行と、数値が1つも無い行はスキップする。
+ * 日付が主キーのためID列・採番は無い。同じ日付の2行目以降は重複としてスキップする。
+ */
+export function planActivityImport(rows: CellValue[][]): SheetImportPlan<ImportedActivityRecordOutput> {
+  const records: ImportedActivityRecordOutput[] = [];
+  let skippedRowCount = 0;
+  const seenDates = new Set<string>();
+
+  rows.forEach((cells, index) => {
+    const rowNumber = index + 1;
+    const date = parseCalendarDate(cells?.[0]);
+    if (date === null) {
+      if (rowNumber !== 1) skippedRowCount++;
+      return;
+    }
+    if (seenDates.has(date)) {
+      skippedRowCount++;
+      return;
+    }
+
+    const steps = parseCellNumber(cells?.[1]) ?? undefined;
+    const totalKcal = parseCellNumber(cells?.[2]) ?? undefined;
+    const activeKcal = parseCellNumber(cells?.[3]) ?? undefined;
+    const sleepMinutes = parseCellNumber(cells?.[4]) ?? undefined;
+    const sleepScore = parseCellNumber(cells?.[5]) ?? undefined;
+    const restingHeartRate = parseCellNumber(cells?.[6]) ?? undefined;
+    const moderateIntensityMinutes = parseCellNumber(cells?.[7]) ?? undefined;
+    const vigorousIntensityMinutes = parseCellNumber(cells?.[8]) ?? undefined;
+
+    const values = {
+      ...(steps !== undefined && { steps }),
+      ...(totalKcal !== undefined && { totalKcal }),
+      ...(activeKcal !== undefined && { activeKcal }),
+      ...(sleepMinutes !== undefined && { sleepMinutes }),
+      ...(sleepScore !== undefined && { sleepScore }),
+      ...(restingHeartRate !== undefined && { restingHeartRate }),
+      ...(moderateIntensityMinutes !== undefined && { moderateIntensityMinutes }),
+      ...(vigorousIntensityMinutes !== undefined && { vigorousIntensityMinutes }),
+    };
+    if (Object.keys(values).length === 0) {
+      skippedRowCount++;
+      return;
+    }
+
+    seenDates.add(date);
+    records.push({ date, ...values });
+  });
+
+  return { records, idBackfills: [], skippedRowCount };
+}
+
 // ===== Google Sheets API 呼び出し =====
 
 /** 指定タブのA列〜ID列を全行読み取る */
@@ -421,6 +489,35 @@ async function readSheetRows(
   const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+  if (!res.ok) {
+    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
+  }
+  const data = (await res.json()) as { values?: CellValue[][] };
+  return data.values ?? [];
+}
+
+// 活動記録タブの読み取り範囲。列I(高強度運動時間)まで。ID列は無い(日付が主キー)ため
+// SheetConfigは使わず、タブ名と終端列だけをローカルに持つ
+const ACTIVITY_SHEET_NAME = "活動記録";
+const ACTIVITY_END_COLUMN = "I";
+
+/**
+ * 活動記録タブの全行を読み取る。タブ自体が無い場合は空を返す —
+ * このタブはGarmin連携(scripts/garmin/)が初回実行時に作るもので、連携未セットアップの
+ * ユーザーには存在しないのが正常のため、他タブと違い欠如を取り込み全体の失敗にしない。
+ * (範囲文字列は固定で正しいため、400はタブ名を解決できない=タブ欠如とみなせる)
+ */
+async function readActivityRowsIfPresent(
+  accessToken: string,
+  spreadsheetId: string,
+): Promise<CellValue[][]> {
+  const range = encodeURIComponent(`${ACTIVITY_SHEET_NAME}!A:${ACTIVITY_END_COLUMN}`);
+  const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.status === 400) {
+    return [];
+  }
   if (!res.ok) {
     throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
   }
@@ -476,12 +573,13 @@ export async function handleImportSheets(env: Env): Promise<Response> {
 
   const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
   try {
-    const [weightRows, mealRows, waterRows, workoutRows, diaryRows] = await Promise.all([
+    const [weightRows, mealRows, waterRows, workoutRows, diaryRows, activityRows] = await Promise.all([
       readSheetRows(accessToken, spreadsheetId, WEIGHT_CONFIG),
       readSheetRows(accessToken, spreadsheetId, MEAL_CONFIG),
       readSheetRows(accessToken, spreadsheetId, WATER_CONFIG),
       readSheetRows(accessToken, spreadsheetId, WORKOUT_CONFIG),
       readSheetRows(accessToken, spreadsheetId, DIARY_CONFIG),
+      readActivityRowsIfPresent(accessToken, spreadsheetId),
     ]);
 
     const weightPlan = planWeightImport(weightRows);
@@ -489,6 +587,7 @@ export async function handleImportSheets(env: Env): Promise<Response> {
     const waterPlan = planWaterImport(waterRows, () => crypto.randomUUID());
     const workoutPlan = planWorkoutImport(workoutRows, () => crypto.randomUUID());
     const diaryPlan = planDiaryImport(diaryRows);
+    const activityPlan = planActivityImport(activityRows);
 
     // 書き戻しに失敗したら取り込み全体を失敗させる。IDがシートに無いままレコードだけ
     // クライアントへ返すと、以後の編集同期が既存行を見つけられず重複行を生むため
@@ -506,11 +605,13 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       waterRecords: waterPlan.records,
       workoutRecords: workoutPlan.records,
       diaryRecords: diaryPlan.records,
+      activityRecords: activityPlan.records,
       skippedWeightRows: weightPlan.skippedRowCount,
       skippedMealRows: mealPlan.skippedRowCount,
       skippedWaterRows: waterPlan.skippedRowCount,
       skippedWorkoutRows: workoutPlan.skippedRowCount,
       skippedDiaryRows: diaryPlan.skippedRowCount,
+      skippedActivityRows: activityPlan.skippedRowCount,
     } satisfies SheetsImportResultOutput);
   } catch (error) {
     const message = error instanceof Error ? error.message : "スプレッドシートの読み取りに失敗しました";

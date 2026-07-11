@@ -1,4 +1,4 @@
-import type { DiaryRecord, MealRecord, WaterRecord, WeightRecord, WorkoutRecord } from "@/types";
+import type { ActivityRecord, DiaryRecord, MealRecord, WaterRecord, WeightRecord, WorkoutRecord } from "@/types";
 
 export interface SyncPushPayload {
   weightRecords: WeightRecord[];
@@ -76,12 +76,16 @@ export type PulledWorkoutRecord = Omit<WorkoutRecord, "synced">;
 /** スプレッドシートから取り込んだ日記記録。シートに無い`synced`を除きDiaryRecordと同形 */
 export type PulledDiaryRecord = Omit<DiaryRecord, "synced">;
 
+/** スプレッドシートから取り込んだ活動記録(Garmin由来。Issue #81)。シートに無い`synced`を除きActivityRecordと同形 */
+export type PulledActivityRecord = Omit<ActivityRecord, "synced">;
+
 export interface SyncPullResult {
   weightRecords: PulledWeightRecord[];
   mealRecords: PulledMealRecord[];
   waterRecords: PulledWaterRecord[];
   workoutRecords: PulledWorkoutRecord[];
   diaryRecords: PulledDiaryRecord[];
+  activityRecords: PulledActivityRecord[];
   /** 解釈できずスキップされた体重タブの行数(見出し行とみなす1行目を除く) */
   skippedWeightRows: number;
   /** 解釈できずスキップされた食事タブの行数(見出し行とみなす1行目を除く) */
@@ -92,6 +96,8 @@ export interface SyncPullResult {
   skippedWorkoutRows: number;
   /** 解釈できずスキップされた日記タブの行数(見出し行とみなす1行目を除く) */
   skippedDiaryRows: number;
+  /** 解釈できずスキップされた活動記録タブの行数(見出し行とみなす1行目を除く。タブ自体が無い場合は0) */
+  skippedActivityRows: number;
 }
 
 /** スプレッドシートからの取り込み(復元・過去データ移行)を担うインターフェース(Issue #54) */

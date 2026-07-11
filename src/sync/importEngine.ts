@@ -11,6 +11,8 @@ export type ImportOutcome =
       importedWaterCount: number;
       importedWorkoutCount: number;
       importedDiaryCount: number;
+      /** 取り込んだ(新規+上書き)活動記録の件数。他と違い既存日付も常に上書きされる(Issue #81) */
+      importedActivityCount: number;
       /** ローカルに既にある・削除保留中のためスキップした件数 */
       skippedExistingCount: number;
       /** シート側で解釈できずスキップされた行数(見出し行を除く) */
@@ -43,7 +45,7 @@ export async function runImport({
 
     const counts = await db.transaction(
       "rw",
-      [db.weightRecords, db.mealRecords, db.waterRecords, db.workoutRecords, db.diaryRecords, db.syncDeletions],
+      [db.weightRecords, db.mealRecords, db.waterRecords, db.workoutRecords, db.diaryRecords, db.activityRecords, db.syncDeletions],
       async () => {
         const [pendingWeightIds, pendingMealIds, pendingWaterIds, pendingWorkoutIds, pendingDiaryIds] =
           await Promise.all([
@@ -113,12 +115,21 @@ export async function runImport({
           importedDiaryCount++;
         }
 
+        // 活動記録(Garmin由来)は他と違い「追加のみ・ローカル優先」にしない —
+        // アプリ内に編集・削除が無く競合しないうえ、Garminのバックフィルによる
+        // 過去日の訂正を反映するため、常にシート側で上書きする(Issue #81)
+        for (const record of pulled.activityRecords) {
+          await db.activityRecords.put({ ...record, synced: true });
+        }
+        const importedActivityCount = pulled.activityRecords.length;
+
         return {
           importedWeightCount,
           importedMealCount,
           importedWaterCount,
           importedWorkoutCount,
           importedDiaryCount,
+          importedActivityCount,
           skippedExistingCount,
         };
       },
@@ -132,7 +143,8 @@ export async function runImport({
         pulled.skippedMealRows +
         pulled.skippedWaterRows +
         pulled.skippedWorkoutRows +
-        pulled.skippedDiaryRows,
+        pulled.skippedDiaryRows +
+        pulled.skippedActivityRows,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "取り込みに失敗しました";

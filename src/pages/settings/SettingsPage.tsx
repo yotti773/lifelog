@@ -10,6 +10,7 @@ import {
   IconClock,
   IconDrop,
   IconFork,
+  IconKey,
   IconPerson,
   IconRuler,
   IconSun,
@@ -182,6 +183,21 @@ export default function SettingsPage() {
 
       <SectionLabel>データ同期・バックアップ(スプレッドシート)</SectionLabel>
       <SheetsSyncCard lastSyncedAt={settings.lastSyncedAt} />
+
+      <SectionLabel>API保護</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "8px" }}>
+        <SettingRow
+          icon={<IconKey size={18} />}
+          iconBg={tokens.warnBg}
+          iconColor={tokens.warnIcon}
+          label="APIトークン"
+          value={settings.apiToken ? "設定済み" : "未設定"}
+          onClick={() => setEditTarget("apiToken")}
+        />
+      </Card>
+      <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
+        同期・AI判定のAPIを第三者の呼び出しから守る合言葉です(Workerのシークレット API_AUTH_TOKEN と同じ値を設定)
+      </Typography>
 
       <MasterDataSections />
 

@@ -13,10 +13,8 @@ import { getSettings } from "@/db/settings";
 import { formatMonthDay, formatTime, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 
-/** クイック追加ボタンの量(ml)。MVPでは固定値(画面設計書5章) */
-const QUICK_AMOUNTS = [100, 200, 350, 500] as const;
-/** プライマリ強調するボタン(モックでは500mlが強調されている) */
-const PRIMARY_AMOUNT = 500;
+/** クイック追加ボタンの量(ml)。固定値で、プライマリ強調は持たず全ボタン白抜き(Issue #79。画面設計書5章) */
+const QUICK_AMOUNTS = [200, 300, 500, 2000] as const;
 
 export default function WaterRecordPage() {
   const navigate = useNavigate();
@@ -82,30 +80,27 @@ export default function WaterRecordPage() {
       {/* クイック追加 */}
       <SectionLabel>クイック追加</SectionLabel>
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", mb: "20px" }}>
-        {QUICK_AMOUNTS.map((amount) => {
-          const isPrimary = amount === PRIMARY_AMOUNT;
-          return (
-            <ButtonBase
-              key={amount}
-              // 過去日への追記は時刻が分からないため正午固定で記録する(当日は現在時刻)
-              onClick={() => addWaterRecord(amount, isToday ? undefined : new Date(`${date}T12:00:00`).toISOString())}
-              aria-label={`${amount}mlを記録する`}
-              sx={{
-                flexDirection: "column",
-                bgcolor: isPrimary ? tokens.waterDeep : "background.paper",
-                border: `1.5px solid ${isPrimary ? tokens.waterDeep : tokens.waterTrack}`,
-                borderRadius: "14px",
-                py: "14px",
-                boxShadow: isPrimary ? tokens.waterPrimaryButtonShadow : tokens.waterButtonShadow,
-              }}
-            >
-              <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 18, color: isPrimary ? "#fff" : tokens.waterDeep }}>
-                {amount}
-              </Typography>
-              <Typography sx={{ fontSize: 9, fontWeight: 500, color: isPrimary ? "#CFE6F4" : "text.secondary" }}>ml</Typography>
-            </ButtonBase>
-          );
-        })}
+        {QUICK_AMOUNTS.map((amount) => (
+          <ButtonBase
+            key={amount}
+            // 過去日への追記は時刻が分からないため正午固定で記録する(当日は現在時刻)
+            onClick={() => addWaterRecord(amount, isToday ? undefined : new Date(`${date}T12:00:00`).toISOString())}
+            aria-label={`${amount}mlを記録する`}
+            sx={{
+              flexDirection: "column",
+              bgcolor: "background.paper",
+              border: `1.5px solid ${tokens.waterTrack}`,
+              borderRadius: "14px",
+              py: "14px",
+              boxShadow: tokens.waterButtonShadow,
+            }}
+          >
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 18, color: tokens.waterDeep }}>
+              {amount}
+            </Typography>
+            <Typography sx={{ fontSize: 9, fontWeight: 500, color: "text.secondary" }}>ml</Typography>
+          </ButtonBase>
+        ))}
       </Box>
 
       {/* その日の記録 */}

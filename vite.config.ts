@@ -22,8 +22,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icons/apple-touch-icon.png"],
       manifest: {
-        name: "ライフログ",
-        short_name: "ライフログ",
+        name: "からだログ",
+        short_name: "からだログ",
+        lang: "ja",
         description: "体重・食事を記録して10月末の目標体重を目指すライフログアプリ",
         start_url: "/",
         display: "standalone",

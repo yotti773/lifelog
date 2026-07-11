@@ -1,0 +1,67 @@
+# Garminの活動データを同期用スプレッドシートの「活動記録」タブへ日次で書き込む(Issue #80)。
+# セットアップ手順・必要なSecretsは scripts/garmin/README.md を参照。
+name: Garmin Sync
+
+on:
+  schedule:
+    # 18:00 UTC = 翌3:00 JST。「前日(JST)」の1日分を取得する
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "取得開始日 YYYY-MM-DD(省略時は前日JST)"
+        required: false
+      end_date:
+        description: "取得終了日 YYYY-MM-DD(省略時はstart_dateと同じ)"
+        required: false
+
+# トークンのリフレッシュが並行実行で競合しないように直列化する
+concurrency: garmin-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/garmin/requirements.txt
+
+      - name: 依存パッケージをインストール
+        run: pip install -r scripts/garmin/requirements.txt
+
+      # Garminのトークンはリフレッシュで書き換わるため、Secretsの初期値ではなく
+      # 前回実行時のキャッシュを優先して使い回す(キー全体は毎回ユニークにして保存させる)
+      - name: Garminトークンのキャッシュを復元
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.garminconnect
+          key: garmin-tokens-${{ github.run_id }}
+          restore-keys: |
+            garmin-tokens-
+
+      - name: Garminからシートへ同期
+        env:
+          GARMIN_TOKENS_BASE64: ${{ secrets.GARMIN_TOKENS_BASE64 }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+        run: |
+          ARGS=""
+          if [ -n "$START_DATE" ]; then ARGS="--start $START_DATE"; fi
+          if [ -n "$END_DATE" ]; then ARGS="$ARGS --end $END_DATE"; fi
+          python scripts/garmin/garmin_to_sheet.py $ARGS
+
+      - name: Garminトークンのキャッシュを保存
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.garminconnect
+          key: garmin-tokens-${{ github.run_id }}

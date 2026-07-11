@@ -17,7 +17,7 @@ export interface WeeklyAdviceEnv {
   GEMINI_ADVICE_MODEL?: string;
 }
 
-export const DEFAULT_ADVICE_MODEL = "gemini-2.5-flash-lite";
+export const DEFAULT_ADVICE_MODEL = "gemini-3.1-flash-lite";
 
 const VERDICTS = ["on_track", "slightly_behind", "behind", "needs_attention"] as const;
 

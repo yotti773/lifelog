@@ -113,7 +113,7 @@ interface WeeklyAdvice {
 ## 6. モデル選定・コスト・品質担保
 
 - **モデル**: Gemini Flash-Lite系(その時点の最新世代の最安モデル)から始める。言語化の質に不満が出たら同世代のFlashに上げる。既存契約のAPIキー・既存のWorker中継を流用するため、新しい契約・インフラは不要
-  - 実装時の既定値は `gemini-2.5-flash-lite`(`worker/weeklyAdvice.ts`)。Workerの環境変数 `GEMINI_ADVICE_MODEL` で写真判定用の `GEMINI_MODEL` とは独立に上書きできる
+  - 実装時の既定値は `gemini-3.1-flash-lite`(`worker/weeklyAdvice.ts`)。Workerの環境変数 `GEMINI_ADVICE_MODEL` で写真判定用の `GEMINI_MODEL` とは独立に上書きできる(旧既定値 `gemini-2.5-flash-lite` は新規ユーザーへの提供が終了したため2026-07に切り替え。Issue #65)
 - **コスト試算**: 入力(システムプロンプト+digest)約2Kトークン+出力約500トークン × 週1〜数回(再生成含む)。Flash-Lite級の単価では月1円未満のオーダーであり、実質無料。トークン節約のための特別な工夫(圧縮・キャッシュ)は不要
 - **品質の回帰確認**:
   - 代表的な `WeeklyDigest` のフィクスチャを5〜6パターン用意する(順調な週 / 停滞週 / 記録サボり週 / ペース超過(危険)週 / データ不足週 など)。`worker/__tests__/` に置く

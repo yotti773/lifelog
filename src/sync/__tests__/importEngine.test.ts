@@ -13,6 +13,7 @@ beforeEach(async () => {
   await db.waterRecords.clear();
   await db.workoutRecords.clear();
   await db.diaryRecords.clear();
+  await db.activityRecords.clear();
   await db.syncDeletions.clear();
 });
 
@@ -22,11 +23,13 @@ const emptyPull: SyncPullResult = {
   waterRecords: [],
   workoutRecords: [],
   diaryRecords: [],
+  activityRecords: [],
   skippedWeightRows: 0,
   skippedMealRows: 0,
   skippedWaterRows: 0,
   skippedWorkoutRows: 0,
   skippedDiaryRows: 0,
+  skippedActivityRows: 0,
 };
 
 /** 成功時の`ImportOutcome`を組み立てる。テストごとに差分だけ渡せば済むようにする */
@@ -36,6 +39,7 @@ const successOutcome = (overrides: {
   importedWaterCount?: number;
   importedWorkoutCount?: number;
   importedDiaryCount?: number;
+  importedActivityCount?: number;
   skippedExistingCount?: number;
   skippedRowCount?: number;
 }) => ({
@@ -45,6 +49,7 @@ const successOutcome = (overrides: {
   importedWaterCount: 0,
   importedWorkoutCount: 0,
   importedDiaryCount: 0,
+  importedActivityCount: 0,
   skippedExistingCount: 0,
   skippedRowCount: 0,
   ...overrides,
@@ -74,6 +79,13 @@ const pulledDiary = {
   timestamp: "2026-06-30T22:00:00.000Z",
   text: "よく眠れた",
   mood: "good" as const,
+};
+
+const pulledActivity = {
+  date: "2026-07-01",
+  steps: 8123,
+  totalKcal: 2450,
+  sleepMinutes: 432,
 };
 
 function fakeTransport(result: SyncPullResult): SyncPullTransport {
@@ -155,6 +167,21 @@ describe("runImport", () => {
     expect(await getWeightRecord("2026-07-01")).toBeUndefined();
     expect(await getMealRecord(meal.id)).toBeUndefined();
     expect(await getDiaryRecord("2026-07-01")).toBeUndefined();
+  });
+
+  it("活動記録はsynced: trueで取り込み、既存日付は常にシート側で上書きする(Garminのバックフィル反映)", async () => {
+    await db.activityRecords.put({ date: "2026-07-01", steps: 100, synced: true });
+    const transport = fakeTransport({
+      ...emptyPull,
+      activityRecords: [pulledActivity, { date: "2026-07-02", steps: 6000 }],
+      skippedActivityRows: 1,
+    });
+
+    const outcome = await runImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual(successOutcome({ importedActivityCount: 2, skippedRowCount: 1 }));
+    expect(await db.activityRecords.get("2026-07-01")).toEqual({ ...pulledActivity, synced: true });
+    expect(await db.activityRecords.count()).toBe(2);
   });
 
   it("トランスポートが失敗したら何も取り込まずエラーを返す", async () => {

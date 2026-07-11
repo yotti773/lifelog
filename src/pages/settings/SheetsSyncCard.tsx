@@ -39,11 +39,17 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedWaterCount,
         importedWorkoutCount,
         importedDiaryCount,
+        importedActivityCount,
         skippedExistingCount,
         skippedRowCount,
       } = outcome;
       const totalImported =
-        importedWeightCount + importedMealCount + importedWaterCount + importedWorkoutCount + importedDiaryCount;
+        importedWeightCount +
+        importedMealCount +
+        importedWaterCount +
+        importedWorkoutCount +
+        importedDiaryCount +
+        importedActivityCount;
       let message: string;
       if (totalImported === 0) {
         message =
@@ -53,7 +59,7 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
       } else {
         message =
           `体重${importedWeightCount}件・食事${importedMealCount}件・水分${importedWaterCount}件・` +
-          `筋トレ${importedWorkoutCount}件・日記${importedDiaryCount}件を取り込みました`;
+          `筋トレ${importedWorkoutCount}件・日記${importedDiaryCount}件・活動${importedActivityCount}件を取り込みました`;
         if (skippedExistingCount > 0) {
           message += `(既にある${skippedExistingCount}件はスキップ)`;
         }

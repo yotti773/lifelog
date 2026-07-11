@@ -5,6 +5,7 @@ import {
   parseJstDateTime,
   parseMealTypeCell,
   parseMoodCell,
+  planActivityImport,
   planDiaryImport,
   planMealImport,
   planWaterImport,
@@ -327,5 +328,43 @@ describe("planDiaryImport", () => {
     const plan = planDiaryImport([header, fullRow, invalid, fullRow]);
     expect(plan.records).toHaveLength(1);
     expect(plan.skippedRowCount).toBe(2);
+  });
+});
+
+describe("planActivityImport", () => {
+  // scripts/garmin/garmin_to_sheet.py の書き出し形式(9列)
+  const fullRow: CellValue[] = ["2026年07月05日", 8123, 2450, 620, 432, 78, 52, 35, 10];
+
+  it("Garmin連携が書き出した行をレコードに逆変換する", () => {
+    const plan = planActivityImport([fullRow]);
+    expect(plan.records).toEqual([
+      {
+        date: "2026-07-05",
+        steps: 8123,
+        totalKcal: 2450,
+        activeKcal: 620,
+        sleepMinutes: 432,
+        sleepScore: 78,
+        restingHeartRate: 52,
+        moderateIntensityMinutes: 35,
+        vigorousIntensityMinutes: 10,
+      },
+    ]);
+    expect(plan.idBackfills).toEqual([]);
+    expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("欠測の項目(空セル)は省略してレコード化する(時計を着けなかった日など)", () => {
+    const plan = planActivityImport([["2026/7/1", "5000", "", "", "", "", "", "", ""]]);
+    expect(plan.records).toEqual([{ date: "2026-07-01", steps: 5000 }]);
+  });
+
+  it("数値が1つも無い行・日付が読めない行・重複日付をスキップし、見出し行は数えない", () => {
+    const header: CellValue[] = ["日付", "歩数", "総消費カロリー"];
+    const noValues: CellValue[] = ["2026年07月06日", "", "", "", "", "", "", "", ""];
+    const invalidDate: CellValue[] = ["日付なし", 100];
+    const plan = planActivityImport([header, fullRow, noValues, invalidDate, fullRow]);
+    expect(plan.records).toHaveLength(1);
+    expect(plan.skippedRowCount).toBe(3);
   });
 });

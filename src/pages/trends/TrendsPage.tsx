@@ -6,6 +6,7 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import ActivityHistoryList from "./ActivityHistoryList";
 import DiaryHistoryList from "./DiaryHistoryList";
 import GoalBar from "./GoalBar";
 import MealHistoryList from "./MealHistoryList";
@@ -17,6 +18,7 @@ import WeightTrendCharts, { type Period } from "./charts/WeightTrendCharts";
 import WorkoutHistoryList, { groupWorkoutHistoryDays } from "./WorkoutHistoryList";
 import { IconSync } from "@/components/icons";
 import { db } from "@/db/db";
+import { getAllActivityRecordsDesc } from "@/db/activityRecords";
 import { getAllDiaryRecordsDesc } from "@/db/diaryRecords";
 import { getAllMealRecordsDesc, getDailyCalorieTotals } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
@@ -32,10 +34,10 @@ import { getWeeklyDigest } from "@/db/weeklyReview";
 import { addDaysToDateString, dateStringDaysAgo, formatDate, todayDateString, weekStartOf } from "@/lib/date";
 import { projectWeightAtDate } from "@/lib/weightProjection";
 import { fontRounded, tokens } from "@/theme";
-import type { DiaryRecord, MealRecord, WaterRecord, WeightRecord, WorkoutRecord } from "@/types";
+import type { ActivityRecord, DiaryRecord, MealRecord, WaterRecord, WeightRecord, WorkoutRecord } from "@/types";
 
 type ViewMode = "chart" | "history" | "review";
-type HistoryKind = "weight" | "meal" | "water" | "strength" | "diary";
+type HistoryKind = "weight" | "meal" | "water" | "strength" | "diary" | "activity";
 
 const VIEW_MODE_OPTIONS = [
   { value: "chart", label: "グラフ" },
@@ -49,6 +51,7 @@ const HISTORY_KIND_OPTIONS = [
   { value: "water", label: "水分" },
   { value: "strength", label: "筋トレ" },
   { value: "diary", label: "日記" },
+  { value: "activity", label: "活動" },
 ] as const;
 
 export default function TrendsPage() {
@@ -149,6 +152,13 @@ export default function TrendsPage() {
         : Promise.resolve<DiaryRecord[]>([]),
     [viewMode, historyKind],
   );
+  const activityHistoryRecords = useLiveQuery(
+    () =>
+      viewMode === "history" && historyKind === "activity"
+        ? getAllActivityRecordsDesc()
+        : Promise.resolve<ActivityRecord[]>([]),
+    [viewMode, historyKind],
+  );
   // 週次レビューのダイジェスト(Issue #45)。レビュータブ表示中のみ集計する。
   // 「未表示」もnullに解決するため、undefined(ロード中)と区別できる(CLAUDE.mdのuseLiveQueryパターン)
   const reviewDigest = useLiveQuery(
@@ -169,6 +179,7 @@ export default function TrendsPage() {
     waterHistoryRecords === undefined ||
     workoutHistoryRecords === undefined ||
     diaryHistoryRecords === undefined ||
+    activityHistoryRecords === undefined ||
     reviewDigest === undefined
   ) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
@@ -199,6 +210,7 @@ export default function TrendsPage() {
   const filteredWaterDays = groupWaterHistoryDays(waterHistoryRecords).filter((day) => inHistoryRange(day.date));
   const filteredWorkoutDays = groupWorkoutHistoryDays(workoutHistoryRecords).filter((day) => inHistoryRange(day.date));
   const filteredDiaryHistory = diaryHistoryRecords.filter((record) => inHistoryRange(record.date));
+  const filteredActivityHistory = activityHistoryRecords.filter((record) => inHistoryRange(record.date));
   // 水分・筋トレは日付単位の行になるため、件数も日数を表す
   const historyCount = {
     weight: filteredHistory.length,
@@ -206,6 +218,7 @@ export default function TrendsPage() {
     water: filteredWaterDays.length,
     strength: filteredWorkoutDays.length,
     diary: filteredDiaryHistory.length,
+    activity: filteredActivityHistory.length,
   }[historyKind];
 
   return (
@@ -297,7 +310,9 @@ export default function TrendsPage() {
             </ButtonBase>
           </Box>
           <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
-            {historyCount}件・新しい順(タップで編集)
+            {historyKind === "activity"
+              ? `${historyCount}件・新しい順(Garminから自動取得・編集不可)`
+              : `${historyCount}件・新しい順(タップで編集)`}
           </Typography>
           {historyKind === "weight" ? (
             <WeightHistoryList
@@ -320,11 +335,13 @@ export default function TrendsPage() {
               days={filteredWorkoutDays}
               onSelect={(date) => navigate(`/record/strength?date=${date}`)}
             />
-          ) : (
+          ) : historyKind === "diary" ? (
             <DiaryHistoryList
               records={filteredDiaryHistory}
               onSelect={(date) => navigate(`/record/diary?date=${date}`)}
             />
+          ) : (
+            <ActivityHistoryList records={filteredActivityHistory} />
           )}
         </>
       )}

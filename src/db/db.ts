@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
 import type {
+  ActivityRecord,
   AdviceRecord,
   DiaryRecord,
   ExerciseMasterItem,
@@ -25,6 +26,7 @@ export const db = new Dexie("lifelog") as Dexie & {
   workoutRecords: EntityTable<WorkoutRecord, "id">;
   exerciseMasterItems: EntityTable<ExerciseMasterItem, "id">;
   adviceRecords: EntityTable<AdviceRecord, "weekStart">;
+  activityRecords: EntityTable<ActivityRecord, "date">;
 };
 
 // weightRecords: dateを主キーにすることで、同じ日付のput()が自動的に上書き(後勝ち)になる
@@ -56,4 +58,9 @@ db.version(4).stores({
 // 週の開始日(月曜)を主キーにして「1週1件、再生成で上書き(後勝ち)」を成立させる
 db.version(5).stores({
   adviceRecords: "weekStart",
+});
+
+// Garmin由来の日次活動記録(Issue #81)。dateを主キーにして「1日1件、後勝ち」を成立させる
+db.version(6).stores({
+  activityRecords: "date",
 });

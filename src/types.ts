@@ -84,6 +84,25 @@ export interface ExerciseMasterItem {
   createdAt: string; // ISO8601
 }
 
+/**
+ * Garmin由来の日次活動記録(Issue #81)。シートの「活動記録」タブ(Garmin連携が書き込む。
+ * scripts/garmin/README.md 参照)からの取り込み専用で、アプリ内での作成・編集・削除はしない —
+ * 真実の情報源はGarmin側のため、取り込みは他と違い常に上書き(シート優先)でよい。
+ * 全項目がGarminの計測状況次第で欠けうるため、date以外はすべて任意。
+ */
+export interface ActivityRecord {
+  date: string; // YYYY-MM-DD, 1日1件のキー
+  steps?: number;
+  totalKcal?: number; // 総消費カロリー(基礎代謝込み)
+  activeKcal?: number; // 活動消費カロリー
+  sleepMinutes?: number;
+  sleepScore?: number; // Garminの睡眠スコア(0〜100)
+  restingHeartRate?: number; // 安静時心拍数(bpm)
+  moderateIntensityMinutes?: number; // 中強度運動時間(分)
+  vigorousIntensityMinutes?: number; // 高強度運動時間(分)
+  synced: boolean; // 常にtrue(シート由来・取り込み専用。push対象にしない)
+}
+
 /** どちらのスプレッドシートタブの行を指すかの識別子 */
 export type SyncSheet = "weight" | "meal" | "water" | "workout" | "diary";
 

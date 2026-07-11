@@ -82,11 +82,13 @@ export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, 
       >
         {PFC_ROWS.map(({ label, color }, i) => (
           <Box key={label}>
-            <Box sx={{ display: "flex", alignItems: "baseline", gap: "3px", mb: "6px" }}>
+            {/* 目標対比表示は「実績 / 目標g」で幅が増え、3桁同士だとセル幅を超えて折り返しズレて見えるため、
+                折り返しを禁止し数値を一段小さくして収める(Issue #78) */}
+            <Box sx={{ display: "flex", alignItems: "baseline", gap: targets ? "2px" : "3px", mb: "6px", whiteSpace: "nowrap" }}>
               <Typography sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary" }}>{label}</Typography>
-              <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 18 }}>{grams[i]}</Typography>
-              <Typography sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 11, color: "text.secondary" }}>
-                {targets ? `/ ${targets[i]}g` : "g"}
+              <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: targets ? 15 : 18 }}>{grams[i]}</Typography>
+              <Typography sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: targets ? 10 : 11, color: "text.secondary" }}>
+                {targets ? `/${targets[i]}g` : "g"}
               </Typography>
             </Box>
             {/* 目標設定時は目標量に対する充足率、未設定時は3栄養素間のバランスの目安(最大値に対する比) */}

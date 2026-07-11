@@ -6,6 +6,7 @@ import Card from "@mui/material/Card";
 import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
 import RecordHeader from "@/components/RecordHeader";
+import SectionLabel from "@/components/SectionLabel";
 import { IconClose, IconDrop } from "@/components/icons";
 import { addWaterRecord, deleteWaterRecord, getWaterRecordsForDate } from "@/db/waterRecords";
 import { getSettings } from "@/db/settings";
@@ -16,14 +17,6 @@ import { fontRounded, tokens } from "@/theme";
 const QUICK_AMOUNTS = [100, 200, 350, 500] as const;
 /** プライマリ強調するボタン(モックでは500mlが強調されている) */
 const PRIMARY_AMOUNT = 500;
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", mb: "8px", mt: "4px" }}>
-      {children}
-    </Typography>
-  );
-}
 
 export default function WaterRecordPage() {
   const navigate = useNavigate();

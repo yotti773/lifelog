@@ -9,9 +9,9 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import PaginationControls from "@/components/PaginationControls";
 import {
   IconBack,
-  IconChevronRight,
   IconDownload,
   IconEdit,
   IconPlus,
@@ -26,60 +26,84 @@ import {
   updateFoodMasterItem,
 } from "@/db/foodMaster";
 import { foodMasterSeedData } from "@/db/foodMasterSeedData";
+import { usePagedFilter } from "@/hooks/usePagedFilter";
 import { fontRounded, tokens } from "@/theme";
 import type { FoodMasterItem } from "@/types";
 
 const PAGE_SIZE = 8;
 
+// 追加・編集で共通の品目下書き(Issue #42)。入力途中の値を文字列のまま保持する
+interface ItemDraft {
+  name: string;
+  kcal: string;
+  proteinG: string;
+  fatG: string;
+  carbsG: string;
+}
+
+const EMPTY_DRAFT: ItemDraft = { name: "", kcal: "", proteinG: "", fatG: "", carbsG: "" };
+
+function draftFromItem(item: FoodMasterItem): ItemDraft {
+  return {
+    name: item.name,
+    kcal: String(item.kcal),
+    proteinG: String(item.proteinG),
+    fatG: String(item.fatG),
+    carbsG: String(item.carbsG),
+  };
+}
+
+/** 下書きを保存用の値に変換する。数値欄は空欄・数値以外を0として扱う(追加・編集で共通) */
+function draftToInput(draft: ItemDraft) {
+  return {
+    name: draft.name.trim(),
+    kcal: Number(draft.kcal) || 0,
+    proteinG: Number(draft.proteinG) || 0,
+    fatG: Number(draft.fatG) || 0,
+    carbsG: Number(draft.carbsG) || 0,
+  };
+}
+
+/** kcal・PFCの4項目入力グリッド(追加・編集で共通の見た目) */
+function NutrientFieldsGrid({ draft, onChange }: { draft: ItemDraft; onChange: (draft: ItemDraft) => void }) {
+  return (
+    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", mb: "8px" }}>
+      <TextField size="small" type="number" value={draft.kcal} onChange={(e) => onChange({ ...draft, kcal: e.target.value })} placeholder="kcal" />
+      <TextField size="small" type="number" value={draft.proteinG} onChange={(e) => onChange({ ...draft, proteinG: e.target.value })} placeholder="P" />
+      <TextField size="small" type="number" value={draft.fatG} onChange={(e) => onChange({ ...draft, fatG: e.target.value })} placeholder="F" />
+      <TextField size="small" type="number" value={draft.carbsG} onChange={(e) => onChange({ ...draft, carbsG: e.target.value })} placeholder="C" />
+    </Box>
+  );
+}
+
 export default function FoodMasterPage() {
   const navigate = useNavigate();
   const items = useLiveQuery(() => getAllFoodMasterItems(), []);
+  const { query, setQuery, page, setPage, pageCount, filtered, pageItems, reset } = usePagedFilter(
+    items ?? [],
+    (item) => item.name,
+    PAGE_SIZE,
+  );
 
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editKcal, setEditKcal] = useState("");
-  const [editProteinG, setEditProteinG] = useState("");
-  const [editFatG, setEditFatG] = useState("");
-  const [editCarbsG, setEditCarbsG] = useState("");
+  const [editDraft, setEditDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [isSeeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
   const [isAdding, setAdding] = useState(false);
-  const [addName, setAddName] = useState("");
-  const [addKcal, setAddKcal] = useState("");
-  const [addProteinG, setAddProteinG] = useState("");
-  const [addFatG, setAddFatG] = useState("");
-  const [addCarbsG, setAddCarbsG] = useState("");
+  const [addDraft, setAddDraft] = useState<ItemDraft>(EMPTY_DRAFT);
 
   if (items === undefined) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
 
-  const trimmedQuery = query.trim();
-  const filtered = trimmedQuery ? items.filter((item) => item.name.includes(trimmedQuery)) : items;
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount - 1);
-  const pageItems = filtered.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
-
   const startEdit = (item: FoodMasterItem) => {
     setEditingId(item.id);
-    setEditName(item.name);
-    setEditKcal(String(item.kcal));
-    setEditProteinG(String(item.proteinG));
-    setEditFatG(String(item.fatG));
-    setEditCarbsG(String(item.carbsG));
+    setEditDraft(draftFromItem(item));
   };
 
   const saveEdit = async () => {
     if (!editingId) return;
-    await updateFoodMasterItem(editingId, {
-      name: editName.trim(),
-      kcal: Number(editKcal),
-      proteinG: Number(editProteinG),
-      fatG: Number(editFatG),
-      carbsG: Number(editCarbsG),
-    });
+    await updateFoodMasterItem(editingId, draftToInput(editDraft));
     setEditingId(null);
   };
 
@@ -96,34 +120,19 @@ export default function FoodMasterPage() {
     }
   };
 
-  const resetAddForm = () => {
-    setAddName("");
-    setAddKcal("");
-    setAddProteinG("");
-    setAddFatG("");
-    setAddCarbsG("");
-  };
-
   const cancelAdd = () => {
-    resetAddForm();
+    setAddDraft(EMPTY_DRAFT);
     setAdding(false);
   };
 
   const saveAdd = async () => {
-    const name = addName.trim();
-    if (!name) return;
-    await addFoodMasterItem({
-      name,
-      kcal: Number(addKcal) || 0,
-      proteinG: Number(addProteinG) || 0,
-      fatG: Number(addFatG) || 0,
-      carbsG: Number(addCarbsG) || 0,
-    });
-    resetAddForm();
+    const input = draftToInput(addDraft);
+    if (!input.name) return;
+    await addFoodMasterItem(input);
+    setAddDraft(EMPTY_DRAFT);
     setAdding(false);
     // 追加直後の品目を一覧で見つけやすいよう、絞り込みを解除して先頭ページへ戻す
-    setQuery("");
-    setPage(0);
+    reset();
   };
 
   return (
@@ -146,10 +155,7 @@ export default function FoodMasterPage() {
         fullWidth
         size="small"
         value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setPage(0);
-        }}
+        onChange={(e) => setQuery(e.target.value)}
         placeholder="品目名で検索"
         slotProps={{
           input: {
@@ -218,16 +224,11 @@ export default function FoodMasterPage() {
                 <TextField
                   fullWidth
                   size="small"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  value={editDraft.name}
+                  onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
                   sx={{ mb: "8px" }}
                 />
-                <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", mb: "8px" }}>
-                  <TextField size="small" type="number" value={editKcal} onChange={(e) => setEditKcal(e.target.value)} placeholder="kcal" />
-                  <TextField size="small" type="number" value={editProteinG} onChange={(e) => setEditProteinG(e.target.value)} placeholder="P" />
-                  <TextField size="small" type="number" value={editFatG} onChange={(e) => setEditFatG(e.target.value)} placeholder="F" />
-                  <TextField size="small" type="number" value={editCarbsG} onChange={(e) => setEditCarbsG(e.target.value)} placeholder="C" />
-                </Box>
+                <NutrientFieldsGrid draft={editDraft} onChange={setEditDraft} />
                 <Box sx={{ display: "flex", gap: "8px" }}>
                   <Button fullWidth variant="contained" size="small" onClick={saveEdit}>
                     保存
@@ -287,32 +288,7 @@ export default function FoodMasterPage() {
         </Card>
       )}
 
-      {/* ページネーション */}
-      {pageCount > 1 && (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", mt: "12px" }}>
-          <IconButton
-            onClick={() => setPage(currentPage - 1)}
-            disabled={currentPage === 0}
-            aria-label="前のページ"
-            sx={{ color: currentPage === 0 ? tokens.faint2 : "primary.main" }}
-          >
-            <Box sx={{ transform: "rotate(180deg)", display: "flex" }}>
-              <IconChevronRight />
-            </Box>
-          </IconButton>
-          <Typography sx={{ fontFamily: fontRounded, fontWeight: 600, fontSize: 11, color: "text.secondary" }}>
-            {currentPage + 1} / {pageCount} ページ
-          </Typography>
-          <IconButton
-            onClick={() => setPage(currentPage + 1)}
-            disabled={currentPage === pageCount - 1}
-            aria-label="次のページ"
-            sx={{ color: currentPage === pageCount - 1 ? tokens.faint2 : "primary.main" }}
-          >
-            <IconChevronRight />
-          </IconButton>
-        </Box>
-      )}
+      <PaginationControls page={page} pageCount={pageCount} onPageChange={setPage} />
 
       {/* 手動で追加 */}
       {isAdding ? (
@@ -321,8 +297,8 @@ export default function FoodMasterPage() {
           <TextField
             fullWidth
             size="small"
-            value={addName}
-            onChange={(e) => setAddName(e.target.value)}
+            value={addDraft.name}
+            onChange={(e) => setAddDraft({ ...addDraft, name: e.target.value })}
             placeholder="品目名(例: 【モス】モスバーガー)"
             autoFocus
             sx={{ mb: "4px" }}
@@ -330,14 +306,9 @@ export default function FoodMasterPage() {
           <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "8px", px: "2px" }}>
             外食チェーン・コンビニの商品は店名を含めておくと一覧で見分けやすくなります
           </Typography>
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", mb: "8px" }}>
-            <TextField size="small" type="number" value={addKcal} onChange={(e) => setAddKcal(e.target.value)} placeholder="kcal" />
-            <TextField size="small" type="number" value={addProteinG} onChange={(e) => setAddProteinG(e.target.value)} placeholder="P" />
-            <TextField size="small" type="number" value={addFatG} onChange={(e) => setAddFatG(e.target.value)} placeholder="F" />
-            <TextField size="small" type="number" value={addCarbsG} onChange={(e) => setAddCarbsG(e.target.value)} placeholder="C" />
-          </Box>
+          <NutrientFieldsGrid draft={addDraft} onChange={setAddDraft} />
           <Box sx={{ display: "flex", gap: "8px" }}>
-            <Button fullWidth variant="contained" size="small" onClick={saveAdd} disabled={!addName.trim()}>
+            <Button fullWidth variant="contained" size="small" onClick={saveAdd} disabled={!addDraft.name.trim()}>
               追加
             </Button>
             <Button fullWidth variant="outlined" size="small" onClick={cancelAdd} sx={{ color: "text.secondary", borderColor: tokens.border }}>

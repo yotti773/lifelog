@@ -4,8 +4,8 @@ import { useNavigate } from "react-router-dom";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import { IconBarbell, IconDownload, IconFork } from "@/components/icons";
-import { getAllExerciseMasterItems } from "@/db/exerciseMaster";
-import { getAllFoodMasterItems, bulkAddFoodMasterItems } from "@/db/foodMaster";
+import { db } from "@/db/db";
+import { bulkAddFoodMasterItems } from "@/db/foodMaster";
 import { foodMasterSeedData } from "@/db/foodMasterSeedData";
 import { tokens } from "@/theme";
 import SettingRow, { SectionLabel } from "./SettingRow";
@@ -13,8 +13,9 @@ import SettingRow, { SectionLabel } from "./SettingRow";
 /** 設定画面の「食事マスタ」「種目マスタ」セクション。件数表示・管理画面への遷移・定番メニューの一括登録を持つ */
 export default function MasterDataSections() {
   const navigate = useNavigate();
-  const foodMasterCount = useLiveQuery(async () => (await getAllFoodMasterItems()).length, []);
-  const exerciseMasterCount = useLiveQuery(async () => (await getAllExerciseMasterItems()).length, []);
+  // 件数表示だけなので全件ロードせずcount()で数える(Issue #59)
+  const foodMasterCount = useLiveQuery(() => db.foodMasterItems.count(), []);
+  const exerciseMasterCount = useLiveQuery(() => db.exerciseMasterItems.count(), []);
 
   const [isSeeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);

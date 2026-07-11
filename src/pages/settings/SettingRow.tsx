@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Typography from "@mui/material/Typography";
+import SharedSectionLabel from "@/components/SectionLabel";
 import { IconChevronRight } from "@/components/icons";
 import { fontRounded, tokens } from "@/theme";
 
@@ -54,8 +55,7 @@ export default function SettingRow({ icon, iconBg, iconColor, label, value, divi
   );
 }
 
+/** 設定画面用のセクション見出し。共有のSectionLabelに、設定一覧特有の余白(上6px・左右4px)を足したもの */
 export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", m: "6px 4px 8px" }}>{children}</Typography>
-  );
+  return <SharedSectionLabel sx={{ m: "6px 4px 8px" }}>{children}</SharedSectionLabel>;
 }

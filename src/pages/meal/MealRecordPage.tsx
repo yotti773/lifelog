@@ -16,6 +16,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { judgeMealPhoto, type MealJudgmentItem } from "@/api/judgeMeal";
 import RecordHeader from "@/components/RecordHeader";
+import RecordSaveFooter from "@/components/RecordSaveFooter";
 import SegmentedControl from "@/components/SegmentedControl";
 import { IconPlus, IconSparkle } from "@/components/icons";
 import { addFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
@@ -546,43 +547,27 @@ export default function MealRecordPage() {
         )}
         {error && <Typography sx={{ mt: "12px", fontSize: 13, color: "primary.main" }}>{error}</Typography>}
 
-        {/* 下部固定の保存ボタン */}
-        <Box
-          sx={{
-            position: "fixed",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            p: "14px 20px 26px",
-            background: "linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 34%)",
-            zIndex: 10,
-          }}
+        <RecordSaveFooter
+          type="submit"
+          label={
+            isEditing
+              ? "更新する"
+              : pendingItems.length > 0
+                ? `まとめて保存する(${pendingItems.length + (isCurrentItemFilled ? 1 : 0)}件)`
+                : "保存する"
+          }
         >
-          <Box sx={{ mx: "auto", maxWidth: 408, display: "flex", flexDirection: "column", gap: "8px" }}>
+          {isEditing && (
             <Button
               fullWidth
-              type="submit"
-              variant="contained"
-              sx={{ height: 54, borderRadius: "16px", fontSize: 16, boxShadow: tokens.primaryButtonShadow }}
+              variant="outlined"
+              onClick={() => setDeleteConfirmOpen(true)}
+              sx={{ height: 44, borderRadius: "14px", fontSize: 14, color: "primary.main", borderColor: "primary.main", bgcolor: "background.default" }}
             >
-              {isEditing
-                ? "更新する"
-                : pendingItems.length > 0
-                  ? `まとめて保存する(${pendingItems.length + (isCurrentItemFilled ? 1 : 0)}件)`
-                  : "保存する"}
+              この記録を削除する
             </Button>
-            {isEditing && (
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={() => setDeleteConfirmOpen(true)}
-                sx={{ height: 44, borderRadius: "14px", fontSize: 14, color: "primary.main", borderColor: "primary.main", bgcolor: "background.default" }}
-              >
-                この記録を削除する
-              </Button>
-            )}
-          </Box>
-        </Box>
+          )}
+        </RecordSaveFooter>
       </Box>
 
       <Dialog open={saveConfirm !== null} onClose={() => setSaveConfirm(null)}>

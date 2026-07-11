@@ -9,10 +9,10 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import PaginationControls from "@/components/PaginationControls";
 import {
   IconBack,
   IconBarbell,
-  IconChevronRight,
   IconEdit,
   IconPlus,
   IconSearch,
@@ -25,6 +25,7 @@ import {
   getAllExerciseMasterItems,
   updateExerciseMasterItem,
 } from "@/db/exerciseMaster";
+import { usePagedFilter } from "@/hooks/usePagedFilter";
 import { fontRounded, tokens } from "@/theme";
 import type { ExerciseMasterItem } from "@/types";
 
@@ -34,9 +35,12 @@ const PAGE_SIZE = 8;
 export default function ExerciseMasterPage() {
   const navigate = useNavigate();
   const items = useLiveQuery(() => getAllExerciseMasterItems(), []);
+  const { query, setQuery, page, setPage, pageCount, filtered, pageItems, reset } = usePagedFilter(
+    items ?? [],
+    (item) => item.name,
+    PAGE_SIZE,
+  );
 
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [isAdding, setAdding] = useState(false);
@@ -47,12 +51,6 @@ export default function ExerciseMasterPage() {
   if (items === undefined) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
-
-  const trimmedQuery = query.trim();
-  const filtered = trimmedQuery ? items.filter((item) => item.name.includes(trimmedQuery)) : items;
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount - 1);
-  const pageItems = filtered.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
 
   const startEdit = (item: ExerciseMasterItem) => {
     setEditingId(item.id);
@@ -90,8 +88,7 @@ export default function ExerciseMasterPage() {
     setAdding(false);
     setAddError(null);
     // 追加直後の種目を一覧で見つけやすいよう、絞り込みを解除して先頭ページへ戻す
-    setQuery("");
-    setPage(0);
+    reset();
   };
 
   return (
@@ -114,10 +111,7 @@ export default function ExerciseMasterPage() {
         fullWidth
         size="small"
         value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setPage(0);
-        }}
+        onChange={(e) => setQuery(e.target.value)}
         placeholder="種目名で検索"
         slotProps={{
           input: {
@@ -228,32 +222,7 @@ export default function ExerciseMasterPage() {
         </Card>
       )}
 
-      {/* ページネーション */}
-      {pageCount > 1 && (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", mt: "12px" }}>
-          <IconButton
-            onClick={() => setPage(currentPage - 1)}
-            disabled={currentPage === 0}
-            aria-label="前のページ"
-            sx={{ color: currentPage === 0 ? tokens.faint2 : "primary.main" }}
-          >
-            <Box sx={{ transform: "rotate(180deg)", display: "flex" }}>
-              <IconChevronRight />
-            </Box>
-          </IconButton>
-          <Typography sx={{ fontFamily: fontRounded, fontWeight: 600, fontSize: 11, color: "text.secondary" }}>
-            {currentPage + 1} / {pageCount} ページ
-          </Typography>
-          <IconButton
-            onClick={() => setPage(currentPage + 1)}
-            disabled={currentPage === pageCount - 1}
-            aria-label="次のページ"
-            sx={{ color: currentPage === pageCount - 1 ? tokens.faint2 : "primary.main" }}
-          >
-            <IconChevronRight />
-          </IconButton>
-        </Box>
-      )}
+      <PaginationControls page={page} pageCount={pageCount} onPageChange={setPage} />
 
       {/* 手動で追加 */}
       {isAdding ? (

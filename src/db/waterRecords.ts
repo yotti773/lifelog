@@ -1,5 +1,6 @@
 import { db } from "./db";
-import { formatDate, localDateRangeToUtcIso } from "@/lib/date";
+import { sumDailyTotals } from "@/lib/dailyTotals";
+import { localDateRangeToUtcIso } from "@/lib/date";
 import type { WaterRecord } from "@/types";
 
 export interface DailyWaterTotal {
@@ -43,20 +44,7 @@ export async function getDailyWaterTotals(
     .where("timestamp")
     .between(startIso, endIso, true, true)
     .toArray();
-
-  const totalsByDate = new Map<string, number>();
-  for (const record of records) {
-    const date = formatDate(new Date(record.timestamp));
-    totalsByDate.set(date, (totalsByDate.get(date) ?? 0) + record.amountMl);
-  }
-
-  const totals: DailyWaterTotal[] = [];
-  const cursor = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
-  while (cursor <= end) {
-    const date = formatDate(cursor);
-    totals.push({ date, amountMl: totalsByDate.get(date) ?? 0 });
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return totals;
+  return sumDailyTotals(records, startDate, endDate, (r) => r.timestamp, (r) => r.amountMl).map(
+    ({ date, total }) => ({ date, amountMl: total }),
+  );
 }

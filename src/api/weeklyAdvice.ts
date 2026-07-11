@@ -1,3 +1,4 @@
+import { apiAuthHeaders } from "@/api/apiAuth";
 import { isWeeklyAdvice } from "@/lib/weeklyAdviceValidation";
 import type { WeeklyAdvice, WeeklyDigest } from "@/types";
 
@@ -8,7 +9,7 @@ import type { WeeklyAdvice, WeeklyDigest } from "@/types";
 export async function requestWeeklyAdvice(digest: WeeklyDigest): Promise<WeeklyAdvice> {
   const res = await fetch("/api/weekly-advice", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(await apiAuthHeaders()) },
     body: JSON.stringify({ digest }),
   });
 

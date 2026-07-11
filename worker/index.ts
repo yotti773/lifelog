@@ -1,3 +1,4 @@
+import { isAuthorized, unauthorizedResponse } from "./auth";
 import {
   buildMealJudgmentPrompt,
   MEAL_JUDGMENT_RESPONSE_SCHEMA,
@@ -12,6 +13,8 @@ import { handleWeeklyAdvice } from "./weeklyAdvice";
 
 export interface Env {
   ASSETS: Fetcher;
+  /** APIの共有トークン(Issue #87)。未設定なら認証を要求しない(ローカル開発・移行期間用) */
+  API_AUTH_TOKEN?: string;
   GEMINI_API_KEY: string;
   GEMINI_MODEL?: string;
   /** 週次レビューのAIコメント用の軽量モデル(Issue #12)。未設定時はworker/weeklyAdvice.tsのデフォルトを使う */
@@ -77,6 +80,11 @@ async function judgeMeal(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // 全APIエンドポイントを共有トークンで保護する(Issue #87)。静的アセット配信は対象外
+    if (url.pathname.startsWith("/api/") && !isAuthorized(request.headers.get("authorization"), env.API_AUTH_TOKEN)) {
+      return unauthorizedResponse();
+    }
 
     if (url.pathname === "/api/sync-sheets" && request.method === "POST") {
       return handleSyncSheets(request, env);

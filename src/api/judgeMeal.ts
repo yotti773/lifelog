@@ -1,3 +1,4 @@
+import { apiAuthHeaders } from "@/api/apiAuth";
 import { resizeImageToBase64 } from "@/lib/image";
 import type { MealType } from "@/types";
 
@@ -24,7 +25,7 @@ export async function judgeMealPhoto(
 
   const res = await fetch("/api/judge-meal", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(await apiAuthHeaders()) },
     body: JSON.stringify({ imageBase64: base64, mimeType, mealType, note }),
   });
 

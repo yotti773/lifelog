@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { enqueueDeletion } from "./syncDeletions";
 import { sumDailyTotals } from "@/lib/dailyTotals";
 import { localDateRangeToUtcIso } from "@/lib/date";
 import type { WaterRecord } from "@/types";
@@ -27,10 +28,19 @@ export async function getWaterRecordsForDate(date: string): Promise<WaterRecord[
 
 /**
  * 誤記録の訂正用(削除→再記録。量の編集UIは持たない。画面設計書5章)。
- * 水分はスプレッドシート同期の対象外のため、体重・食事と違い削除トゥームストーンは残さない(画面設計書10章)
+ * スプレッドシート側の該当行も次回同期で削除するためトゥームストーンを残す(Issue #72)
  */
 export async function deleteWaterRecord(id: string): Promise<void> {
   await db.waterRecords.delete(id);
+  await enqueueDeletion("water", id);
+}
+
+export async function getUnsyncedWaterRecords(): Promise<WaterRecord[]> {
+  return db.waterRecords.filter((record) => !record.synced).toArray();
+}
+
+export async function markWaterRecordsSynced(ids: string[]): Promise<void> {
+  await db.waterRecords.where("id").anyOf(ids).modify({ synced: true });
 }
 
 /** 指定期間の日別摂取量合計を返す(記録のない日も0mlとして含める。カロリー推移と同じ考え方) */

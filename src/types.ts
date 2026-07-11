@@ -47,7 +47,7 @@ export interface WaterRecord {
   id: string;
   timestamp: string; // ISO8601, 記録した瞬間の時刻
   amountMl: number;
-  synced: boolean; // 同期対象化自体は未決定(画面設計書10章)。対象化に備えて保持する
+  synced: boolean; // スプレッドシートへの同期済みフラグ(Issue #72)
 }
 
 /** 日記の気分タグ(絶好調/良い/普通/眠い/不調の5段階。画面設計書6章) */
@@ -59,7 +59,7 @@ export interface DiaryRecord {
   timestamp: string; // ISO8601, 最後に保存した時刻
   text: string;
   mood?: DiaryMood;
-  synced: boolean; // 同期対象化自体は未決定(画面設計書10章)
+  synced: boolean; // スプレッドシートへの同期済みフラグ(Issue #72)。本文も含めて同期する
 }
 
 /**
@@ -75,7 +75,7 @@ export interface WorkoutRecord {
   setNumber: number; // 何セット目か(1始まり)
   weightKg: number;
   reps: number;
-  synced: boolean; // 同期対象化自体は未決定(画面設計書10章)
+  synced: boolean; // スプレッドシートへの同期済みフラグ(Issue #72)
 }
 
 export interface ExerciseMasterItem {
@@ -85,7 +85,7 @@ export interface ExerciseMasterItem {
 }
 
 /** どちらのスプレッドシートタブの行を指すかの識別子 */
-export type SyncSheet = "weight" | "meal";
+export type SyncSheet = "weight" | "meal" | "water" | "workout" | "diary";
 
 /**
  * 同期済み(スプレッドシートに書き出し済み)の可能性がある記録を削除したときのトゥームストーン。
@@ -95,7 +95,10 @@ export interface SyncDeletion {
   /** `${sheet}:${recordId}` の合成キー(同じ行への削除要求を冪等にまとめる) */
   id: string;
   sheet: SyncSheet;
-  /** スプレッドシートのID列に書かれている値(WeightRecord.id=日付 / MealRecord.id=UUID) */
+  /**
+   * スプレッドシートのID列に書かれている値。
+   * WeightRecord.id=日付 / MealRecord.id・WaterRecord.id・WorkoutRecord.id=UUID / DiaryRecord.id=日付
+   */
   recordId: string;
   deletedAt: string; // ISO8601
 }

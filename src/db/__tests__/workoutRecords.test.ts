@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/db";
+import { getPendingDeletionIds } from "@/db/syncDeletions";
 import {
+  getUnsyncedWorkoutRecords,
   getWorkoutRecordsForDate,
   groupWorkoutRecordsByExercise,
+  markWorkoutRecordsSynced,
   replaceWorkoutRecordsForDate,
 } from "@/db/workoutRecords";
 
 beforeEach(async () => {
   await db.workoutRecords.clear();
+  await db.syncDeletions.clear();
 });
 
 describe("workoutRecords", () => {
@@ -56,6 +60,39 @@ describe("workoutRecords", () => {
     await replaceWorkoutRecordsForDate("2026-07-01", []);
 
     expect(await getWorkoutRecordsForDate("2026-07-01")).toHaveLength(0);
+  });
+
+  it("enqueues a sync tombstone for each replaced record's old id (new ids get re-added fresh)", async () => {
+    await replaceWorkoutRecordsForDate("2026-07-01", [
+      { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }, { weightKg: 60, reps: 8 }] },
+    ]);
+    expect(await getPendingDeletionIds("workout")).toEqual([]);
+
+    await replaceWorkoutRecordsForDate("2026-07-01", [
+      { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }] },
+    ]);
+    // 置き換えのたびに全セットへ新しいIDを振り直すため、置き換え前の2件分のIDがトゥームストーンとして残る
+    expect(await getPendingDeletionIds("workout")).toHaveLength(2);
+  });
+
+  it("does not enqueue a tombstone the first time a date is saved (no prior records to replace)", async () => {
+    await replaceWorkoutRecordsForDate("2026-07-01", [
+      { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }] },
+    ]);
+
+    expect(await getPendingDeletionIds("workout")).toEqual([]);
+  });
+
+  it("lists only unsynced records and marks them synced", async () => {
+    await replaceWorkoutRecordsForDate("2026-07-01", [
+      { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }] },
+    ]);
+    const records = await getWorkoutRecordsForDate("2026-07-01");
+
+    expect((await getUnsyncedWorkoutRecords()).map((r) => r.id)).toEqual([records[0].id]);
+
+    await markWorkoutRecordsSynced([records[0].id]);
+    expect(await getUnsyncedWorkoutRecords()).toHaveLength(0);
   });
 
   it("groups records back into exercises preserving order", async () => {

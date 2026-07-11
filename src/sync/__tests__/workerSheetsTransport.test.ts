@@ -5,8 +5,14 @@ import type { SyncPushPayload } from "@/sync/types";
 const payload: SyncPushPayload = {
   weightRecords: [],
   mealRecords: [],
+  waterRecords: [],
+  workoutRecords: [],
+  diaryRecords: [],
   deletedWeightIds: [],
   deletedMealIds: [],
+  deletedWaterIds: [],
+  deletedWorkoutIds: [],
+  deletedDiaryIds: [],
 };
 
 afterEach(() => {

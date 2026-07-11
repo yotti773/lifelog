@@ -2,7 +2,7 @@ import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
-import { IconChevronRight } from "./icons";
+import { IconChevronRight } from "@/components/icons";
 import { formatDate, formatTime } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 import type { MealRecord, MealType } from "@/types";

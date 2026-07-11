@@ -2,13 +2,13 @@ import { useEffect } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import Box from "@mui/material/Box";
 import BottomNav from "./components/BottomNav";
-import Home from "./pages/Home";
-import Trends from "./pages/Trends";
-import Settings from "./pages/Settings";
-import FoodMasterPage from "./pages/FoodMasterPage";
-import ExerciseMasterPage from "./pages/ExerciseMasterPage";
+import HomePage from "./pages/home/HomePage";
+import TrendsPage from "./pages/trends/TrendsPage";
+import SettingsPage from "./pages/settings/SettingsPage";
+import FoodMasterPage from "./pages/settings/FoodMasterPage";
+import ExerciseMasterPage from "./pages/settings/ExerciseMasterPage";
 import WeightRecordPage from "./pages/WeightRecordPage";
-import MealRecordPage from "./pages/MealRecordPage";
+import MealRecordPage from "./pages/meal/MealRecordPage";
 import WaterRecordPage from "./pages/WaterRecordPage";
 import DiaryRecordPage from "./pages/DiaryRecordPage";
 import StrengthRecordPage from "./pages/StrengthRecordPage";
@@ -29,9 +29,9 @@ export default function App() {
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "background.default" }}>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/trends" element={<Trends />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/trends" element={<TrendsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/food-master" element={<FoodMasterPage />} />
         <Route path="/settings/exercise-master" element={<ExerciseMasterPage />} />
         <Route path="/record/weight" element={<WeightRecordPage />} />

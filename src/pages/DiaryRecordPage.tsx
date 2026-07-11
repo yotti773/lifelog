@@ -1,24 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import MoodIcon, { MOOD_DEFS, MOOD_ORDER } from "@/components/MoodIcon";
 import RecordHeader from "@/components/RecordHeader";
+import RecordSaveFooter from "@/components/RecordSaveFooter";
+import SectionLabel from "@/components/SectionLabel";
 import { deleteDiaryRecord, getDiaryRecord, saveDiaryRecord } from "@/db/diaryRecords";
 import { todayDateString } from "@/lib/date";
 import { tokens } from "@/theme";
 import type { DiaryMood } from "@/types";
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", mb: "8px", mt: "4px" }}>
-      {children}
-    </Typography>
-  );
-}
 
 export default function DiaryRecordPage() {
   const navigate = useNavigate();
@@ -105,29 +98,7 @@ export default function DiaryRecordPage() {
         slotProps={{ htmlInput: { style: { fontSize: 14, lineHeight: 1.7 } } }}
       />
 
-      {/* 下部固定の保存ボタン */}
-      <Box
-        sx={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          p: "16px 20px 26px",
-          background: "linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 30%)",
-          zIndex: 10,
-        }}
-      >
-        <Box sx={{ mx: "auto", maxWidth: 408 }}>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={handleSave}
-            sx={{ height: 54, borderRadius: "16px", fontSize: 16, boxShadow: tokens.primaryButtonShadow }}
-          >
-            保存する
-          </Button>
-        </Box>
-      </Box>
+      <RecordSaveFooter onClick={handleSave} />
     </Box>
   );
 }

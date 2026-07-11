@@ -3,7 +3,7 @@ import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import BodyFatChart from "./BodyFatChart";
 import CalorieChart from "./CalorieChart";
-import SegmentedControl from "./SegmentedControl";
+import SegmentedControl from "@/components/SegmentedControl";
 import WaterChart from "./WaterChart";
 import WeightChart from "./WeightChart";
 import { fontRounded, tokens } from "@/theme";

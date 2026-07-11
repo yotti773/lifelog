@@ -7,6 +7,7 @@ import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import RecordHeader from "@/components/RecordHeader";
+import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconArrow } from "@/components/icons";
 import { db } from "@/db/db";
 import { getWeightRecord, saveWeightRecord } from "@/db/weightRecords";
@@ -208,29 +209,7 @@ export default function WeightRecordPage() {
 
         {error && <Typography sx={{ mt: "12px", fontSize: 13, color: "primary.main" }}>{error}</Typography>}
 
-        {/* 下部固定の保存ボタン */}
-        <Box
-          sx={{
-            position: "fixed",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            p: "16px 20px 26px",
-            background: "linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 30%)",
-            zIndex: 10,
-          }}
-        >
-          <Box sx={{ mx: "auto", maxWidth: 408 }}>
-            <Button
-              fullWidth
-              type="submit"
-              variant="contained"
-              sx={{ height: 54, borderRadius: "16px", fontSize: 16, boxShadow: tokens.primaryButtonShadow }}
-            >
-              保存する
-            </Button>
-          </Box>
-        </Box>
+        <RecordSaveFooter type="submit" />
       </Box>
     </Box>
   );

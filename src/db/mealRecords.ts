@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { enqueueDeletion } from "./syncDeletions";
-import { formatDate, localDateRangeToUtcIso } from "@/lib/date";
+import { sumDailyTotals } from "@/lib/dailyTotals";
+import { localDateRangeToUtcIso } from "@/lib/date";
 import type { MealRecord, MealType } from "@/types";
 
 export interface DailyCalorieTotal {
@@ -102,20 +103,7 @@ export async function getDailyCalorieTotals(
   endDate: string,
 ): Promise<DailyCalorieTotal[]> {
   const records = await getMealRecordsByDateRange(startDate, endDate);
-
-  const totalsByDate = new Map<string, number>();
-  for (const record of records) {
-    const date = formatDate(new Date(record.timestamp));
-    totalsByDate.set(date, (totalsByDate.get(date) ?? 0) + record.confirmedKcal);
-  }
-
-  const totals: DailyCalorieTotal[] = [];
-  const cursor = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
-  while (cursor <= end) {
-    const date = formatDate(cursor);
-    totals.push({ date, kcal: totalsByDate.get(date) ?? 0 });
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return totals;
+  return sumDailyTotals(records, startDate, endDate, (r) => r.timestamp, (r) => r.confirmedKcal).map(
+    ({ date, total }) => ({ date, kcal: total }),
+  );
 }

@@ -15,15 +15,19 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { judgeMealPhoto, type MealJudgmentItem } from "@/api/judgeMeal";
-import FoodMasterPicker from "@/components/FoodMasterPicker";
 import RecordHeader from "@/components/RecordHeader";
+import RecordSaveFooter from "@/components/RecordSaveFooter";
 import SegmentedControl from "@/components/SegmentedControl";
-import { IconCamera, IconLibrary, IconPlus, IconSparkle, IconWarning } from "@/components/icons";
+import { IconPlus, IconSparkle } from "@/components/icons";
 import { addFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
 import { addMealRecord, deleteMealRecord, getMealRecord, updateMealRecord } from "@/db/mealRecords";
 import { formatDateTime, nearestMealType, toDatetimeLocalValue } from "@/lib/date";
 import { accent, fontRounded, tokens } from "@/theme";
 import type { FoodMasterItem, MealType } from "@/types";
+import DetectedItemsCard from "./DetectedItemsCard";
+import FoodMasterPicker from "./FoodMasterPicker";
+import PendingItemsCard, { type PendingMealItem } from "./PendingItemsCard";
+import PhotoJudgeCard from "./PhotoJudgeCard";
 
 const MEAL_OPTIONS = [
   { value: "breakfast", label: "朝食" },
@@ -44,23 +48,6 @@ const PFC_FIELDS = [
   { key: "carbs", label: "C", color: "#2EC4B6" },
 ] as const;
 
-interface PendingMealItem {
-  name: string;
-  kcal: number;
-  proteinG: number;
-  fatG: number;
-  carbsG: number;
-  aiEstimatedName?: string;
-  aiEstimatedKcal?: number;
-  aiEstimatedProteinG?: number;
-  aiEstimatedFatG?: number;
-  aiEstimatedCarbsG?: number;
-  registerToMaster: boolean;
-  // 由来が写真判定の場合、PhotoJudgeState.items内のindex。リストから削除したときに
-  // 検出品目の「追加済み」を解除して再選択できるようにするために持つ
-  detectedIndex?: number;
-}
-
 // 写真AI判定の結果一式。リセット(撮り直し・失敗時)を1代入で済ませるため、
 // 判定に属する状態は個別のuseStateに分けずこのオブジェクトにまとめて持つ
 interface PhotoJudgeState {
@@ -73,15 +60,6 @@ interface PhotoJudgeState {
 }
 
 type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
-
-// 検出品目リストと「まとめて記録する品目」リストで共通の品目名表示
-function ItemRowLabel({ name, kcal }: { name: string; kcal: number }) {
-  return (
-    <Typography sx={{ fontSize: 13, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-      {name}({Math.round(kcal)}kcal)
-    </Typography>
-  );
-}
 
 function FieldLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
   return (
@@ -491,92 +469,22 @@ export default function MealRecordPage() {
 
         {!isEditing && (
           <>
-            <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
-              <Typography sx={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "12px" }}>
-                <Box component="span" sx={{ color: "primary.main", display: "flex" }}>
-                  <IconCamera size={16} />
-                </Box>
-                写真から記録する
-              </Typography>
-              <Box sx={{ display: "flex", gap: "8px", mb: "12px" }}>
-                <Button
-                  component="label"
-                  disabled={isJudging}
-                  startIcon={<IconCamera />}
-                  sx={{ flex: 1, height: 44, borderRadius: "11px", bgcolor: tokens.primarySoft, color: "primary.main", fontSize: 12, "&:hover": { bgcolor: tokens.primarySoft } }}
-                >
-                  {isJudging ? "判定中..." : "撮影"}
-                  <input type="file" accept="image/*" capture="environment" onChange={handlePhotoSelected} disabled={isJudging} hidden />
-                </Button>
-                <Button
-                  component="label"
-                  disabled={isJudging}
-                  startIcon={<IconLibrary />}
-                  sx={{ flex: 1, height: 44, borderRadius: "11px", bgcolor: tokens.beigeSoft, color: "text.secondary", fontSize: 12, "&:hover": { bgcolor: tokens.beigeSoft } }}
-                >
-                  {isJudging ? "判定中..." : "ライブラリ"}
-                  <input type="file" accept="image/*" onChange={handlePhotoSelected} disabled={isJudging} hidden />
-                </Button>
-              </Box>
-              <TextField
-                fullWidth
-                size="small"
-                type="text"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="補足(任意): 唐揚げ弁当、ご飯少なめ など"
-              />
-              {judgeError && <Typography sx={{ mt: "10px", fontSize: 12, color: "primary.main" }}>{judgeError}</Typography>}
-              {judge?.isUncertain && aiJudgment !== null && (
-                <Box sx={{ display: "flex", alignItems: "flex-start", gap: "7px", mt: "10px", bgcolor: tokens.warnBg, borderRadius: "10px", p: "9px 11px" }}>
-                  <Box sx={{ color: "#B07E1E", display: "flex", mt: "1px" }}>
-                    <IconWarning />
-                  </Box>
-                  <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#B07E1E", lineHeight: 1.5 }}>
-                    量や内容の判定の自信が低いため、誤差が大きい場合があります。内容を確認・修正してください
-                  </Typography>
-                </Box>
-              )}
-            </Card>
+            <PhotoJudgeCard
+              isJudging={isJudging}
+              note={note}
+              onNoteChange={setNote}
+              onPhotoSelected={handlePhotoSelected}
+              judgeError={judgeError}
+              showUncertainWarning={judge?.isUncertain === true && aiJudgment !== null}
+            />
 
             {judge !== null && judge.items.length > 1 && (
-              <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
-                <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "4px" }}>
-                  検出した品目({judge.items.length}件)
-                </Typography>
-                <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "10px" }}>
-                  タップしてフォームに反映し、内容を確認してから下の「この品目を追加してもう1品記録」でリストに入れてください
-                </Typography>
-                {judge.items.map((item, index) => {
-                  const isAdded = judge.addedIndexes.has(index);
-                  const isActive = judge.activeIndex === index;
-                  return (
-                    <ButtonBase
-                      key={index}
-                      onClick={() => handleSelectDetected(index)}
-                      disabled={isAdded}
-                      sx={{
-                        width: "100%",
-                        justifyContent: "space-between",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        py: "9px",
-                        px: "8px",
-                        borderRadius: "10px",
-                        bgcolor: isActive ? tokens.secondarySoft : "transparent",
-                        opacity: isAdded ? 0.5 : 1,
-                        borderBottom: index < judge.items.length - 1 ? `1px solid ${tokens.divider}` : "none",
-                      }}
-                    >
-                      <ItemRowLabel name={item.dishName} kcal={item.kcal} />
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: isAdded ? "text.secondary" : "primary.main", flexShrink: 0 }}>
-                        {isAdded ? "追加済み" : isActive ? "選択中" : "選ぶ"}
-                      </Typography>
-                    </ButtonBase>
-                  );
-                })}
-              </Card>
+              <DetectedItemsCard
+                items={judge.items}
+                activeIndex={judge.activeIndex}
+                addedIndexes={judge.addedIndexes}
+                onSelect={handleSelectDetected}
+              />
             )}
 
             <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
@@ -586,24 +494,7 @@ export default function MealRecordPage() {
               <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
             </Card>
 
-            {pendingItems.length > 0 && (
-              <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
-                <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "8px" }}>
-                  今回まとめて記録する品目({pendingItems.length}件)
-                </Typography>
-                {pendingItems.map((item, index) => (
-                  <Box
-                    key={index}
-                    sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", py: "6px", borderBottom: index < pendingItems.length - 1 ? `1px solid ${tokens.divider}` : "none" }}
-                  >
-                    <ItemRowLabel name={item.name} kcal={item.kcal} />
-                    <Button size="small" onClick={() => handleRemovePending(index)} sx={{ fontSize: 12, color: "primary.main", flexShrink: 0 }}>
-                      削除
-                    </Button>
-                  </Box>
-                ))}
-              </Card>
-            )}
+            {pendingItems.length > 0 && <PendingItemsCard items={pendingItems} onRemove={handleRemovePending} />}
 
             <ButtonBase
               onClick={handleAddToList}
@@ -656,43 +547,27 @@ export default function MealRecordPage() {
         )}
         {error && <Typography sx={{ mt: "12px", fontSize: 13, color: "primary.main" }}>{error}</Typography>}
 
-        {/* 下部固定の保存ボタン */}
-        <Box
-          sx={{
-            position: "fixed",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            p: "14px 20px 26px",
-            background: "linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 34%)",
-            zIndex: 10,
-          }}
+        <RecordSaveFooter
+          type="submit"
+          label={
+            isEditing
+              ? "更新する"
+              : pendingItems.length > 0
+                ? `まとめて保存する(${pendingItems.length + (isCurrentItemFilled ? 1 : 0)}件)`
+                : "保存する"
+          }
         >
-          <Box sx={{ mx: "auto", maxWidth: 408, display: "flex", flexDirection: "column", gap: "8px" }}>
+          {isEditing && (
             <Button
               fullWidth
-              type="submit"
-              variant="contained"
-              sx={{ height: 54, borderRadius: "16px", fontSize: 16, boxShadow: tokens.primaryButtonShadow }}
+              variant="outlined"
+              onClick={() => setDeleteConfirmOpen(true)}
+              sx={{ height: 44, borderRadius: "14px", fontSize: 14, color: "primary.main", borderColor: "primary.main", bgcolor: "background.default" }}
             >
-              {isEditing
-                ? "更新する"
-                : pendingItems.length > 0
-                  ? `まとめて保存する(${pendingItems.length + (isCurrentItemFilled ? 1 : 0)}件)`
-                  : "保存する"}
+              この記録を削除する
             </Button>
-            {isEditing && (
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={() => setDeleteConfirmOpen(true)}
-                sx={{ height: 44, borderRadius: "14px", fontSize: 14, color: "primary.main", borderColor: "primary.main", bgcolor: "background.default" }}
-              >
-                この記録を削除する
-              </Button>
-            )}
-          </Box>
-        </Box>
+          )}
+        </RecordSaveFooter>
       </Box>
 
       <Dialog open={saveConfirm !== null} onClose={() => setSaveConfirm(null)}>

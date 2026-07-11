@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate } from "react-router-dom";
 import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import IconButton from "@mui/material/IconButton";
@@ -11,6 +10,7 @@ import InputBase from "@mui/material/InputBase";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import RecordHeader from "@/components/RecordHeader";
+import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconClose, IconPlus, IconTrash } from "@/components/icons";
 import { getAllExerciseMasterItems } from "@/db/exerciseMaster";
 import {
@@ -105,12 +105,12 @@ export default function StrengthRecordPage() {
     navigate("/");
   };
 
+  // マスタに同名が重複していてもAutocompleteのキー(=文字列オプション)が衝突しないよう一意化する
+  const nameOptions = useMemo(() => [...new Set((masterItems ?? []).map((item) => item.name))], [masterItems]);
+
   if (isLoading || masterItems === undefined) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
-
-  // マスタに同名が重複していてもAutocompleteのキー(=文字列オプション)が衝突しないよう一意化する
-  const nameOptions = [...new Set(masterItems.map((item) => item.name))];
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "110px" }}>
@@ -277,29 +277,7 @@ export default function StrengthRecordPage() {
 
       {error && <Typography sx={{ mt: "12px", fontSize: 13, color: "primary.main" }}>{error}</Typography>}
 
-      {/* 下部固定の保存ボタン */}
-      <Box
-        sx={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          p: "16px 20px 26px",
-          background: "linear-gradient(180deg,rgba(255,248,240,0),#FFF8F0 30%)",
-          zIndex: 10,
-        }}
-      >
-        <Box sx={{ mx: "auto", maxWidth: 408 }}>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={handleSave}
-            sx={{ height: 54, borderRadius: "16px", fontSize: 16, boxShadow: tokens.primaryButtonShadow }}
-          >
-            保存する
-          </Button>
-        </Box>
-      </Box>
+      <RecordSaveFooter onClick={handleSave} />
     </Box>
   );
 }

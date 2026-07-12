@@ -146,6 +146,22 @@ describe("workoutRecords", () => {
     it("returns an empty map when there is no prior record", async () => {
       expect(await getPreviousWorkoutsByExercise("2026-07-01")).toEqual(new Map());
     });
+
+    it("keeps sets contiguous by card order when the same exercise appears in multiple cards on one day", async () => {
+      // 同じ日に「ベンチプレス」を2枚のカードで記録(セット番号は各カードで1始まりに振り直される)
+      await replaceWorkoutRecordsForDate("2026-07-01", [
+        { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }, { weightKg: 60, reps: 8 }] },
+        { name: "ベンチプレス", sets: [{ weightKg: 40, reps: 12 }] },
+      ]);
+
+      const previous = await getPreviousWorkoutsByExercise("2026-07-05");
+      // setNumberだけで並べるとカードをまたいで混ざる(60×10, 40×12, 60×8)。exerciseOrder優先で連続させる
+      expect(previous.get("ベンチプレス")?.sets).toEqual([
+        { weightKg: 60, reps: 10 },
+        { weightKg: 60, reps: 8 },
+        { weightKg: 40, reps: 12 },
+      ]);
+    });
   });
 
   it("returns all records date-descending for the history view", async () => {

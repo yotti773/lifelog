@@ -115,7 +115,9 @@ export async function getPreviousWorkoutsByExercise(beforeDate: string): Promise
   }
   const result = new Map<string, PreviousWorkout>();
   for (const [name, setRecords] of latestRecordsByName) {
-    setRecords.sort((a, b) => a.setNumber - b.setNumber);
+    // 同名の種目が同じ日に複数カードで記録されていた場合でも、カード順(exerciseOrder)→セット順で
+    // 並べ、カードをまたいでセットが混ざらないようにする
+    setRecords.sort((a, b) => a.exerciseOrder - b.exerciseOrder || a.setNumber - b.setNumber);
     result.set(name, {
       date: setRecords[0].date,
       sets: setRecords.map((record) => ({ weightKg: record.weightKg, reps: record.reps })),

@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { enqueueDeletion } from "./syncDeletions";
 import type { ExerciseMasterItem } from "@/types";
 
 /** 種目名が既に登録済みか(自分自身のidは除外して判定する)。前後空白は無視して完全一致で比較する */
@@ -20,6 +21,7 @@ export async function addExerciseMasterItem(name: string): Promise<ExerciseMaste
     id: crypto.randomUUID(),
     name,
     createdAt: new Date().toISOString(),
+    synced: false,
   };
   await db.exerciseMasterItems.add(item);
   return item;
@@ -45,11 +47,21 @@ export async function updateExerciseMasterItem(id: string, name: string): Promis
   if (await isDuplicateName(name, id)) {
     throw new DuplicateExerciseNameError(name);
   }
-  const updated: ExerciseMasterItem = { ...existing, name };
+  const updated: ExerciseMasterItem = { ...existing, name, synced: false };
   await db.exerciseMasterItems.put(updated);
   return updated;
 }
 
 export async function deleteExerciseMasterItem(id: string): Promise<void> {
   await db.exerciseMasterItems.delete(id);
+  // スプレッドシート側の該当行も次回同期で削除するためトゥームストーンを残す(Issue #96)
+  await enqueueDeletion("exerciseMaster", id);
+}
+
+export async function getUnsyncedExerciseMasterItems(): Promise<ExerciseMasterItem[]> {
+  return db.exerciseMasterItems.filter((item) => !item.synced).toArray();
+}
+
+export async function markExerciseMasterItemsSynced(ids: string[]): Promise<void> {
+  await db.exerciseMasterItems.where("id").anyOf(ids).modify({ synced: true });
 }

@@ -64,3 +64,12 @@ db.version(5).stores({
 db.version(6).stores({
   activityRecords: "date",
 });
+
+// 食事マスタ・種目マスタをスプレッドシート同期の対象に加える(Issue #96)。
+// インデックスは変えず、既存行に synced: false を付与して次回同期でまとめて送信させる
+db.version(7)
+  .stores({})
+  .upgrade(async (tx) => {
+    await tx.table("foodMasterItems").toCollection().modify({ synced: false });
+    await tx.table("exerciseMasterItems").toCollection().modify({ synced: false });
+  });

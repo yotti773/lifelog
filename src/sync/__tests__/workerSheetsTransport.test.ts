@@ -10,11 +10,15 @@ const payload: SyncPushPayload = {
   waterRecords: [],
   workoutRecords: [],
   diaryRecords: [],
+  foodMasterItems: [],
+  exerciseMasterItems: [],
   deletedWeightIds: [],
   deletedMealIds: [],
   deletedWaterIds: [],
   deletedWorkoutIds: [],
   deletedDiaryIds: [],
+  deletedFoodMasterIds: [],
+  deletedExerciseMasterIds: [],
 };
 
 afterEach(async () => {

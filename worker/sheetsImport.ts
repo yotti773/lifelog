@@ -4,6 +4,9 @@ import type { Env } from "./index";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 import {
   DIARY_CONFIG,
+  EXERCISE_MASTER_CONFIG,
+  EXERCISE_MASTER_HEADER,
+  FOOD_MASTER_CONFIG,
   MEAL_CONFIG,
   SHEETS_API_BASE,
   WATER_CONFIG,
@@ -71,6 +74,23 @@ export interface ImportedActivityRecordOutput {
   vigorousIntensityMinutes?: number;
 }
 
+export interface ImportedFoodMasterItemOutput {
+  id: string;
+  name: string;
+  kcal: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+  source?: string;
+  createdAt: string;
+}
+
+export interface ImportedExerciseMasterItemOutput {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
 interface SheetsImportResultOutput {
   weightRecords: ImportedWeightRecordOutput[];
   mealRecords: ImportedMealRecordOutput[];
@@ -78,12 +98,16 @@ interface SheetsImportResultOutput {
   workoutRecords: ImportedWorkoutRecordOutput[];
   diaryRecords: ImportedDiaryRecordOutput[];
   activityRecords: ImportedActivityRecordOutput[];
+  foodMasterItems: ImportedFoodMasterItemOutput[];
+  exerciseMasterItems: ImportedExerciseMasterItemOutput[];
   skippedWeightRows: number;
   skippedMealRows: number;
   skippedWaterRows: number;
   skippedWorkoutRows: number;
   skippedDiaryRows: number;
   skippedActivityRows: number;
+  skippedFoodMasterRows: number;
+  skippedExerciseMasterRows: number;
 }
 
 /** Sheets APIのvalues.get(FORMATTED_VALUE)が返しうるセル値 */
@@ -477,6 +501,109 @@ export function planActivityImport(rows: CellValue[][]): SheetImportPlan<Importe
   return { records, idBackfills: [], skippedRowCount };
 }
 
+/**
+ * 食事マスタタブの全行を品目に逆変換する(Issue #96)。
+ * 品目名・カロリーが読み取れない行はスキップ。PFCは手入力を考慮し省略時0、出典は任意とする。
+ * 登録日時が無い/読めない手入力行は取り込み時刻(nowIso)を使う(マスタに日付キーが無いため)。
+ * ID列が空の行はUUIDを採番して書き戻し対象にする。同名(前後空白無視)の2行目以降は、
+ * アプリ側の名前重複スキップと整合するよう重複としてスキップする。
+ */
+export function planFoodMasterImport(
+  rows: CellValue[][],
+  generateId: () => string,
+  nowIso: string,
+): SheetImportPlan<ImportedFoodMasterItemOutput> {
+  const records: ImportedFoodMasterItemOutput[] = [];
+  const idBackfills: IdBackfill[] = [];
+  let skippedRowCount = 0;
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
+
+  rows.forEach((cells, index) => {
+    const rowNumber = index + 1;
+    const name = String(cells?.[0] ?? "").trim();
+    const kcal = parseCellNumber(cells?.[1]);
+    if (name === "" || kcal === null) {
+      if (rowNumber !== 1) skippedRowCount++;
+      return;
+    }
+
+    const rawId = String(cells?.[7] ?? "").trim();
+    const id = rawId === "" ? generateId() : rawId;
+    if (seenIds.has(id) || seenNames.has(name)) {
+      skippedRowCount++;
+      return;
+    }
+    seenIds.add(id);
+    seenNames.add(name);
+    if (rawId === "") {
+      idBackfills.push({ rowNumber, id });
+    }
+
+    const source = String(cells?.[5] ?? "").trim();
+    records.push({
+      id,
+      name,
+      kcal,
+      proteinG: parseCellNumber(cells?.[2]) ?? 0,
+      fatG: parseCellNumber(cells?.[3]) ?? 0,
+      carbsG: parseCellNumber(cells?.[4]) ?? 0,
+      ...(source !== "" && { source }),
+      createdAt: parseJstDateTime(cells?.[6]) ?? nowIso,
+    });
+  });
+
+  return { records, idBackfills, skippedRowCount };
+}
+
+/**
+ * 種目マスタタブの全行を種目に逆変換する(Issue #96)。
+ * 種目名が読み取れない行はスキップ。登録日時が無い/読めない手入力行は取り込み時刻(nowIso)を使う。
+ * ID列が空の行はUUIDを採番して書き戻し対象にする。同名(前後空白無視)の2行目以降は、
+ * アプリ側の名前ユニーク制約(サジェストのキーが名前)と整合するよう重複としてスキップする。
+ */
+export function planExerciseMasterImport(
+  rows: CellValue[][],
+  generateId: () => string,
+  nowIso: string,
+): SheetImportPlan<ImportedExerciseMasterItemOutput> {
+  const records: ImportedExerciseMasterItemOutput[] = [];
+  const idBackfills: IdBackfill[] = [];
+  let skippedRowCount = 0;
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
+
+  rows.forEach((cells, index) => {
+    const rowNumber = index + 1;
+    const name = String(cells?.[0] ?? "").trim();
+    // 種目マスタは必須項目が種目名だけのため、他タブのように「数値・日付のパース失敗」では
+    // 見出し行を自然に弾けない。自動作成ヘッダーの先頭ラベルと一致する1行目を見出しとみなす
+    if (rowNumber === 1 && name === EXERCISE_MASTER_HEADER[0]) {
+      return;
+    }
+    if (name === "") {
+      if (rowNumber !== 1) skippedRowCount++;
+      return;
+    }
+
+    const rawId = String(cells?.[2] ?? "").trim();
+    const id = rawId === "" ? generateId() : rawId;
+    if (seenIds.has(id) || seenNames.has(name)) {
+      skippedRowCount++;
+      return;
+    }
+    seenIds.add(id);
+    seenNames.add(name);
+    if (rawId === "") {
+      idBackfills.push({ rowNumber, id });
+    }
+
+    records.push({ id, name, createdAt: parseJstDateTime(cells?.[1]) ?? nowIso });
+  });
+
+  return { records, idBackfills, skippedRowCount };
+}
+
 // ===== Google Sheets API 呼び出し =====
 
 /** 指定タブのA列〜ID列を全行読み取る */
@@ -489,6 +616,31 @@ async function readSheetRows(
   const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+  if (!res.ok) {
+    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
+  }
+  const data = (await res.json()) as { values?: CellValue[][] };
+  return data.values ?? [];
+}
+
+/**
+ * 指定タブのA列〜ID列を全行読み取る。タブ自体が無い場合は空を返す —
+ * マスタ系タブは初回同期時にWorkerが自動作成するもので(sheetsSync.ts参照)、
+ * まだ一度も同期していないシートには存在しないのが正常のため、欠如を取り込み全体の失敗にしない。
+ * (範囲文字列は固定で正しいため、400はタブ名を解決できない=タブ欠如とみなせる)
+ */
+async function readSheetRowsIfPresent(
+  accessToken: string,
+  spreadsheetId: string,
+  config: SheetConfig,
+): Promise<CellValue[][]> {
+  const range = encodeURIComponent(`${config.name}!A:${config.idColumnLetter}`);
+  const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.status === 400) {
+    return [];
+  }
   if (!res.ok) {
     throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
   }
@@ -554,7 +706,8 @@ async function writeBackIds(
 }
 
 /**
- * スプレッドシート5タブの全記録を読み取り、アプリのレコード形式で返す(Issue #54・#72)。
+ * スプレッドシートの全タブ(記録5タブ+活動記録+食事マスタ・種目マスタ)を読み取り、
+ * アプリのレコード形式で返す(Issue #54・#72・#96)。
  * push(handleSyncSheets)と違い部分成功は返さない — 読み取りは副作用がなく、失敗したら
  * クライアント側は何も取り込まず再試行すればよいため、全体を成功/失敗の2値にしている。
  */
@@ -573,21 +726,27 @@ export async function handleImportSheets(env: Env): Promise<Response> {
 
   const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
   try {
-    const [weightRows, mealRows, waterRows, workoutRows, diaryRows, activityRows] = await Promise.all([
-      readSheetRows(accessToken, spreadsheetId, WEIGHT_CONFIG),
-      readSheetRows(accessToken, spreadsheetId, MEAL_CONFIG),
-      readSheetRows(accessToken, spreadsheetId, WATER_CONFIG),
-      readSheetRows(accessToken, spreadsheetId, WORKOUT_CONFIG),
-      readSheetRows(accessToken, spreadsheetId, DIARY_CONFIG),
-      readActivityRowsIfPresent(accessToken, spreadsheetId),
-    ]);
+    const [weightRows, mealRows, waterRows, workoutRows, diaryRows, activityRows, foodMasterRows, exerciseMasterRows] =
+      await Promise.all([
+        readSheetRows(accessToken, spreadsheetId, WEIGHT_CONFIG),
+        readSheetRows(accessToken, spreadsheetId, MEAL_CONFIG),
+        readSheetRows(accessToken, spreadsheetId, WATER_CONFIG),
+        readSheetRows(accessToken, spreadsheetId, WORKOUT_CONFIG),
+        readSheetRows(accessToken, spreadsheetId, DIARY_CONFIG),
+        readActivityRowsIfPresent(accessToken, spreadsheetId),
+        readSheetRowsIfPresent(accessToken, spreadsheetId, FOOD_MASTER_CONFIG),
+        readSheetRowsIfPresent(accessToken, spreadsheetId, EXERCISE_MASTER_CONFIG),
+      ]);
 
+    const nowIso = new Date().toISOString();
     const weightPlan = planWeightImport(weightRows);
     const mealPlan = planMealImport(mealRows, () => crypto.randomUUID());
     const waterPlan = planWaterImport(waterRows, () => crypto.randomUUID());
     const workoutPlan = planWorkoutImport(workoutRows, () => crypto.randomUUID());
     const diaryPlan = planDiaryImport(diaryRows);
     const activityPlan = planActivityImport(activityRows);
+    const foodMasterPlan = planFoodMasterImport(foodMasterRows, () => crypto.randomUUID(), nowIso);
+    const exerciseMasterPlan = planExerciseMasterImport(exerciseMasterRows, () => crypto.randomUUID(), nowIso);
 
     // 書き戻しに失敗したら取り込み全体を失敗させる。IDがシートに無いままレコードだけ
     // クライアントへ返すと、以後の編集同期が既存行を見つけられず重複行を生むため
@@ -597,6 +756,8 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       writeBackIds(accessToken, spreadsheetId, WATER_CONFIG, waterPlan.idBackfills),
       writeBackIds(accessToken, spreadsheetId, WORKOUT_CONFIG, workoutPlan.idBackfills),
       writeBackIds(accessToken, spreadsheetId, DIARY_CONFIG, diaryPlan.idBackfills),
+      writeBackIds(accessToken, spreadsheetId, FOOD_MASTER_CONFIG, foodMasterPlan.idBackfills),
+      writeBackIds(accessToken, spreadsheetId, EXERCISE_MASTER_CONFIG, exerciseMasterPlan.idBackfills),
     ]);
 
     return Response.json({
@@ -606,12 +767,16 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       workoutRecords: workoutPlan.records,
       diaryRecords: diaryPlan.records,
       activityRecords: activityPlan.records,
+      foodMasterItems: foodMasterPlan.records,
+      exerciseMasterItems: exerciseMasterPlan.records,
       skippedWeightRows: weightPlan.skippedRowCount,
       skippedMealRows: mealPlan.skippedRowCount,
       skippedWaterRows: waterPlan.skippedRowCount,
       skippedWorkoutRows: workoutPlan.skippedRowCount,
       skippedDiaryRows: diaryPlan.skippedRowCount,
       skippedActivityRows: activityPlan.skippedRowCount,
+      skippedFoodMasterRows: foodMasterPlan.skippedRowCount,
+      skippedExerciseMasterRows: exerciseMasterPlan.skippedRowCount,
     } satisfies SheetsImportResultOutput);
   } catch (error) {
     const message = error instanceof Error ? error.message : "スプレッドシートの読み取りに失敗しました";

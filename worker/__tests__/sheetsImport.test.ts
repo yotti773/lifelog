@@ -7,13 +7,15 @@ import {
   parseMoodCell,
   planActivityImport,
   planDiaryImport,
+  planExerciseMasterImport,
+  planFoodMasterImport,
   planMealImport,
   planWaterImport,
   planWeightImport,
   planWorkoutImport,
   type CellValue,
 } from "../sheetsImport";
-import { formatCalendarDate, formatJstDateTime } from "../sheetsSync";
+import { EXERCISE_MASTER_HEADER, FOOD_MASTER_HEADER, formatCalendarDate, formatJstDateTime } from "../sheetsSync";
 
 describe("parseCalendarDate", () => {
   it("書き出し形式(yyyy年mm月dd日)をYYYY-MM-DDに戻す(formatCalendarDateの逆変換)", () => {
@@ -364,6 +366,87 @@ describe("planActivityImport", () => {
     const noValues: CellValue[] = ["2026年07月06日", "", "", "", "", "", "", "", ""];
     const invalidDate: CellValue[] = ["日付なし", 100];
     const plan = planActivityImport([header, fullRow, noValues, invalidDate, fullRow]);
+    expect(plan.records).toHaveLength(1);
+    expect(plan.skippedRowCount).toBe(3);
+  });
+});
+
+describe("planFoodMasterImport", () => {
+  // sheetsSync.ts の foodMasterItemToRow の書き出し形式(8列)
+  const fullRow: CellValue[] = ["モスバーガー", 372, 15.2, 17, 40, "https://www.mos.jp/menu/pdf/nutrition.pdf", "2026年07月05日 21:00", "food-uuid-1"];
+  const generateId = () => "generated-uuid";
+  const nowIso = "2026-07-10T00:00:00.000Z";
+
+  it("書き出し済みの行を品目に逆変換する", () => {
+    const plan = planFoodMasterImport([fullRow], generateId, nowIso);
+    expect(plan.records).toEqual([
+      {
+        id: "food-uuid-1",
+        name: "モスバーガー",
+        kcal: 372,
+        proteinG: 15.2,
+        fatG: 17,
+        carbsG: 40,
+        source: "https://www.mos.jp/menu/pdf/nutrition.pdf",
+        createdAt: "2026-07-05T12:00:00.000Z",
+      },
+    ]);
+    expect(plan.idBackfills).toEqual([]);
+    expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("手入力行(PFC・出典・登録日時・ID無し)はPFC=0・登録日時=取り込み時刻で補い、IDを採番して書き戻し対象にする", () => {
+    const plan = planFoodMasterImport([["おにぎり", "180", "", "", "", "", "", ""]], generateId, nowIso);
+    expect(plan.records).toEqual([
+      { id: "generated-uuid", name: "おにぎり", kcal: 180, proteinG: 0, fatG: 0, carbsG: 0, createdAt: nowIso },
+    ]);
+    expect(plan.idBackfills).toEqual([{ rowNumber: 1, id: "generated-uuid" }]);
+  });
+
+  it("品目名・カロリーが読めない行と重複ID・同名(前後空白無視)の2行目以降をスキップし、見出し行は数えない", () => {
+    const noKcal: CellValue[] = ["カロリー無し", "", "", "", "", "", "", "id-x"];
+    const sameName: CellValue[] = [" モスバーガー ", 999, 0, 0, 0, "", "", "food-uuid-2"];
+    const sameId: CellValue[] = ["別品目", 100, 0, 0, 0, "", "", "food-uuid-1"];
+    const plan = planFoodMasterImport([FOOD_MASTER_HEADER, fullRow, noKcal, sameName, sameId], generateId, nowIso);
+    expect(plan.records).toHaveLength(1);
+    expect(plan.skippedRowCount).toBe(3);
+  });
+});
+
+describe("planExerciseMasterImport", () => {
+  // sheetsSync.ts の exerciseMasterItemToRow の書き出し形式(3列)
+  const fullRow: CellValue[] = ["ベンチプレス", "2026年07月05日 21:00", "ex-uuid-1"];
+  const generateId = () => "generated-uuid";
+  const nowIso = "2026-07-10T00:00:00.000Z";
+
+  it("書き出し済みの行を種目に逆変換する", () => {
+    const plan = planExerciseMasterImport([fullRow], generateId, nowIso);
+    expect(plan.records).toEqual([
+      { id: "ex-uuid-1", name: "ベンチプレス", createdAt: "2026-07-05T12:00:00.000Z" },
+    ]);
+    expect(plan.idBackfills).toEqual([]);
+    expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("手入力行(登録日時・ID無し)は登録日時=取り込み時刻で補い、IDを採番して書き戻し対象にする", () => {
+    const plan = planExerciseMasterImport([["スクワット", "", ""]], generateId, nowIso);
+    expect(plan.records).toEqual([{ id: "generated-uuid", name: "スクワット", createdAt: nowIso }]);
+    expect(plan.idBackfills).toEqual([{ rowNumber: 1, id: "generated-uuid" }]);
+  });
+
+  it("1行目の見出し(自動作成ヘッダー)は種目として取り込まない — 必須項目が名前だけのためパース失敗では弾けない", () => {
+    const plan = planExerciseMasterImport([EXERCISE_MASTER_HEADER, fullRow], generateId, nowIso);
+    expect(plan.records).toEqual([
+      { id: "ex-uuid-1", name: "ベンチプレス", createdAt: "2026-07-05T12:00:00.000Z" },
+    ]);
+    expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("空行と重複ID・同名(前後空白無視)の2行目以降をスキップする", () => {
+    const empty: CellValue[] = ["", "", ""];
+    const sameName: CellValue[] = [" ベンチプレス ", "", "ex-uuid-2"];
+    const sameId: CellValue[] = ["デッドリフト", "", "ex-uuid-1"];
+    const plan = planExerciseMasterImport([fullRow, empty, sameName, sameId], generateId, nowIso);
     expect(plan.records).toHaveLength(1);
     expect(plan.skippedRowCount).toBe(3);
   });

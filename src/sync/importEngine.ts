@@ -13,7 +13,9 @@ export type ImportOutcome =
       importedDiaryCount: number;
       /** 取り込んだ(新規+上書き)活動記録の件数。他と違い既存日付も常に上書きされる(Issue #81) */
       importedActivityCount: number;
-      /** ローカルに既にある・削除保留中のためスキップした件数 */
+      importedFoodMasterCount: number;
+      importedExerciseMasterCount: number;
+      /** ローカルに既にある・削除保留中のためスキップした件数(マスタは同名の既存品目・種目もスキップ対象) */
       skippedExistingCount: number;
       /** シート側で解釈できずスキップされた行数(見出し行を除く) */
       skippedRowCount: number;
@@ -27,9 +29,10 @@ export interface RunImportOptions {
 }
 
 /**
- * スプレッドシートの全記録を取り込む(復元・過去データ移行用。Issue #54・#72)。
+ * スプレッドシートの全記録と食事マスタ・種目マスタを取り込む(復元・過去データ移行用。Issue #54・#72・#96)。
  * マージは「追加のみ」: ローカルに同じキーの記録があればローカル優先でスキップし、
  * 削除トゥームストーンが保留中のキーもスキップする(未送信の削除が取り込みで復活するのを防ぐ)。
+ * マスタはさらに同名(前後空白無視)の既存品目・種目もスキップする。
  * 取り込んだ記録はシート由来のため`synced: true`で保存し、再送信の対象にしない。
  */
 export async function runImport({
@@ -45,27 +48,50 @@ export async function runImport({
 
     const counts = await db.transaction(
       "rw",
-      [db.weightRecords, db.mealRecords, db.waterRecords, db.workoutRecords, db.diaryRecords, db.activityRecords, db.syncDeletions],
+      [
+        db.weightRecords,
+        db.mealRecords,
+        db.waterRecords,
+        db.workoutRecords,
+        db.diaryRecords,
+        db.activityRecords,
+        db.foodMasterItems,
+        db.exerciseMasterItems,
+        db.syncDeletions,
+      ],
       async () => {
-        const [pendingWeightIds, pendingMealIds, pendingWaterIds, pendingWorkoutIds, pendingDiaryIds] =
-          await Promise.all([
-            getPendingDeletionIds("weight"),
-            getPendingDeletionIds("meal"),
-            getPendingDeletionIds("water"),
-            getPendingDeletionIds("workout"),
-            getPendingDeletionIds("diary"),
-          ]);
+        const [
+          pendingWeightIds,
+          pendingMealIds,
+          pendingWaterIds,
+          pendingWorkoutIds,
+          pendingDiaryIds,
+          pendingFoodMasterIds,
+          pendingExerciseMasterIds,
+        ] = await Promise.all([
+          getPendingDeletionIds("weight"),
+          getPendingDeletionIds("meal"),
+          getPendingDeletionIds("water"),
+          getPendingDeletionIds("workout"),
+          getPendingDeletionIds("diary"),
+          getPendingDeletionIds("foodMaster"),
+          getPendingDeletionIds("exerciseMaster"),
+        ]);
         const pendingWeightSet = new Set(pendingWeightIds);
         const pendingMealSet = new Set(pendingMealIds);
         const pendingWaterSet = new Set(pendingWaterIds);
         const pendingWorkoutSet = new Set(pendingWorkoutIds);
         const pendingDiarySet = new Set(pendingDiaryIds);
+        const pendingFoodMasterSet = new Set(pendingFoodMasterIds);
+        const pendingExerciseMasterSet = new Set(pendingExerciseMasterIds);
 
         let importedWeightCount = 0;
         let importedMealCount = 0;
         let importedWaterCount = 0;
         let importedWorkoutCount = 0;
         let importedDiaryCount = 0;
+        let importedFoodMasterCount = 0;
+        let importedExerciseMasterCount = 0;
         let skippedExistingCount = 0;
 
         for (const record of pulled.weightRecords) {
@@ -123,6 +149,42 @@ export async function runImport({
         }
         const importedActivityCount = pulled.activityRecords.length;
 
+        // マスタはIDに加えて名前でも重複を弾く(Issue #96)。手入力行はID採番前にローカルと
+        // 同名になりうるうえ、種目マスタは同名を許さない(サジェストのキーが名前のため)
+        const existingFoodNames = new Set(
+          (await db.foodMasterItems.toArray()).map((item) => item.name.trim()),
+        );
+        for (const item of pulled.foodMasterItems ?? []) {
+          if (
+            pendingFoodMasterSet.has(item.id) ||
+            existingFoodNames.has(item.name.trim()) ||
+            (await db.foodMasterItems.get(item.id)) !== undefined
+          ) {
+            skippedExistingCount++;
+            continue;
+          }
+          await db.foodMasterItems.put({ ...item, synced: true });
+          existingFoodNames.add(item.name.trim());
+          importedFoodMasterCount++;
+        }
+
+        const existingExerciseNames = new Set(
+          (await db.exerciseMasterItems.toArray()).map((item) => item.name.trim()),
+        );
+        for (const item of pulled.exerciseMasterItems ?? []) {
+          if (
+            pendingExerciseMasterSet.has(item.id) ||
+            existingExerciseNames.has(item.name.trim()) ||
+            (await db.exerciseMasterItems.get(item.id)) !== undefined
+          ) {
+            skippedExistingCount++;
+            continue;
+          }
+          await db.exerciseMasterItems.put({ ...item, synced: true });
+          existingExerciseNames.add(item.name.trim());
+          importedExerciseMasterCount++;
+        }
+
         return {
           importedWeightCount,
           importedMealCount,
@@ -130,6 +192,8 @@ export async function runImport({
           importedWorkoutCount,
           importedDiaryCount,
           importedActivityCount,
+          importedFoodMasterCount,
+          importedExerciseMasterCount,
           skippedExistingCount,
         };
       },
@@ -144,7 +208,9 @@ export async function runImport({
         pulled.skippedWaterRows +
         pulled.skippedWorkoutRows +
         pulled.skippedDiaryRows +
-        pulled.skippedActivityRows,
+        pulled.skippedActivityRows +
+        (pulled.skippedFoodMasterRows ?? 0) +
+        (pulled.skippedExerciseMasterRows ?? 0),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "取り込みに失敗しました";

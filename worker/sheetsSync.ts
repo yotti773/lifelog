@@ -50,17 +50,38 @@ interface DiaryRecordInput {
   mood?: string;
 }
 
+interface FoodMasterItemInput {
+  id: string;
+  name: string;
+  kcal: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+  source?: string;
+  createdAt: string;
+}
+
+interface ExerciseMasterItemInput {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
 interface SyncPushPayloadInput {
   weightRecords?: WeightRecordInput[];
   mealRecords?: MealRecordInput[];
   waterRecords?: WaterRecordInput[];
   workoutRecords?: WorkoutRecordInput[];
   diaryRecords?: DiaryRecordInput[];
+  foodMasterItems?: FoodMasterItemInput[];
+  exerciseMasterItems?: ExerciseMasterItemInput[];
   deletedWeightIds?: string[];
   deletedMealIds?: string[];
   deletedWaterIds?: string[];
   deletedWorkoutIds?: string[];
   deletedDiaryIds?: string[];
+  deletedFoodMasterIds?: string[];
+  deletedExerciseMasterIds?: string[];
 }
 
 interface SyncPushResultOutput {
@@ -69,11 +90,15 @@ interface SyncPushResultOutput {
   syncedWaterIds: string[];
   syncedWorkoutIds: string[];
   syncedDiaryDates: string[];
+  syncedFoodMasterIds: string[];
+  syncedExerciseMasterIds: string[];
   deletedWeightIds: string[];
   deletedMealIds: string[];
   deletedWaterIds: string[];
   deletedWorkoutIds: string[];
   deletedDiaryIds: string[];
+  deletedFoodMasterIds: string[];
+  deletedExerciseMasterIds: string[];
 }
 
 export interface SheetConfig {
@@ -88,6 +113,13 @@ export const MEAL_CONFIG: SheetConfig = { name: "食事記録", idColumnLetter: 
 export const WATER_CONFIG: SheetConfig = { name: "水分記録", idColumnLetter: "C" };
 export const WORKOUT_CONFIG: SheetConfig = { name: "筋トレ記録", idColumnLetter: "H" };
 export const DIARY_CONFIG: SheetConfig = { name: "日記記録", idColumnLetter: "E" };
+export const FOOD_MASTER_CONFIG: SheetConfig = { name: "食事マスタ", idColumnLetter: "H" };
+export const EXERCISE_MASTER_CONFIG: SheetConfig = { name: "種目マスタ", idColumnLetter: "C" };
+
+// マスタ系タブは記録系と違い後付けのため(Issue #96)、既存スプレッドシートには存在しない。
+// 同期時にタブが無ければWorkerがこのヘッダー行付きで自動作成する(記録系タブは手動作成が前提のまま)
+export const FOOD_MASTER_HEADER = ["品目名", "カロリー(kcal)", "たんぱく質(g)", "脂質(g)", "炭水化物(g)", "出典", "登録日時", "ID"];
+export const EXERCISE_MASTER_HEADER = ["種目名", "登録日時", "ID"];
 
 export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
@@ -172,6 +204,23 @@ function diaryRecordToRow(r: DiaryRecordInput): (string | number)[] {
   ];
 }
 
+function foodMasterItemToRow(r: FoodMasterItemInput): (string | number)[] {
+  return [
+    r.name,
+    r.kcal,
+    r.proteinG,
+    r.fatG,
+    r.carbsG,
+    r.source ?? "",
+    formatJstDateTime(r.createdAt),
+    r.id,
+  ];
+}
+
+function exerciseMasterItemToRow(r: ExerciseMasterItemInput): (string | number)[] {
+  return [r.name, formatJstDateTime(r.createdAt), r.id];
+}
+
 // ===== 純粋なプランニング関数(ネットワークに依存せずテスト可能) =====
 
 export interface RowWrite {
@@ -220,16 +269,35 @@ export function planRowDeletions(ids: string[], idToRows: Map<string, number[]>)
 
 // ===== Google Sheets API 呼び出し =====
 
-/** 指定タブのID列を読み、ID値→存在する行番号(1始まり)の一覧マップを返す */
+/**
+ * 指定タブのID列を読み、ID値→存在する行番号(1始まり)の一覧マップを返す。
+ * allowMissing時はタブ欠如(範囲文字列は固定で正しいため、400=タブ名を解決できない)をnullで返す。
+ */
 async function readIdRows(
   accessToken: string,
   spreadsheetId: string,
   config: SheetConfig,
-): Promise<Map<string, number[]>> {
+  allowMissing: false,
+): Promise<Map<string, number[]>>;
+async function readIdRows(
+  accessToken: string,
+  spreadsheetId: string,
+  config: SheetConfig,
+  allowMissing: true,
+): Promise<Map<string, number[]> | null>;
+async function readIdRows(
+  accessToken: string,
+  spreadsheetId: string,
+  config: SheetConfig,
+  allowMissing: boolean,
+): Promise<Map<string, number[]> | null> {
   const range = encodeURIComponent(`${config.name}!${config.idColumnLetter}:${config.idColumnLetter}`);
   const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+  if (res.status === 400 && allowMissing) {
+    return null;
+  }
   if (!res.ok) {
     throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
   }
@@ -305,6 +373,37 @@ async function resolveSheetId(accessToken: string, spreadsheetId: string, sheetN
   return found.properties.sheetId;
 }
 
+/**
+ * タブを新規作成し、1行目にヘッダーを書き込む(マスタ系タブの自動作成用。Issue #96)。
+ * ヘッダーはRAWで書き込む — USER_ENTEREDだと「カロリー(kcal)」等が数式・日付として誤解釈されうるため。
+ */
+async function createSheetWithHeader(
+  accessToken: string,
+  spreadsheetId: string,
+  sheetName: string,
+  header: string[],
+): Promise<void> {
+  const addRes = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetName } } }] }),
+  });
+  if (!addRes.ok) {
+    throw new Error(`Sheets APIエラー (${addRes.status}): ${await addRes.text()}`);
+  }
+  const headerRes = await fetch(
+    `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(`${sheetName}!A1`)}?valueInputOption=RAW`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+      body: JSON.stringify({ values: [header] }),
+    },
+  );
+  if (!headerRes.ok) {
+    throw new Error(`Sheets APIエラー (${headerRes.status}): ${await headerRes.text()}`);
+  }
+}
+
 /** 指定行(降順・1始まり)を物理削除する(batchUpdate deleteDimension)。下の行から順に削除するため行番号ズレは起きない。 */
 async function deleteRows(
   accessToken: string,
@@ -332,6 +431,7 @@ async function deleteRows(
 /**
  * 1つのタブについて、更新/追記(upsert)と削除をまとめて反映する。
  * 成功時に「送信を確定したID」と「削除を確定したID」を返す。削除IDがシートに存在しなくても確定扱いにする(冪等)。
+ * createHeaderIfMissingを渡すと、タブが無い場合にヘッダー行付きで自動作成して続行する(マスタ系タブ用。Issue #96)。
  */
 async function syncOneSheet(
   accessToken: string,
@@ -339,12 +439,24 @@ async function syncOneSheet(
   config: SheetConfig,
   rows: RowWrite[],
   deletionIds: string[],
+  createHeaderIfMissing?: string[],
 ): Promise<{ syncedIds: string[]; deletedIds: string[] }> {
   if (rows.length === 0 && deletionIds.length === 0) {
     return { syncedIds: [], deletedIds: [] };
   }
 
-  const idToRows = await readIdRows(accessToken, spreadsheetId, config);
+  let idToRows: Map<string, number[]>;
+  if (createHeaderIfMissing) {
+    const existing = await readIdRows(accessToken, spreadsheetId, config, true);
+    if (existing === null) {
+      await createSheetWithHeader(accessToken, spreadsheetId, config.name, createHeaderIfMissing);
+      idToRows = new Map();
+    } else {
+      idToRows = existing;
+    }
+  } else {
+    idToRows = await readIdRows(accessToken, spreadsheetId, config, false);
+  }
 
   // 更新→追記の順で書き込む。追記は末尾に増えるだけで既存の行番号をずらさないため、
   // 削除は追記前に読んだidToRowsの行番号をそのまま使える。
@@ -377,11 +489,15 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   const waterRecords = payload.waterRecords ?? [];
   const workoutRecords = payload.workoutRecords ?? [];
   const diaryRecords = payload.diaryRecords ?? [];
+  const foodMasterItems = payload.foodMasterItems ?? [];
+  const exerciseMasterItems = payload.exerciseMasterItems ?? [];
   const deletedWeightIds = payload.deletedWeightIds ?? [];
   const deletedMealIds = payload.deletedMealIds ?? [];
   const deletedWaterIds = payload.deletedWaterIds ?? [];
   const deletedWorkoutIds = payload.deletedWorkoutIds ?? [];
   const deletedDiaryIds = payload.deletedDiaryIds ?? [];
+  const deletedFoodMasterIds = payload.deletedFoodMasterIds ?? [];
+  const deletedExerciseMasterIds = payload.deletedExerciseMasterIds ?? [];
 
   let accessToken: string;
   try {
@@ -392,7 +508,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   }
 
   const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  const [weightResult, mealResult, waterResult, workoutResult, diaryResult] = await Promise.allSettled([
+  const [weightResult, mealResult, waterResult, workoutResult, diaryResult, foodMasterResult, exerciseMasterResult] = await Promise.allSettled([
     syncOneSheet(
       accessToken,
       spreadsheetId,
@@ -428,6 +544,22 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       diaryRecords.map((r) => ({ id: r.id, cells: diaryRecordToRow(r) })),
       deletedDiaryIds,
     ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      FOOD_MASTER_CONFIG,
+      foodMasterItems.map((r) => ({ id: r.id, cells: foodMasterItemToRow(r) })),
+      deletedFoodMasterIds,
+      FOOD_MASTER_HEADER,
+    ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      EXERCISE_MASTER_CONFIG,
+      exerciseMasterItems.map((r) => ({ id: r.id, cells: exerciseMasterItemToRow(r) })),
+      deletedExerciseMasterIds,
+      EXERCISE_MASTER_HEADER,
+    ),
   ]);
 
   const syncedWeightDates = weightResult.status === "fulfilled" ? weightResult.value.syncedIds : [];
@@ -440,12 +572,21 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   const deletedWorkoutIdsOut = workoutResult.status === "fulfilled" ? workoutResult.value.deletedIds : [];
   const syncedDiaryDates = diaryResult.status === "fulfilled" ? diaryResult.value.syncedIds : [];
   const deletedDiaryIdsOut = diaryResult.status === "fulfilled" ? diaryResult.value.deletedIds : [];
+  const syncedFoodMasterIds = foodMasterResult.status === "fulfilled" ? foodMasterResult.value.syncedIds : [];
+  const deletedFoodMasterIdsOut = foodMasterResult.status === "fulfilled" ? foodMasterResult.value.deletedIds : [];
+  const syncedExerciseMasterIds =
+    exerciseMasterResult.status === "fulfilled" ? exerciseMasterResult.value.syncedIds : [];
+  const deletedExerciseMasterIdsOut =
+    exerciseMasterResult.status === "fulfilled" ? exerciseMasterResult.value.deletedIds : [];
 
   if (weightResult.status === "rejected") console.error("体重記録の同期に失敗:", weightResult.reason);
   if (mealResult.status === "rejected") console.error("食事記録の同期に失敗:", mealResult.reason);
   if (waterResult.status === "rejected") console.error("水分記録の同期に失敗:", waterResult.reason);
   if (workoutResult.status === "rejected") console.error("筋トレ記録の同期に失敗:", workoutResult.reason);
   if (diaryResult.status === "rejected") console.error("日記記録の同期に失敗:", diaryResult.reason);
+  if (foodMasterResult.status === "rejected") console.error("食事マスタの同期に失敗:", foodMasterResult.reason);
+  if (exerciseMasterResult.status === "rejected")
+    console.error("種目マスタの同期に失敗:", exerciseMasterResult.reason);
 
   const attempted =
     weightRecords.length +
@@ -453,11 +594,15 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       waterRecords.length +
       workoutRecords.length +
       diaryRecords.length +
+      foodMasterItems.length +
+      exerciseMasterItems.length +
       deletedWeightIds.length +
       deletedMealIds.length +
       deletedWaterIds.length +
       deletedWorkoutIds.length +
-      deletedDiaryIds.length >
+      deletedDiaryIds.length +
+      deletedFoodMasterIds.length +
+      deletedExerciseMasterIds.length >
     0;
   const nothingSynced =
     syncedWeightDates.length +
@@ -469,9 +614,21 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       syncedWorkoutIds.length +
       deletedWorkoutIdsOut.length +
       syncedDiaryDates.length +
-      deletedDiaryIdsOut.length ===
+      deletedDiaryIdsOut.length +
+      syncedFoodMasterIds.length +
+      deletedFoodMasterIdsOut.length +
+      syncedExerciseMasterIds.length +
+      deletedExerciseMasterIdsOut.length ===
     0;
-  const results = [weightResult, mealResult, waterResult, workoutResult, diaryResult];
+  const results = [
+    weightResult,
+    mealResult,
+    waterResult,
+    workoutResult,
+    diaryResult,
+    foodMasterResult,
+    exerciseMasterResult,
+  ];
   const anyFailure = results.some((r) => r.status === "rejected");
 
   if (attempted && nothingSynced && anyFailure) {
@@ -487,10 +644,14 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     syncedWaterIds,
     syncedWorkoutIds,
     syncedDiaryDates,
+    syncedFoodMasterIds,
+    syncedExerciseMasterIds,
     deletedWeightIds: deletedWeightIdsOut,
     deletedMealIds: deletedMealIdsOut,
     deletedWaterIds: deletedWaterIdsOut,
     deletedWorkoutIds: deletedWorkoutIdsOut,
     deletedDiaryIds: deletedDiaryIdsOut,
+    deletedFoodMasterIds: deletedFoodMasterIdsOut,
+    deletedExerciseMasterIds: deletedExerciseMasterIdsOut,
   } satisfies SyncPushResultOutput);
 }

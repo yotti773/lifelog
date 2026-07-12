@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/db";
 import { getDiaryRecord, deleteDiaryRecord, saveDiaryRecord } from "@/db/diaryRecords";
+import { addExerciseMasterItem, deleteExerciseMasterItem, getAllExerciseMasterItems } from "@/db/exerciseMaster";
+import { addFoodMasterItem, deleteFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
 import { addMealRecord, deleteMealRecord, getMealRecord } from "@/db/mealRecords";
 import { deleteWeightRecord, getWeightRecord, saveWeightRecord } from "@/db/weightRecords";
 import { runImport } from "@/sync/importEngine";
@@ -14,6 +16,8 @@ beforeEach(async () => {
   await db.workoutRecords.clear();
   await db.diaryRecords.clear();
   await db.activityRecords.clear();
+  await db.foodMasterItems.clear();
+  await db.exerciseMasterItems.clear();
   await db.syncDeletions.clear();
 });
 
@@ -24,12 +28,16 @@ const emptyPull: SyncPullResult = {
   workoutRecords: [],
   diaryRecords: [],
   activityRecords: [],
+  foodMasterItems: [],
+  exerciseMasterItems: [],
   skippedWeightRows: 0,
   skippedMealRows: 0,
   skippedWaterRows: 0,
   skippedWorkoutRows: 0,
   skippedDiaryRows: 0,
   skippedActivityRows: 0,
+  skippedFoodMasterRows: 0,
+  skippedExerciseMasterRows: 0,
 };
 
 /** 成功時の`ImportOutcome`を組み立てる。テストごとに差分だけ渡せば済むようにする */
@@ -40,6 +48,8 @@ const successOutcome = (overrides: {
   importedWorkoutCount?: number;
   importedDiaryCount?: number;
   importedActivityCount?: number;
+  importedFoodMasterCount?: number;
+  importedExerciseMasterCount?: number;
   skippedExistingCount?: number;
   skippedRowCount?: number;
 }) => ({
@@ -50,6 +60,8 @@ const successOutcome = (overrides: {
   importedWorkoutCount: 0,
   importedDiaryCount: 0,
   importedActivityCount: 0,
+  importedFoodMasterCount: 0,
+  importedExerciseMasterCount: 0,
   skippedExistingCount: 0,
   skippedRowCount: 0,
   ...overrides,
@@ -182,6 +194,80 @@ describe("runImport", () => {
     expect(outcome).toEqual(successOutcome({ importedActivityCount: 2, skippedRowCount: 1 }));
     expect(await db.activityRecords.get("2026-07-01")).toEqual({ ...pulledActivity, synced: true });
     expect(await db.activityRecords.count()).toBe(2);
+  });
+
+  it("食事マスタ・種目マスタもsynced: trueで取り込む(Issue #96)", async () => {
+    const transport = fakeTransport({
+      ...emptyPull,
+      foodMasterItems: [
+        { id: "food-uuid-1", name: "モスバーガー", kcal: 372, proteinG: 15.2, fatG: 17, carbsG: 40, createdAt: "2026-07-01T00:00:00.000Z" },
+      ],
+      exerciseMasterItems: [{ id: "ex-uuid-1", name: "ベンチプレス", createdAt: "2026-07-01T00:00:00.000Z" }],
+      skippedFoodMasterRows: 1,
+    });
+
+    const outcome = await runImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual(
+      successOutcome({ importedFoodMasterCount: 1, importedExerciseMasterCount: 1, skippedRowCount: 1 }),
+    );
+    expect((await getAllFoodMasterItems())[0]).toMatchObject({ id: "food-uuid-1", synced: true });
+    expect((await getAllExerciseMasterItems())[0]).toMatchObject({ id: "ex-uuid-1", synced: true });
+  });
+
+  it("マスタはIDが違っても同名(前後空白無視)の既存品目・種目をスキップする(ローカル優先)", async () => {
+    await addFoodMasterItem({ name: "ドーナツ", kcal: 250, proteinG: 4, fatG: 12, carbsG: 32 });
+    await addExerciseMasterItem("スクワット");
+    const transport = fakeTransport({
+      ...emptyPull,
+      foodMasterItems: [
+        { id: "food-uuid-9", name: " ドーナツ ", kcal: 999, proteinG: 0, fatG: 0, carbsG: 0, createdAt: "2026-07-01T00:00:00.000Z" },
+      ],
+      exerciseMasterItems: [{ id: "ex-uuid-9", name: "スクワット", createdAt: "2026-07-01T00:00:00.000Z" }],
+    });
+
+    const outcome = await runImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual(successOutcome({ skippedExistingCount: 2 }));
+    const foods = await getAllFoodMasterItems();
+    expect(foods).toHaveLength(1);
+    expect(foods[0].kcal).toBe(250);
+    expect(await getAllExerciseMasterItems()).toHaveLength(1);
+  });
+
+  it("マスタの削除トゥームストーンが保留中の品目・種目は取り込まない", async () => {
+    const food = await addFoodMasterItem({ name: "ドーナツ", kcal: 250, proteinG: 4, fatG: 12, carbsG: 32 });
+    const exercise = await addExerciseMasterItem("スクワット");
+    await deleteFoodMasterItem(food.id);
+    await deleteExerciseMasterItem(exercise.id);
+    const transport = fakeTransport({
+      ...emptyPull,
+      foodMasterItems: [
+        { id: food.id, name: "ドーナツ", kcal: 250, proteinG: 4, fatG: 12, carbsG: 32, createdAt: food.createdAt },
+      ],
+      exerciseMasterItems: [{ id: exercise.id, name: "スクワット", createdAt: exercise.createdAt }],
+    });
+
+    const outcome = await runImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual(successOutcome({ skippedExistingCount: 2 }));
+    expect(await getAllFoodMasterItems()).toHaveLength(0);
+    expect(await getAllExerciseMasterItems()).toHaveLength(0);
+  });
+
+  it("マスタ未対応の旧Workerのレスポンス(マスタのフィールド欠落)でも壊れない", async () => {
+    const transport = fakeTransport({
+      ...emptyPull,
+      foodMasterItems: undefined,
+      exerciseMasterItems: undefined,
+      skippedFoodMasterRows: undefined,
+      skippedExerciseMasterRows: undefined,
+      weightRecords: [pulledWeight],
+    });
+
+    const outcome = await runImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual(successOutcome({ importedWeightCount: 1 }));
   });
 
   it("トランスポートが失敗したら何も取り込まずエラーを返す", async () => {

@@ -1,4 +1,13 @@
-import type { ActivityRecord, DiaryRecord, MealRecord, WaterRecord, WeightRecord, WorkoutRecord } from "@/types";
+import type {
+  ActivityRecord,
+  DiaryRecord,
+  ExerciseMasterItem,
+  FoodMasterItem,
+  MealRecord,
+  WaterRecord,
+  WeightRecord,
+  WorkoutRecord,
+} from "@/types";
 
 export interface SyncPushPayload {
   weightRecords: WeightRecord[];
@@ -6,6 +15,8 @@ export interface SyncPushPayload {
   waterRecords: WaterRecord[];
   workoutRecords: WorkoutRecord[];
   diaryRecords: DiaryRecord[];
+  foodMasterItems: FoodMasterItem[];
+  exerciseMasterItems: ExerciseMasterItem[];
   /** スプレッドシートから削除すべき体重記録のID(=日付)一覧。トゥームストーン由来(Issue #30) */
   deletedWeightIds: string[];
   /** スプレッドシートから削除すべき食事記録のID一覧。トゥームストーン由来(Issue #30) */
@@ -16,6 +27,10 @@ export interface SyncPushPayload {
   deletedWorkoutIds: string[];
   /** スプレッドシートから削除すべき日記記録のID(=日付)一覧。トゥームストーン由来(Issue #72) */
   deletedDiaryIds: string[];
+  /** スプレッドシートから削除すべき食事マスタ品目のID一覧。トゥームストーン由来(Issue #96) */
+  deletedFoodMasterIds: string[];
+  /** スプレッドシートから削除すべき種目マスタのID一覧。トゥームストーン由来(Issue #96) */
+  deletedExerciseMasterIds: string[];
 }
 
 export interface SyncPushResult {
@@ -29,6 +44,10 @@ export interface SyncPushResult {
   syncedWorkoutIds: string[];
   /** 送信(追記/更新)に成功したDiaryRecordのdate一覧 */
   syncedDiaryDates: string[];
+  /** 送信(追記/更新)に成功したFoodMasterItemのid一覧。マスタ未対応の旧Workerは返さないため省略可(Issue #96) */
+  syncedFoodMasterIds?: string[];
+  /** 送信(追記/更新)に成功したExerciseMasterItemのid一覧。マスタ未対応の旧Workerは返さないため省略可(Issue #96) */
+  syncedExerciseMasterIds?: string[];
   /** 削除を確定できた体重記録のID一覧。省略時は空とみなす(Issue #30) */
   deletedWeightIds?: string[];
   /** 削除を確定できた食事記録のID一覧。省略時は空とみなす(Issue #30) */
@@ -39,6 +58,10 @@ export interface SyncPushResult {
   deletedWorkoutIds?: string[];
   /** 削除を確定できた日記記録のID一覧。省略時は空とみなす(Issue #72) */
   deletedDiaryIds?: string[];
+  /** 削除を確定できた食事マスタ品目のID一覧。省略時は空とみなす(Issue #96) */
+  deletedFoodMasterIds?: string[];
+  /** 削除を確定できた種目マスタのID一覧。省略時は空とみなす(Issue #96) */
+  deletedExerciseMasterIds?: string[];
 }
 
 /**
@@ -79,6 +102,12 @@ export type PulledDiaryRecord = Omit<DiaryRecord, "synced">;
 /** スプレッドシートから取り込んだ活動記録(Garmin由来。Issue #81)。シートに無い`synced`を除きActivityRecordと同形 */
 export type PulledActivityRecord = Omit<ActivityRecord, "synced">;
 
+/** スプレッドシートから取り込んだ食事マスタ品目(Issue #96)。シートに無い`synced`を除きFoodMasterItemと同形 */
+export type PulledFoodMasterItem = Omit<FoodMasterItem, "synced">;
+
+/** スプレッドシートから取り込んだ種目マスタ(Issue #96)。シートに無い`synced`を除きExerciseMasterItemと同形 */
+export type PulledExerciseMasterItem = Omit<ExerciseMasterItem, "synced">;
+
 export interface SyncPullResult {
   weightRecords: PulledWeightRecord[];
   mealRecords: PulledMealRecord[];
@@ -86,6 +115,10 @@ export interface SyncPullResult {
   workoutRecords: PulledWorkoutRecord[];
   diaryRecords: PulledDiaryRecord[];
   activityRecords: PulledActivityRecord[];
+  /** マスタ未対応の旧Workerは返さないため省略可(Issue #96) */
+  foodMasterItems?: PulledFoodMasterItem[];
+  /** マスタ未対応の旧Workerは返さないため省略可(Issue #96) */
+  exerciseMasterItems?: PulledExerciseMasterItem[];
   /** 解釈できずスキップされた体重タブの行数(見出し行とみなす1行目を除く) */
   skippedWeightRows: number;
   /** 解釈できずスキップされた食事タブの行数(見出し行とみなす1行目を除く) */
@@ -98,6 +131,10 @@ export interface SyncPullResult {
   skippedDiaryRows: number;
   /** 解釈できずスキップされた活動記録タブの行数(見出し行とみなす1行目を除く。タブ自体が無い場合は0) */
   skippedActivityRows: number;
+  /** 解釈できずスキップされた食事マスタタブの行数(見出し行とみなす1行目を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedFoodMasterRows?: number;
+  /** 解釈できずスキップされた種目マスタタブの行数(見出し行とみなす1行目を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedExerciseMasterRows?: number;
 }
 
 /** スプレッドシートからの取り込み(復元・過去データ移行)を担うインターフェース(Issue #54) */

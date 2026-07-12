@@ -6,6 +6,8 @@ import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import { IconDownload, IconSync, IconWarning } from "@/components/icons";
 import { getUnsyncedDiaryRecords } from "@/db/diaryRecords";
+import { getUnsyncedExerciseMasterItems } from "@/db/exerciseMaster";
+import { getUnsyncedFoodMasterItems } from "@/db/foodMaster";
 import { getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWaterRecords } from "@/db/waterRecords";
@@ -40,6 +42,8 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedWorkoutCount,
         importedDiaryCount,
         importedActivityCount,
+        importedFoodMasterCount,
+        importedExerciseMasterCount,
         skippedExistingCount,
         skippedRowCount,
       } = outcome;
@@ -49,7 +53,9 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedWaterCount +
         importedWorkoutCount +
         importedDiaryCount +
-        importedActivityCount;
+        importedActivityCount +
+        importedFoodMasterCount +
+        importedExerciseMasterCount;
       let message: string;
       if (totalImported === 0) {
         message =
@@ -59,7 +65,8 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
       } else {
         message =
           `体重${importedWeightCount}件・食事${importedMealCount}件・水分${importedWaterCount}件・` +
-          `筋トレ${importedWorkoutCount}件・日記${importedDiaryCount}件・活動${importedActivityCount}件を取り込みました`;
+          `筋トレ${importedWorkoutCount}件・日記${importedDiaryCount}件・活動${importedActivityCount}件・` +
+          `食事マスタ${importedFoodMasterCount}件・種目マスタ${importedExerciseMasterCount}件を取り込みました`;
         if (skippedExistingCount > 0) {
           message += `(既にある${skippedExistingCount}件はスキップ)`;
         }
@@ -83,7 +90,7 @@ interface SheetsSyncCardProps {
 
 /** 設定画面の「データ同期・バックアップ」カード。同期・取り込みの実行と結果表示までを自己完結で持つ */
 export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
-  // 未同期件数には未送信レコードに加え、削除待ちのトゥームストーンも含める(Issue #30・#72)
+  // 未同期件数には未送信レコード・マスタに加え、削除待ちのトゥームストーンも含める(Issue #30・#72・#96)
   const unsyncedCount = useLiveQuery(async () => {
     const [
       weights,
@@ -91,22 +98,30 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       waters,
       workouts,
       diaries,
+      foodMasters,
+      exerciseMasters,
       weightDeletions,
       mealDeletions,
       waterDeletions,
       workoutDeletions,
       diaryDeletions,
+      foodMasterDeletions,
+      exerciseMasterDeletions,
     ] = await Promise.all([
       getUnsyncedWeightRecords(),
       getUnsyncedMealRecords(),
       getUnsyncedWaterRecords(),
       getUnsyncedWorkoutRecords(),
       getUnsyncedDiaryRecords(),
+      getUnsyncedFoodMasterItems(),
+      getUnsyncedExerciseMasterItems(),
       getPendingDeletionIds("weight"),
       getPendingDeletionIds("meal"),
       getPendingDeletionIds("water"),
       getPendingDeletionIds("workout"),
       getPendingDeletionIds("diary"),
+      getPendingDeletionIds("foodMaster"),
+      getPendingDeletionIds("exerciseMaster"),
     ]);
     return (
       weights.length +
@@ -114,11 +129,15 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       waters.length +
       workouts.length +
       diaries.length +
+      foodMasters.length +
+      exerciseMasters.length +
       weightDeletions.length +
       mealDeletions.length +
       waterDeletions.length +
       workoutDeletions.length +
-      diaryDeletions.length
+      diaryDeletions.length +
+      foodMasterDeletions.length +
+      exerciseMasterDeletions.length
     );
   }, []);
 

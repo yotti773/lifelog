@@ -26,10 +26,51 @@ import {
   updateExerciseMasterItem,
 } from "@/db/exerciseMaster";
 import { usePagedFilter } from "@/hooks/usePagedFilter";
+import { EXERCISE_BODY_PART_LABELS, EXERCISE_BODY_PART_ORDER } from "@/lib/exerciseBodyParts";
 import { fontRounded, tokens } from "@/theme";
-import type { ExerciseMasterItem } from "@/types";
+import type { ExerciseBodyPart, ExerciseMasterItem } from "@/types";
 
 const PAGE_SIZE = 8;
+
+/** 部位分類の選択チップ(任意項目。選択中をもう一度タップすると解除=分類なし。Issue #104) */
+function BodyPartSelector({
+  value,
+  onChange,
+}: {
+  value: ExerciseBodyPart | undefined;
+  onChange: (bodyPart: ExerciseBodyPart | undefined) => void;
+}) {
+  return (
+    <Box>
+      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary", mb: "6px" }}>部位(任意)</Typography>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+        {EXERCISE_BODY_PART_ORDER.map((bodyPart) => {
+          const selected = value === bodyPart;
+          return (
+            <ButtonBase
+              key={bodyPart}
+              onClick={() => onChange(selected ? undefined : bodyPart)}
+              aria-pressed={selected}
+              sx={{
+                px: "12px",
+                py: "6px",
+                borderRadius: "20px",
+                fontSize: 12,
+                fontWeight: 700,
+                fontFamily: fontRounded,
+                border: `1.5px solid ${selected ? "transparent" : tokens.border}`,
+                bgcolor: selected ? tokens.strengthBg : "transparent",
+                color: selected ? "primary.main" : "text.secondary",
+              }}
+            >
+              {EXERCISE_BODY_PART_LABELS[bodyPart]}
+            </ButtonBase>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+}
 
 /** 種目マスタ管理画面。食事マスタ(FoodMasterPage)と同じ構成だが、数値項目を持たず種目名のみを扱う(画面設計書7.1章) */
 export default function ExerciseMasterPage() {
@@ -43,8 +84,10 @@ export default function ExerciseMasterPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editBodyPart, setEditBodyPart] = useState<ExerciseBodyPart | undefined>(undefined);
   const [isAdding, setAdding] = useState(false);
   const [addName, setAddName] = useState("");
+  const [addBodyPart, setAddBodyPart] = useState<ExerciseBodyPart | undefined>(undefined);
   const [editError, setEditError] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -55,13 +98,14 @@ export default function ExerciseMasterPage() {
   const startEdit = (item: ExerciseMasterItem) => {
     setEditingId(item.id);
     setEditName(item.name);
+    setEditBodyPart(item.bodyPart);
     setEditError(null);
   };
 
   const saveEdit = async () => {
     if (!editingId || !editName.trim()) return;
     try {
-      await updateExerciseMasterItem(editingId, editName.trim());
+      await updateExerciseMasterItem(editingId, editName.trim(), editBodyPart);
     } catch (e) {
       if (e instanceof DuplicateExerciseNameError) {
         setEditError("同じ名前の種目が既に登録されています");
@@ -76,7 +120,7 @@ export default function ExerciseMasterPage() {
     const name = addName.trim();
     if (!name) return;
     try {
-      await addExerciseMasterItem(name);
+      await addExerciseMasterItem(name, addBodyPart);
     } catch (e) {
       if (e instanceof DuplicateExerciseNameError) {
         setAddError("同じ名前の種目が既に登録されています");
@@ -85,6 +129,7 @@ export default function ExerciseMasterPage() {
       throw e;
     }
     setAddName("");
+    setAddBodyPart(undefined);
     setAdding(false);
     setAddError(null);
     // 追加直後の種目を一覧で見つけやすいよう、絞り込みを解除して先頭ページへ戻す
@@ -159,6 +204,9 @@ export default function ExerciseMasterPage() {
                   helperText={editError ?? undefined}
                   sx={{ mb: "8px" }}
                 />
+                <Box sx={{ mb: "10px" }}>
+                  <BodyPartSelector value={editBodyPart} onChange={setEditBodyPart} />
+                </Box>
                 <Box sx={{ display: "flex", gap: "8px" }}>
                   <Button fullWidth variant="contained" size="small" onClick={saveEdit} disabled={!editName.trim()}>
                     保存
@@ -197,6 +245,22 @@ export default function ExerciseMasterPage() {
                 <Typography sx={{ flex: 1, minWidth: 0, fontFamily: fontRounded, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {item.name}
                 </Typography>
+                {item.bodyPart && (
+                  <Typography
+                    sx={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: "primary.main",
+                      bgcolor: tokens.strengthBg,
+                      px: "8px",
+                      py: "3px",
+                      borderRadius: "20px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {EXERCISE_BODY_PART_LABELS[item.bodyPart]}
+                  </Typography>
+                )}
                 <IconButton
                   onClick={() => startEdit(item)}
                   aria-label={`${item.name}を編集`}
@@ -242,6 +306,9 @@ export default function ExerciseMasterPage() {
             autoFocus
             sx={{ mb: "8px" }}
           />
+          <Box sx={{ mb: "10px" }}>
+            <BodyPartSelector value={addBodyPart} onChange={setAddBodyPart} />
+          </Box>
           <Box sx={{ display: "flex", gap: "8px" }}>
             <Button fullWidth variant="contained" size="small" onClick={saveAdd} disabled={!addName.trim()}>
               追加
@@ -252,6 +319,7 @@ export default function ExerciseMasterPage() {
               size="small"
               onClick={() => {
                 setAddName("");
+                setAddBodyPart(undefined);
                 setAdding(false);
                 setAddError(null);
               }}

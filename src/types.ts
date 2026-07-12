@@ -79,9 +79,13 @@ export interface WorkoutRecord {
   synced: boolean; // スプレッドシートへの同期済みフラグ(Issue #72)
 }
 
+/** 種目マスタの部位分類(固定選択肢・任意。Issue #104)。自由入力は表記ゆれで将来の部位別集計に使えないため設けない */
+export type ExerciseBodyPart = "chest" | "back" | "shoulders" | "arms" | "legs" | "core" | "other";
+
 export interface ExerciseMasterItem {
   id: string;
   name: string; // 食事マスタと異なり数値項目は持たない(重量・回数は毎回変わるため。画面設計書7.1章)
+  bodyPart?: ExerciseBodyPart; // 部位分類(任意。Issue #104)
   createdAt: string; // ISO8601
   synced: boolean; // スプレッドシートへの同期済みフラグ(Issue #96)
 }

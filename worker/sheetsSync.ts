@@ -1,6 +1,7 @@
 import { getGoogleAccessToken } from "./googleSheetsAuth";
 import type { Env } from "./index";
 import { DIARY_MOOD_LABELS } from "./diaryMoodLabels";
+import { EXERCISE_BODY_PART_LABELS } from "./exerciseBodyPartLabels";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 
 // worker/tsconfig.json は src/ に依存しない独立ビルドのため、必要な形をここにローカルで複製している。
@@ -64,6 +65,7 @@ interface FoodMasterItemInput {
 interface ExerciseMasterItemInput {
   id: string;
   name: string;
+  bodyPart?: string; // 部位分類のキー(chest/back/...。Issue #104)。シートには日本語ラベルで書く
   createdAt: string;
 }
 
@@ -105,6 +107,8 @@ export interface SheetConfig {
   name: string;
   /** ID列の列記号(体重記録=F列、食事記録=H列) */
   idColumnLetter: string;
+  /** データが入っている最後の列。ID列より後ろに列がある場合のみ指定する(省略時はID列が最後。Issue #104) */
+  lastColumnLetter?: string;
 }
 
 // タブ名にスペースやアポストロフィが含まれる場合は `'${sheetName}'!A:Z` 形式(埋め込み`'`は`''`にエスケープ)に変更すること。
@@ -114,12 +118,14 @@ export const WATER_CONFIG: SheetConfig = { name: "水分記録", idColumnLetter:
 export const WORKOUT_CONFIG: SheetConfig = { name: "筋トレ記録", idColumnLetter: "H" };
 export const DIARY_CONFIG: SheetConfig = { name: "日記記録", idColumnLetter: "E" };
 export const FOOD_MASTER_CONFIG: SheetConfig = { name: "食事マスタ", idColumnLetter: "H" };
-export const EXERCISE_MASTER_CONFIG: SheetConfig = { name: "種目マスタ", idColumnLetter: "C" };
+// 部位列(D)はID列(C)より後ろにあるため(後付けのIssue #104。既存シートのID列を動かさないため)、
+// 取り込みの読み取り範囲はID列ではなくlastColumnLetterまで広げる必要がある
+export const EXERCISE_MASTER_CONFIG: SheetConfig = { name: "種目マスタ", idColumnLetter: "C", lastColumnLetter: "D" };
 
 // マスタ系タブは記録系と違い後付けのため(Issue #96)、既存スプレッドシートには存在しない。
 // 同期時にタブが無ければWorkerがこのヘッダー行付きで自動作成する(記録系タブは手動作成が前提のまま)
 export const FOOD_MASTER_HEADER = ["品目名", "カロリー(kcal)", "たんぱく質(g)", "脂質(g)", "炭水化物(g)", "出典", "登録日時", "ID"];
-export const EXERCISE_MASTER_HEADER = ["種目名", "登録日時", "ID"];
+export const EXERCISE_MASTER_HEADER = ["種目名", "登録日時", "ID", "部位"];
 
 export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
@@ -218,7 +224,7 @@ function foodMasterItemToRow(r: FoodMasterItemInput): (string | number)[] {
 }
 
 function exerciseMasterItemToRow(r: ExerciseMasterItemInput): (string | number)[] {
-  return [r.name, formatJstDateTime(r.createdAt), r.id];
+  return [r.name, formatJstDateTime(r.createdAt), r.id, (r.bodyPart && EXERCISE_BODY_PART_LABELS[r.bodyPart]) ?? r.bodyPart ?? ""];
 }
 
 // ===== 純粋なプランニング関数(ネットワークに依存せずテスト可能) =====

@@ -13,6 +13,7 @@ import RecordHeader from "@/components/RecordHeader";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconClose, IconPlus, IconTrash } from "@/components/icons";
 import { getAllExerciseMasterItems } from "@/db/exerciseMaster";
+import { bodyPartLabel } from "@/lib/exerciseBodyParts";
 import {
   getPreviousWorkoutsByExercise,
   getWorkoutRecordsForDate,
@@ -126,6 +127,11 @@ export default function StrengthRecordPage() {
 
   // マスタに同名が重複していてもAutocompleteのキー(=文字列オプション)が衝突しないよう一意化する
   const nameOptions = useMemo(() => [...new Set((masterItems ?? []).map((item) => item.name))], [masterItems]);
+  // サジェストに部位分類を補助表示するための種目名→部位のマップ(Issue #104)
+  const bodyPartByName = useMemo(
+    () => new Map((masterItems ?? []).filter((item) => item.bodyPart).map((item) => [item.name, item.bodyPart!])),
+    [masterItems],
+  );
 
   if (isLoading || masterItems === undefined) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
@@ -166,6 +172,21 @@ export default function StrengthRecordPage() {
               options={nameOptions}
               inputValue={exercise.name}
               onInputChange={(_, value) => updateExercise(exerciseIndex, { name: value })}
+              renderOption={({ key, ...optionProps }, option) => {
+                const bodyPart = bodyPartByName.get(option);
+                return (
+                  <li key={key} {...optionProps}>
+                    <Typography component="span" sx={{ flex: 1, fontSize: 14 }}>
+                      {option}
+                    </Typography>
+                    {bodyPart && (
+                      <Typography component="span" sx={{ fontSize: 11, color: "text.secondary", ml: "8px", flexShrink: 0 }}>
+                        {bodyPartLabel(bodyPart)}
+                      </Typography>
+                    )}
+                  </li>
+                );
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}

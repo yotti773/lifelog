@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { enqueueDeletion } from "./syncDeletions";
-import type { ExerciseMasterItem } from "@/types";
+import type { ExerciseBodyPart, ExerciseMasterItem } from "@/types";
 
 /** 種目名が既に登録済みか(自分自身のidは除外して判定する)。前後空白は無視して完全一致で比較する */
 async function isDuplicateName(name: string, excludeId?: string): Promise<boolean> {
@@ -10,16 +10,17 @@ async function isDuplicateName(name: string, excludeId?: string): Promise<boolea
 }
 
 /**
- * 種目マスタは種目名のみを持つ(重量・回数は毎回変わるためマスタ化しない。画面設計書7.1章)。
+ * 種目マスタは種目名+任意の部位分類を持つ(重量・回数は毎回変わるためマスタ化しない。画面設計書7.1章、部位はIssue #104)。
  * 同名の重複登録は、筋トレ記録のサジェスト(文字列をキーに使う)が重複しないよう弾く。
  */
-export async function addExerciseMasterItem(name: string): Promise<ExerciseMasterItem> {
+export async function addExerciseMasterItem(name: string, bodyPart?: ExerciseBodyPart): Promise<ExerciseMasterItem> {
   if (await isDuplicateName(name)) {
     throw new DuplicateExerciseNameError(name);
   }
   const item: ExerciseMasterItem = {
     id: crypto.randomUUID(),
     name,
+    ...(bodyPart !== undefined && { bodyPart }),
     createdAt: new Date().toISOString(),
     synced: false,
   };
@@ -39,7 +40,12 @@ export async function getAllExerciseMasterItems(): Promise<ExerciseMasterItem[]>
   return db.exerciseMasterItems.orderBy("name").toArray();
 }
 
-export async function updateExerciseMasterItem(id: string, name: string): Promise<ExerciseMasterItem> {
+/** bodyPartにundefinedを渡すと「分類なし」に戻す(任意項目のため。Issue #104) */
+export async function updateExerciseMasterItem(
+  id: string,
+  name: string,
+  bodyPart?: ExerciseBodyPart,
+): Promise<ExerciseMasterItem> {
   const existing = await db.exerciseMasterItems.get(id);
   if (!existing) {
     throw new Error(`ExerciseMasterItem not found for id: ${id}`);
@@ -47,7 +53,8 @@ export async function updateExerciseMasterItem(id: string, name: string): Promis
   if (await isDuplicateName(name, id)) {
     throw new DuplicateExerciseNameError(name);
   }
-  const updated: ExerciseMasterItem = { ...existing, name, synced: false };
+  const { bodyPart: _bodyPart, ...rest } = existing;
+  const updated: ExerciseMasterItem = { ...rest, name, ...(bodyPart !== undefined && { bodyPart }), synced: false };
   await db.exerciseMasterItems.put(updated);
   return updated;
 }

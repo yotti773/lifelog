@@ -205,7 +205,8 @@ export default function FoodMasterPage() {
                   <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {item.name}
                   </Typography>
-                  <Typography sx={{ fontSize: 11, color: "text.secondary", mt: "2px" }}>
+                  {/* 3桁同士のPFCでも折り返さず1行に収める(Issue #93) */}
+                  <Typography sx={{ fontSize: 11, color: "text.secondary", mt: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     P{item.proteinG} / F{item.fatG} / C{item.carbsG}g
                   </Typography>
                 </Box>

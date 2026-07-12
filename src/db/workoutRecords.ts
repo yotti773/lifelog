@@ -84,6 +84,46 @@ export async function replaceWorkoutRecordsForDate(
   return records;
 }
 
+/** 種目ごとの「前回の記録」1件分(種目名選択時のリファレンス表示用。Issue #100) */
+export interface PreviousWorkout {
+  date: string; // その内容を記録した日(前回日)
+  sets: WorkoutSetInput[]; // setNumber昇順
+}
+
+/**
+ * 指定日より前で各種目を最後に記録した内容を、種目名→前回内容のMapで返す(Issue #100)。
+ * 記録画面で種目名を選ぶと「前回の重量×回数」を参照表示するために使う。
+ * beforeDate自身は含めない(編集中の当日を「前回」として出さないため)。
+ */
+export async function getPreviousWorkoutsByExercise(beforeDate: string): Promise<Map<string, PreviousWorkout>> {
+  const records = await db.workoutRecords.where("date").below(beforeDate).toArray();
+  // 種目名ごとに最新日付を求める
+  const latestDateByName = new Map<string, string>();
+  for (const record of records) {
+    const current = latestDateByName.get(record.exerciseName);
+    if (current === undefined || record.date > current) {
+      latestDateByName.set(record.exerciseName, record.date);
+    }
+  }
+  // 各種目の最新日付のセットレコードだけを集める
+  const latestRecordsByName = new Map<string, WorkoutRecord[]>();
+  for (const record of records) {
+    if (record.date !== latestDateByName.get(record.exerciseName)) continue;
+    const list = latestRecordsByName.get(record.exerciseName) ?? [];
+    list.push(record);
+    latestRecordsByName.set(record.exerciseName, list);
+  }
+  const result = new Map<string, PreviousWorkout>();
+  for (const [name, setRecords] of latestRecordsByName) {
+    setRecords.sort((a, b) => a.setNumber - b.setNumber);
+    result.set(name, {
+      date: setRecords[0].date,
+      sets: setRecords.map((record) => ({ weightKg: record.weightKg, reps: record.reps })),
+    });
+  }
+  return result;
+}
+
 export async function getUnsyncedWorkoutRecords(): Promise<WorkoutRecord[]> {
   return db.workoutRecords.filter((record) => !record.synced).toArray();
 }

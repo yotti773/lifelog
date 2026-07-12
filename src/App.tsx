@@ -12,18 +12,35 @@ import MealRecordPage from "./pages/meal/MealRecordPage";
 import WaterRecordPage from "./pages/WaterRecordPage";
 import DiaryRecordPage from "./pages/DiaryRecordPage";
 import StrengthRecordPage from "./pages/StrengthRecordPage";
-import { runSync } from "./sync/syncEngine";
-import { workerSheetsTransport } from "./sync/workerSheetsTransport";
+import { createAutoSyncRunner } from "./sync/autoSync";
 
 export default function App() {
   const location = useLocation();
   // 記録フロー画面はヘッダー(戻る)+下部固定ボタンの全画面レイアウトのため、ナビを出さない(モックの画面構成参照)
   const isRecordFlow = location.pathname.startsWith("/record/");
 
-  // アプリ起動時にオンラインであれば未同期分の同期を試みる(画面設計書7章「トリガー」参照)。
-  // 失敗は静かに無視する(未同期フラグは維持されるので設定画面から手動再試行できる)。
+  // 自動同期のトリガー(画面設計書10章、Issue #105): 起動時に加え、PWAをホーム画面から開き直した
+  // ときの復帰(visibilitychange)とオフライン→オンライン復帰(online)でも未同期分の同期を試みる。
+  // 短時間の連続発火はcreateAutoSyncRunnerが抑止する。失敗は静かに無視する
+  // (未同期フラグは維持されるので設定画面から手動再試行できる)。
   useEffect(() => {
-    void runSync({ transport: workerSheetsTransport });
+    const autoSync = createAutoSyncRunner();
+    void autoSync.trigger();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void autoSync.trigger();
+      }
+    };
+    const handleOnline = () => {
+      void autoSync.trigger({ bypassInterval: true });
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
+    };
   }, []);
 
   return (

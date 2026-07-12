@@ -414,7 +414,7 @@ describe("planFoodMasterImport", () => {
 });
 
 describe("planExerciseMasterImport", () => {
-  // sheetsSync.ts の exerciseMasterItemToRow の書き出し形式(3列)
+  // sheetsSync.ts の exerciseMasterItemToRow の書き出し形式(4列。部位のD列はIssue #104で追加)
   const fullRow: CellValue[] = ["ベンチプレス", "2026年07月05日 21:00", "ex-uuid-1"];
   const generateId = () => "generated-uuid";
   const nowIso = "2026-07-10T00:00:00.000Z";
@@ -432,6 +432,20 @@ describe("planExerciseMasterImport", () => {
     const plan = planExerciseMasterImport([["スクワット", "", ""]], generateId, nowIso);
     expect(plan.records).toEqual([{ id: "generated-uuid", name: "スクワット", createdAt: nowIso }]);
     expect(plan.idBackfills).toEqual([{ rowNumber: 1, id: "generated-uuid" }]);
+  });
+
+  it("部位列(D)は日本語ラベル・英語キーのどちらも受け付け、空・未知の値は分類なしとして行自体は取り込む(Issue #104)", () => {
+    const plan = planExerciseMasterImport(
+      [
+        ["ベンチプレス", "2026年07月05日 21:00", "ex-uuid-1", "胸"],
+        ["スクワット", "2026年07月05日 21:00", "ex-uuid-2", "legs"],
+        ["デッドリフト", "2026年07月05日 21:00", "ex-uuid-3", "ふくらはぎ"],
+      ],
+      generateId,
+      nowIso,
+    );
+    expect(plan.records.map((r) => r.bodyPart)).toEqual(["chest", "legs", undefined]);
+    expect(plan.skippedRowCount).toBe(0);
   });
 
   it("1行目の見出し(自動作成ヘッダー)は種目として取り込まない — 必須項目が名前だけのためパース失敗では弾けない", () => {

@@ -59,6 +59,20 @@ describe("exerciseMaster", () => {
     await expect(updateExerciseMasterItem(item.id, "ベンチプレス")).resolves.toMatchObject({ name: "ベンチプレス" });
   });
 
+  it("部位分類を付けて登録・変更・解除できる(任意項目。Issue #104)", async () => {
+    const item = await addExerciseMasterItem("ベンチプレス", "chest");
+    expect(item.bodyPart).toBe("chest");
+
+    // 部位だけの変更もできる
+    const updated = await updateExerciseMasterItem(item.id, "ベンチプレス", "shoulders");
+    expect(updated.bodyPart).toBe("shoulders");
+
+    // undefinedで「分類なし」に戻す(キー自体を消す)
+    const cleared = await updateExerciseMasterItem(item.id, "ベンチプレス");
+    expect(cleared.bodyPart).toBeUndefined();
+    expect("bodyPart" in ((await getAllExerciseMasterItems())[0] as object)).toBe(false);
+  });
+
   it("deletes an item", async () => {
     const item = await addExerciseMasterItem("ベンチプレス");
 

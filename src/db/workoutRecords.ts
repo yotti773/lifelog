@@ -32,6 +32,11 @@ export async function getAllWorkoutRecordsDesc(): Promise<WorkoutRecord[]> {
   return db.workoutRecords.orderBy("date").reverse().toArray();
 }
 
+/** 指定期間(両端含む)の全セットレコードを返す。週次レビューの筋トレサマリー集計に使う(Issue #103) */
+export async function getWorkoutRecordsByDateRange(startDate: string, endDate: string): Promise<WorkoutRecord[]> {
+  return db.workoutRecords.where("date").between(startDate, endDate, true, true).toArray();
+}
+
 /** getWorkoutRecordsForDateの結果を種目単位にグルーピングする(順序は維持) */
 export function groupWorkoutRecordsByExercise(records: WorkoutRecord[]): WorkoutExercise[] {
   const exercises: WorkoutExercise[] = [];

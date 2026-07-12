@@ -1,5 +1,6 @@
 import { getGoogleAccessToken } from "./googleSheetsAuth";
 import { DIARY_MOOD_LABELS } from "./diaryMoodLabels";
+import { EXERCISE_BODY_PART_LABELS } from "./exerciseBodyPartLabels";
 import type { Env } from "./index";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 import {
@@ -88,6 +89,7 @@ export interface ImportedFoodMasterItemOutput {
 export interface ImportedExerciseMasterItemOutput {
   id: string;
   name: string;
+  bodyPart?: string;
   createdAt: string;
 }
 
@@ -194,6 +196,19 @@ export function parseMealTypeCell(value: CellValue): string | null {
 const DIARY_MOOD_BY_LABEL: Record<string, string> = Object.fromEntries(
   Object.entries(DIARY_MOOD_LABELS).map(([mood, label]) => [label, mood]),
 );
+
+const BODY_PART_BY_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(EXERCISE_BODY_PART_LABELS).map(([bodyPart, label]) => [label, bodyPart]),
+);
+
+/** 部位セル(日本語ラベル or 英語キー)を部位キーに変換する(Issue #104)。空・未知の値はundefined(行は取り込む) */
+export function parseBodyPartCell(value: CellValue): string | undefined {
+  const s = String(value ?? "").trim();
+  if (s === "") return undefined;
+  if (BODY_PART_BY_LABEL[s]) return BODY_PART_BY_LABEL[s];
+  if (s in EXERCISE_BODY_PART_LABELS) return s;
+  return undefined;
+}
 
 /** 気分タグセル(日本語ラベル or 英語キー)をDiaryMoodキーに変換する。空・未知の値はundefined */
 export function parseMoodCell(value: CellValue): string | undefined {
@@ -598,7 +613,13 @@ export function planExerciseMasterImport(
       idBackfills.push({ rowNumber, id });
     }
 
-    records.push({ id, name, createdAt: parseJstDateTime(cells?.[1]) ?? nowIso });
+    const bodyPart = parseBodyPartCell(cells?.[3]);
+    records.push({
+      id,
+      name,
+      ...(bodyPart !== undefined && { bodyPart }),
+      createdAt: parseJstDateTime(cells?.[1]) ?? nowIso,
+    });
   });
 
   return { records, idBackfills, skippedRowCount };
@@ -606,13 +627,13 @@ export function planExerciseMasterImport(
 
 // ===== Google Sheets API 呼び出し =====
 
-/** 指定タブのA列〜ID列を全行読み取る */
+/** 指定タブのA列〜最終列(ID列より後ろに列がある場合はlastColumnLetter)を全行読み取る */
 async function readSheetRows(
   accessToken: string,
   spreadsheetId: string,
   config: SheetConfig,
 ): Promise<CellValue[][]> {
-  const range = encodeURIComponent(`${config.name}!A:${config.idColumnLetter}`);
+  const range = encodeURIComponent(`${config.name}!A:${config.lastColumnLetter ?? config.idColumnLetter}`);
   const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -634,7 +655,7 @@ async function readSheetRowsIfPresent(
   spreadsheetId: string,
   config: SheetConfig,
 ): Promise<CellValue[][]> {
-  const range = encodeURIComponent(`${config.name}!A:${config.idColumnLetter}`);
+  const range = encodeURIComponent(`${config.name}!A:${config.lastColumnLetter ?? config.idColumnLetter}`);
   const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });

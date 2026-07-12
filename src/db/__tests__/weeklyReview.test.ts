@@ -3,8 +3,10 @@ import { db } from "../db";
 import { saveDiaryRecord } from "../diaryRecords";
 import { addMealRecord } from "../mealRecords";
 import { updateSettings } from "../settings";
+import { addWaterRecord } from "../waterRecords";
 import { saveWeightRecord } from "../weightRecords";
 import { getWeeklyDigest } from "../weeklyReview";
+import { replaceWorkoutRecordsForDate } from "../workoutRecords";
 import { addDaysToDateString } from "@/lib/date";
 
 // 2026-07-06(月)〜07-12(日)を対象週、「今日」を翌週月曜として注入する
@@ -16,6 +18,8 @@ beforeEach(async () => {
     db.weightRecords.clear(),
     db.mealRecords.clear(),
     db.diaryRecords.clear(),
+    db.waterRecords.clear(),
+    db.workoutRecords.clear(),
     db.settings.clear(),
     db.syncDeletions.clear(),
   ]);
@@ -79,5 +83,40 @@ describe("getWeeklyDigest", () => {
     expect(digest.recording.recordedDays).toBe(5);
     expect(digest.flags).not.toContain("LOW_RECORDING_RATE");
     expect(digest.mood).toEqual({ good: 1, normal: 0, bad: 0 });
+    // 記録の無い週はworkout・waterを省く(Issue #103)
+    expect(digest.workout).toBeUndefined();
+    expect(digest.water).toBeUndefined();
+  });
+
+  it("筋トレ・水分の記録を週サマリーに集計する(Issue #103)", async () => {
+    await updateSettings({ dailyWaterTargetMl: 2000 });
+    await replaceWorkoutRecordsForDate("2026-07-07", [
+      { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }, { weightKg: 60, reps: 8 }] },
+      { name: "スクワット", sets: [{ weightKg: 80, reps: 10 }] },
+    ]);
+    await replaceWorkoutRecordsForDate("2026-07-10", [
+      { name: "ベンチプレス", sets: [{ weightKg: 62.5, reps: 8 }] },
+    ]);
+    await addWaterRecord(2000, new Date("2026-07-06T09:00:00").toISOString());
+    await addWaterRecord(1000, new Date("2026-07-07T09:00:00").toISOString());
+    await addWaterRecord(500, new Date("2026-07-07T15:00:00").toISOString());
+
+    const digest = await getWeeklyDigest(WEEK_START, TODAY);
+    expect(digest.workout).toEqual({ activeDays: 2, exerciseCount: 2, totalSets: 4 });
+    // 07-06: 2000ml(目標達成) / 07-07: 1500ml。記録の無い日は分母に入れない
+    expect(digest.water).toEqual({ avgIntakeMl: 1750, targetMl: 2000, daysOnTarget: 1, recordedDays: 2 });
+  });
+
+  it("日記本文はオプトインONの場合のみdiaryEntriesに含める(Issue #103でIssue #12を決着)", async () => {
+    await saveDiaryRecord({ date: "2026-07-07", text: "外食続きだった", mood: "ok" });
+
+    // デフォルト(OFF): 本文は含めない(気分タグの集計のみ。AIコンサルティング設計書7章)
+    const withoutOptIn = await getWeeklyDigest(WEEK_START, TODAY);
+    expect(withoutOptIn.diaryEntries).toBeUndefined();
+    expect(withoutOptIn.mood).toEqual({ good: 0, normal: 1, bad: 0 });
+
+    await updateSettings({ sendDiaryTextToAi: true });
+    const withOptIn = await getWeeklyDigest(WEEK_START, TODAY);
+    expect(withOptIn.diaryEntries).toEqual([{ date: "2026-07-07", text: "外食続きだった" }]);
   });
 });

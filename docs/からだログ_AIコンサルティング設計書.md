@@ -61,13 +61,25 @@ interface WeeklyDigest {
     currentStreakDays: number;
   };
   flags: DigestFlag[];                           // コード側で判定済みの注意事項(下表)
-  mood?: { good: number; normal: number; bad: number };  // 日記の気分タグの件数集計のみ(本文は送らない。7章)
+  mood?: { good: number; normal: number; bad: number };  // 日記の気分タグの件数集計(デフォルトでは本文は送らない。7章)
   activity?: {                                   // Garmin計測の活動サマリー(Issue #82)。活動記録が無い週は省略
     avgSteps: number | null;                     // 週平均歩数(データがある日の平均)
     avgTotalKcal: number | null;                 // 週平均総消費カロリー(Garmin計測)
     avgSleepMinutes: number | null;              // 平均睡眠時間(分)
     recordedDays: number;                        // 活動データがある日数(0〜7)
   };
+  workout?: {                                    // 筋トレの週サマリー(Issue #103)。記録が無い週は省略
+    activeDays: number;                          // 筋トレを記録した日数(0〜7)
+    exerciseCount: number;                       // 週内に行った種目数(種目名の異なり数)
+    totalSets: number;                           // 週内の総セット数
+  };
+  water?: {                                      // 水分の週サマリー(Issue #103)。記録が無い週は省略
+    avgIntakeMl: number;                         // 記録がある日の平均摂取量(ml)
+    targetMl: number | null;                     // 1日の目標摂取量(未設定ならnull)
+    daysOnTarget: number | null;                 // 目標以上飲めた日数(目標未設定ならnull)
+    recordedDays: number;                        // 水分記録がある日数(0〜7)
+  };
+  diaryEntries?: { date: string; text: string }[];  // 週内の日記本文。オプトインON時のみ含める(7章。Issue #103)
 }
 ```
 
@@ -88,6 +100,8 @@ interface WeeklyDigest {
 - `mood` は日記の気分タグ(5段階。画面設計書6章)を3区分へ集計する: 絶好調・良い → `good` / 普通 → `normal` / 眠い・不調 → `bad`。日記が無い週は `mood` 自体を省略する
 - `activity` はGarmin連携(CLAUDE.mdのGarmin連携を参照)で取り込んだ活動記録の週集計(Issue #82)。各平均は「その項目のデータがある日」の平均(欠測日は分母に入れない)。週内に活動記録が1日も無ければ省略する(未連携ユーザーのdigest・プロンプトは従来と変わらない)。`avgTotalKcal`(Garmin計測)と `estimatedTdeeKcal`(逆算)は独立した消費カロリー推定値で、画面側は乖離15%超で「記録漏れ等の可能性」の注記を出す。AIには差の計算をさせない(プロンプトで明示。5章)。activity由来の新しい警告フラグは設けない(歩数・睡眠の多寡は安全判定ではなく解釈の領域のため)
 - `requiredWeeklyPaceKg` は「減量が必要なら負」の符号で持つ(`weeklyChangeKg` と直接比較できるように)。体重記録が皆無・目標日超過の場合は `0` とし、状況はフラグ側で伝える
+- `workout`・`water` は週次レビューへの筋トレ・水分の統合(Issue #103)で追加した週サマリー。activityと同じ扱いで、記録が無い週は省略する(セクション・プロンプトとも従来と変わらない)。水分の平均は「記録がある日」(日別合計が0mlでない日)の平均で、記録の無い日は分母に入れない(食事・活動の平均と同じ考え方)。筋トレ・水分由来の新しい警告フラグは設けない(継続の多寡は安全判定ではなく解釈の領域のため)
+- `diaryEntries` は週内の日記本文の配列(Issue #103でIssue #12を決着)。設定のオプトイン(`Settings.sendDiaryTextToAi`、デフォルトOFF)がONの週だけ含め、本文が空の日記(気分タグのみ)は除く。プロンプトでは「生活背景・気分の文脈として読み、winsやactionsをユーザーの実際の状況に沿ったものにする材料にしてよい。本文をそのまま長く引用しない。日記に書かれた内容から病気の診断・治療の提案をしない」と指示する(7章)
 - `paceBaseKg` は `requiredWeeklyPaceKg` の計算に使った基準体重(週平均、無ければ全期間の最新体重)をそのまま持つ。UI側で「必要ペース0.00kg/週(既に目標体重付近)」と「計算不能(体重記録が無い・目標日超過)」を区別するために使う。週次レビュー画面のTDEE補正提案(実測消費カロリー節)でも、設定画面の自動計算(#43。`src/pages/settings/ValueEditorDrawer.tsx`)と同じ `suggestCalorieTarget()` の入力(現在体重)として再利用し、ガードレール(基礎代謝クランプ・ペース超過警告)を画面間で一貫させている
 
 ## 4. データ契約(2): WeeklyAdvice(出力)
@@ -130,7 +144,7 @@ interface WeeklyAdvice {
 
 ## 7. プライバシー・安全
 
-- **日記本文は外部AIに送らない(デフォルト)**: `WeeklyDigest` に含めるのは気分タグの件数集計のみ。本文を含めて「今週の気分の背景」まで読ませるオプトイン設定を設けるかは未決定の論点(要件定義書7章、Issue #12で判断)
+- **日記本文は外部AIに送らない(デフォルト)**: `WeeklyDigest` に含めるのは気分タグの件数集計のみ。本文まで読ませる**オプトイン設定**(設定画面「日記の本文をAIに送る」トグル、`Settings.sendDiaryTextToAi`、デフォルトOFF)を設け、ONの週だけ `diaryEntries` として本文を含める(Issue #103でIssue #12を決着)。週次レビュー画面の日記カードには、本文がAIに渡る状態かどうかを常に注記する
 - 体重・カロリー等の数値データはAI判定(写真)で既にGemini APIへ送っている範囲と同等であり、新たなプライバシー区分は増えない
 - **医療免責**: AIコメント欄の近くに「AIによる参考情報であり、医学的助言ではありません」の注記を常設する
 - 安全ガードレール(最低摂取カロリー・ペース上限)はコード側のフラグ判定と設定画面のクランプ(Issue #43)で担保し、AIには依存しない(2章)
@@ -148,4 +162,4 @@ interface WeeklyAdvice {
 1. **土台(AI無し)**: #43 → #44 → #45(+#46・#47)。週次レビューはコードだけの決定論的サマリーとして先に価値を出す
 2. **AI統合(#12)**: 本設計書の3〜8章を実装する。`WeeklyDigest` は段階1で実装済みのものをそのまま入力契約として使う
 
-※実装状況: 両段階とも実装済み(2026-07-10)。主な実装場所: ダイジェスト生成 `src/lib/weeklyDigest.ts` + `src/db/weeklyReview.ts`、実測TDEE `src/lib/tdee.ts` + `src/db/weeklyNutrition.ts`、Workerエンドポイント `worker/weeklyAdvice.ts`(フィクスチャは `worker/__tests__/weeklyAdviceFixtures.ts`)、キャッシュ `src/db/adviceRecords.ts`、画面 `src/pages/trends/WeeklyReview.tsx`(AIコメントカードは同 `WeeklyAdviceCard.tsx`)。日記本文を読ませるオプトイン(7章)は未実装のまま(引き続きオープンな論点)。
+※実装状況: 両段階とも実装済み(2026-07-10)。主な実装場所: ダイジェスト生成 `src/lib/weeklyDigest.ts` + `src/db/weeklyReview.ts`、実測TDEE `src/lib/tdee.ts` + `src/db/weeklyNutrition.ts`、Workerエンドポイント `worker/weeklyAdvice.ts`(フィクスチャは `worker/__tests__/weeklyAdviceFixtures.ts`)、キャッシュ `src/db/adviceRecords.ts`、画面 `src/pages/trends/WeeklyReview.tsx`(AIコメントカードは同 `WeeklyAdviceCard.tsx`)。日記本文を読ませるオプトイン(7章)は2026-07-12に実装済み(Issue #103でIssue #12を決着)。

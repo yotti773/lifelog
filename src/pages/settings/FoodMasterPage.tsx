@@ -12,7 +12,6 @@ import Typography from "@mui/material/Typography";
 import PaginationControls from "@/components/PaginationControls";
 import {
   IconBack,
-  IconDownload,
   IconEdit,
   IconPlus,
   IconSearch,
@@ -20,12 +19,10 @@ import {
 } from "@/components/icons";
 import {
   addFoodMasterItem,
-  bulkAddFoodMasterItems,
   deleteFoodMasterItem,
   getAllFoodMasterItems,
   updateFoodMasterItem,
 } from "@/db/foodMaster";
-import { foodMasterSeedData } from "@/db/foodMasterSeedData";
 import { usePagedFilter } from "@/hooks/usePagedFilter";
 import { fontRounded, tokens } from "@/theme";
 import type { FoodMasterItem } from "@/types";
@@ -87,8 +84,6 @@ export default function FoodMasterPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<ItemDraft>(EMPTY_DRAFT);
-  const [isSeeding, setSeeding] = useState(false);
-  const [seedMessage, setSeedMessage] = useState<string | null>(null);
   const [isAdding, setAdding] = useState(false);
   const [addDraft, setAddDraft] = useState<ItemDraft>(EMPTY_DRAFT);
 
@@ -105,19 +100,6 @@ export default function FoodMasterPage() {
     if (!editingId) return;
     await updateFoodMasterItem(editingId, draftToInput(editDraft));
     setEditingId(null);
-  };
-
-  const handleSeed = async () => {
-    setSeeding(true);
-    setSeedMessage(null);
-    try {
-      const count = await bulkAddFoodMasterItems(foodMasterSeedData);
-      setSeedMessage(
-        count > 0 ? `${count}件を登録しました` : "追加できる新しい品目はありませんでした(すべて登録済みです)",
-      );
-    } finally {
-      setSeeding(false);
-    }
   };
 
   const cancelAdd = () => {
@@ -170,36 +152,6 @@ export default function FoodMasterPage() {
         }}
         sx={{ mb: "14px" }}
       />
-
-      {/* 定番メニュー一括登録 */}
-      <ButtonBase
-        onClick={handleSeed}
-        disabled={isSeeding}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          width: "100%",
-          bgcolor: tokens.secondarySoft,
-          borderRadius: "14px",
-          p: "13px 15px",
-          textAlign: "left",
-          mb: "6px",
-        }}
-      >
-        <Box sx={{ color: "secondary.main", display: "flex", flexShrink: 0 }}>
-          <IconDownload />
-        </Box>
-        <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, color: tokens.secondaryDeep }}>
-            {isSeeding ? "登録中..." : "定番メニューを一括登録"}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: tokens.secondaryDeep, opacity: 0.8, mt: "2px" }}>
-            モスバーガー・ミスタードーナツ・コンビニの定番。登録済みはスキップします
-          </Typography>
-        </Box>
-      </ButtonBase>
-      {seedMessage && <Typography sx={{ fontSize: 12, color: "text.secondary", mb: "6px", px: "4px" }}>{seedMessage}</Typography>}
 
       {/* 件数 */}
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", m: "10px 4px 8px" }}>

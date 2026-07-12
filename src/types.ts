@@ -37,6 +37,7 @@ export interface FoodMasterItem {
   carbsG: number;
   source?: string; // 出典(公式栄養成分表のURL等)。事前登録の数値検証用、任意
   createdAt: string; // ISO8601
+  synced: boolean; // スプレッドシートへの同期済みフラグ(Issue #96)
 }
 
 /**
@@ -82,6 +83,7 @@ export interface ExerciseMasterItem {
   id: string;
   name: string; // 食事マスタと異なり数値項目は持たない(重量・回数は毎回変わるため。画面設計書7.1章)
   createdAt: string; // ISO8601
+  synced: boolean; // スプレッドシートへの同期済みフラグ(Issue #96)
 }
 
 /**
@@ -104,7 +106,7 @@ export interface ActivityRecord {
 }
 
 /** どちらのスプレッドシートタブの行を指すかの識別子 */
-export type SyncSheet = "weight" | "meal" | "water" | "workout" | "diary";
+export type SyncSheet = "weight" | "meal" | "water" | "workout" | "diary" | "foodMaster" | "exerciseMaster";
 
 /**
  * 同期済み(スプレッドシートに書き出し済み)の可能性がある記録を削除したときのトゥームストーン。
@@ -116,7 +118,8 @@ export interface SyncDeletion {
   sheet: SyncSheet;
   /**
    * スプレッドシートのID列に書かれている値。
-   * WeightRecord.id=日付 / MealRecord.id・WaterRecord.id・WorkoutRecord.id=UUID / DiaryRecord.id=日付
+   * WeightRecord.id=日付 / MealRecord.id・WaterRecord.id・WorkoutRecord.id=UUID / DiaryRecord.id=日付 /
+   * FoodMasterItem.id・ExerciseMasterItem.id=UUID(Issue #96)
    */
   recordId: string;
   deletedAt: string; // ISO8601

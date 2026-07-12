@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/db";
+import {
+  addExerciseMasterItem,
+  deleteExerciseMasterItem,
+  getUnsyncedExerciseMasterItems,
+} from "@/db/exerciseMaster";
+import { addFoodMasterItem, deleteFoodMasterItem, getUnsyncedFoodMasterItems } from "@/db/foodMaster";
 import { addMealRecord, getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
@@ -15,6 +21,8 @@ beforeEach(async () => {
   await db.waterRecords.clear();
   await db.workoutRecords.clear();
   await db.diaryRecords.clear();
+  await db.foodMasterItems.clear();
+  await db.exerciseMasterItems.clear();
   await db.settings.clear();
   await db.syncDeletions.clear();
 });
@@ -30,6 +38,8 @@ const emptyResult: SyncPushResult = {
   syncedWaterIds: [],
   syncedWorkoutIds: [],
   syncedDiaryDates: [],
+  syncedFoodMasterIds: [],
+  syncedExerciseMasterIds: [],
 };
 
 describe("runSync", () => {
@@ -153,6 +163,60 @@ describe("runSync", () => {
     await runSync({ transport: fakeTransport(push), isOnline: () => true });
 
     expect(await getPendingDeletionIds("weight")).toEqual(["2026-07-01"]);
+  });
+
+  it("食事マスタ・種目マスタも同期対象になり、成功した分だけsyncedが立つ(Issue #96)", async () => {
+    await addFoodMasterItem({ name: "モスバーガー", kcal: 372, proteinG: 15.2, fatG: 17, carbsG: 40 });
+    await addExerciseMasterItem("ベンチプレス");
+
+    const push = vi.fn(async (payload: SyncPushPayload): Promise<SyncPushResult> => ({
+      ...emptyResult,
+      syncedFoodMasterIds: payload.foodMasterItems.map((r) => r.id),
+      syncedExerciseMasterIds: payload.exerciseMasterItems.map((r) => r.id),
+    }));
+
+    const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "success", syncedCount: 2 });
+    expect(await getUnsyncedFoodMasterItems()).toHaveLength(0);
+    expect(await getUnsyncedExerciseMasterItems()).toHaveLength(0);
+  });
+
+  it("マスタの削除トゥームストーンも同期対象になり、確定すれば消える(Issue #96)", async () => {
+    const food = await addFoodMasterItem({ name: "ドーナツ", kcal: 250, proteinG: 4, fatG: 12, carbsG: 32 });
+    const exercise = await addExerciseMasterItem("スクワット");
+    await deleteFoodMasterItem(food.id);
+    await deleteExerciseMasterItem(exercise.id);
+
+    const push = vi.fn(async (payload: SyncPushPayload): Promise<SyncPushResult> => ({
+      ...emptyResult,
+      deletedFoodMasterIds: payload.deletedFoodMasterIds,
+      deletedExerciseMasterIds: payload.deletedExerciseMasterIds,
+    }));
+
+    const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "success", syncedCount: 2 });
+    expect(await getPendingDeletionIds("foodMaster")).toEqual([]);
+    expect(await getPendingDeletionIds("exerciseMaster")).toEqual([]);
+  });
+
+  it("マスタ未対応の旧Workerのレスポンス(マスタのフィールド欠落)でも壊れず、マスタは未同期のまま残る", async () => {
+    await addFoodMasterItem({ name: "ドーナツ", kcal: 250, proteinG: 4, fatG: 12, carbsG: 32 });
+
+    // 旧Workerはマスタのフィールドを返さない
+    const push = vi.fn(async (): Promise<SyncPushResult> => ({
+      syncedWeightDates: [],
+      syncedMealIds: [],
+      syncedWaterIds: [],
+      syncedWorkoutIds: [],
+      syncedDiaryDates: [],
+    }));
+
+    const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "success", syncedCount: 0 });
+    expect(await getUnsyncedFoodMasterItems()).toHaveLength(1);
   });
 
   it("defaults to the not-configured transport, surfacing a clear message", async () => {

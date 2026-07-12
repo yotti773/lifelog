@@ -5,11 +5,15 @@ import {
   deleteExerciseMasterItem,
   DuplicateExerciseNameError,
   getAllExerciseMasterItems,
+  getUnsyncedExerciseMasterItems,
+  markExerciseMasterItemsSynced,
   updateExerciseMasterItem,
 } from "@/db/exerciseMaster";
+import { getPendingDeletionIds } from "@/db/syncDeletions";
 
 beforeEach(async () => {
   await db.exerciseMasterItems.clear();
+  await db.syncDeletions.clear();
 });
 
 describe("exerciseMaster", () => {
@@ -61,5 +65,24 @@ describe("exerciseMaster", () => {
     await deleteExerciseMasterItem(item.id);
 
     expect(await getAllExerciseMasterItems()).toHaveLength(0);
+  });
+
+  it("新規追加はsynced: falseになり、同期済みにした後の改名でまた未同期に戻る(Issue #96)", async () => {
+    const item = await addExerciseMasterItem("ベンチプレス");
+    expect(item.synced).toBe(false);
+
+    await markExerciseMasterItemsSynced([item.id]);
+    expect(await getUnsyncedExerciseMasterItems()).toHaveLength(0);
+
+    await updateExerciseMasterItem(item.id, "インクラインベンチプレス");
+    expect((await getUnsyncedExerciseMasterItems()).map((i) => i.id)).toEqual([item.id]);
+  });
+
+  it("削除するとトゥームストーンが残り、次回同期でシート側の行削除に使われる(Issue #96)", async () => {
+    const item = await addExerciseMasterItem("ベンチプレス");
+
+    await deleteExerciseMasterItem(item.id);
+
+    expect(await getPendingDeletionIds("exerciseMaster")).toEqual([item.id]);
   });
 });

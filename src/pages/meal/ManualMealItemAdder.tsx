@@ -5,6 +5,7 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import NutrientFieldsGrid from "@/components/NutrientFieldsGrid";
 import { IconPlus } from "@/components/icons";
 import { fontRounded, tokens } from "@/theme";
 import type { PendingMealItem } from "./PendingItemsCard";
@@ -88,12 +89,7 @@ export default function ManualMealItemAdder({ onAdd }: ManualMealItemAdderProps)
         autoFocus
         sx={{ mb: "8px" }}
       />
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", mb: "10px" }}>
-        <TextField size="small" type="number" value={draft.kcal} onChange={(e) => setDraft({ ...draft, kcal: e.target.value })} placeholder="kcal" />
-        <TextField size="small" type="number" value={draft.proteinG} onChange={(e) => setDraft({ ...draft, proteinG: e.target.value })} placeholder="P" />
-        <TextField size="small" type="number" value={draft.fatG} onChange={(e) => setDraft({ ...draft, fatG: e.target.value })} placeholder="F" />
-        <TextField size="small" type="number" value={draft.carbsG} onChange={(e) => setDraft({ ...draft, carbsG: e.target.value })} placeholder="C" />
-      </Box>
+      <NutrientFieldsGrid values={draft} onChange={(patch) => setDraft({ ...draft, ...patch })} />
       <Box sx={{ display: "flex", gap: "8px" }}>
         <Button fullWidth variant="contained" size="small" onClick={handleAdd} disabled={!draft.name.trim()}>
           追加

@@ -86,7 +86,7 @@ GitHub Actionsのcron(毎日3:00 JST)が `python-garminconnect`(非公式API)で
 
 ### UI(`src/pages/`、`src/components/`)
 
-ファイル配置は画面単位: 特定の画面からしか使わないコンポーネントは、その画面のディレクトリ(`src/pages/home/`、`src/pages/trends/`、`src/pages/meal/`、`src/pages/settings/`)に置く。`src/components/` に置くのは複数画面で共有するもの(`icons.tsx`・`BottomNav`・`RecordHeader`・`RecordSaveFooter`・`SectionLabel`・`SegmentedControl`・`PaginationControls`・`MoodIcon`)だけで、複数画面で共有するReactフック(検索+ページ分割の `usePagedFilter` など)は `src/hooks/` に置く。ルートコンポーネントは `〜Page` という命名(`HomePage.tsx` など)で、ルーティングは `App.tsx` にある。単一ファイルで完結する記録系ページ(体重・水分・日記・筋トレ)は `src/pages/` 直下のフラット配置のまま。
+ファイル配置は画面単位: 特定の画面からしか使わないコンポーネントは、その画面のディレクトリ(`src/pages/home/`、`src/pages/trends/`、`src/pages/meal/`、`src/pages/settings/`)に置く。`src/components/` に置くのは複数画面で共有するもの(`icons.tsx`・`BottomNav`・`RecordHeader`・`RecordSaveFooter`・`SectionLabel`・`SegmentedControl`・`PaginationControls`・`MoodIcon`・食事のkcal/PFC入力グリッド `NutrientFieldsGrid`・食事マスタのPFCサマリ表示 `PfcSummary`)だけで、複数画面で共有するReactフック(検索+ページ分割の `usePagedFilter` など)は `src/hooks/` に置く。ルートコンポーネントは `〜Page` という命名(`HomePage.tsx` など)で、ルーティングは `App.tsx` にある。単一ファイルで完結する記録系ページ(体重・水分・日記・筋トレ)は `src/pages/` 直下のフラット配置のまま。
 
 クライアントの状態は、React state + 手動再取得ではなく `dexie-react-hooks` の `useLiveQuery` から得ている — IndexedDBのテーブルが変化すると、ページは自動的に再レンダリングされる。
 

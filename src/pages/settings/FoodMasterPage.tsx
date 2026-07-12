@@ -9,7 +9,9 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import NutrientFieldsGrid from "@/components/NutrientFieldsGrid";
 import PaginationControls from "@/components/PaginationControls";
+import PfcSummary from "@/components/PfcSummary";
 import {
   IconBack,
   IconEdit,
@@ -59,18 +61,6 @@ function draftToInput(draft: ItemDraft) {
     fatG: Number(draft.fatG) || 0,
     carbsG: Number(draft.carbsG) || 0,
   };
-}
-
-/** kcal・PFCの4項目入力グリッド(追加・編集で共通の見た目) */
-function NutrientFieldsGrid({ draft, onChange }: { draft: ItemDraft; onChange: (draft: ItemDraft) => void }) {
-  return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", mb: "8px" }}>
-      <TextField size="small" type="number" value={draft.kcal} onChange={(e) => onChange({ ...draft, kcal: e.target.value })} placeholder="kcal" />
-      <TextField size="small" type="number" value={draft.proteinG} onChange={(e) => onChange({ ...draft, proteinG: e.target.value })} placeholder="P" />
-      <TextField size="small" type="number" value={draft.fatG} onChange={(e) => onChange({ ...draft, fatG: e.target.value })} placeholder="F" />
-      <TextField size="small" type="number" value={draft.carbsG} onChange={(e) => onChange({ ...draft, carbsG: e.target.value })} placeholder="C" />
-    </Box>
-  );
 }
 
 export default function FoodMasterPage() {
@@ -180,7 +170,7 @@ export default function FoodMasterPage() {
                   onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
                   sx={{ mb: "8px" }}
                 />
-                <NutrientFieldsGrid draft={editDraft} onChange={setEditDraft} />
+                <NutrientFieldsGrid values={editDraft} onChange={(patch) => setEditDraft({ ...editDraft, ...patch })} />
                 <Box sx={{ display: "flex", gap: "8px" }}>
                   <Button fullWidth variant="contained" size="small" onClick={saveEdit}>
                     保存
@@ -205,10 +195,7 @@ export default function FoodMasterPage() {
                   <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {item.name}
                   </Typography>
-                  {/* 3桁同士のPFCでも折り返さず1行に収める(Issue #93) */}
-                  <Typography sx={{ fontSize: 11, color: "text.secondary", mt: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    P{item.proteinG} / F{item.fatG} / C{item.carbsG}g
-                  </Typography>
+                  <PfcSummary proteinG={item.proteinG} fatG={item.fatG} carbsG={item.carbsG} />
                 </Box>
                 <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
                   {item.kcal}
@@ -259,7 +246,7 @@ export default function FoodMasterPage() {
           <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "8px", px: "2px" }}>
             外食チェーン・コンビニの商品は店名を含めておくと一覧で見分けやすくなります
           </Typography>
-          <NutrientFieldsGrid draft={addDraft} onChange={setAddDraft} />
+          <NutrientFieldsGrid values={addDraft} onChange={(patch) => setAddDraft({ ...addDraft, ...patch })} />
           <Box sx={{ display: "flex", gap: "8px" }}>
             <Button fullWidth variant="contained" size="small" onClick={saveAdd} disabled={!addDraft.name.trim()}>
               追加

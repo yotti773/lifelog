@@ -20,7 +20,7 @@ import {
 } from "@/components/icons";
 import { formatSleepDuration } from "./ActivityHistoryList";
 import { getDiaryRecordsByDateRange } from "@/db/diaryRecords";
-import { updateSettings } from "@/db/settings";
+import { getSettings, updateSettings } from "@/db/settings";
 import { formatMonthDay } from "@/lib/date";
 import { suggestCalorieTarget } from "@/lib/nutritionCalc";
 import { fontRounded, tokens } from "@/theme";
@@ -98,6 +98,9 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
     () => getDiaryRecordsByDateRange(digest.period.start, digest.period.end),
     [digest.period.start, digest.period.end],
   );
+  // 日記カードの注記用。digest.diaryEntriesの有無から推測すると「ONだが今週は本文のある日記が無い」
+  // 週にOFF扱いの文言を出してしまうため、設定そのものを見る
+  const sendDiaryTextToAi = useLiveQuery(() => getSettings().then((s) => s.sendDiaryTextToAi ?? false), []);
 
   // 必要ペースとの比較(体重セクションの判定)。減量が必要な週で週平均比較ができるときのみ判定する
   const paceStatus =
@@ -508,12 +511,14 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
               );
             })}
           </Box>
-          {/* AIへ本文が渡るかどうかの現在の状態を明示する(オプトイン。AIコンサルティング設計書7章) */}
-          <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "12px", pt: "10px", borderTop: `1px solid ${tokens.divider}`, lineHeight: 1.6 }}>
-            {digest.diaryEntries
-              ? "設定「日記の本文をAIに送る」がONのため、本文もAIコメント生成に使われます"
-              : "本文はAIコメント生成には使われません(気分タグの集計のみ)。設定でONにできます"}
-          </Typography>
+          {/* AIへ本文が渡るかどうかの現在の状態を明示する(オプトイン。AIコンサルティング設計書7章)。ロード中(undefined)は出さない */}
+          {sendDiaryTextToAi !== undefined && (
+            <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "12px", pt: "10px", borderTop: `1px solid ${tokens.divider}`, lineHeight: 1.6 }}>
+              {sendDiaryTextToAi
+                ? "設定「日記の本文をAIに送る」がONのため、本文もAIコメント生成に使われます"
+                : "本文はAIコメント生成には使われません(気分タグの集計のみ)。設定でONにできます"}
+            </Typography>
+          )}
         </Card>
       )}
 

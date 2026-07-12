@@ -6,16 +6,6 @@ import type { ExerciseBodyPart } from "@/types";
  * worker/はsrc/に依存しない独立ビルドのため、変更時は両方を揃えること。
  */
 
-export const EXERCISE_BODY_PART_ORDER: ExerciseBodyPart[] = [
-  "chest",
-  "back",
-  "shoulders",
-  "arms",
-  "legs",
-  "core",
-  "other",
-];
-
 export const EXERCISE_BODY_PART_LABELS: Record<ExerciseBodyPart, string> = {
   chest: "胸",
   back: "背中",
@@ -26,6 +16,5 @@ export const EXERCISE_BODY_PART_LABELS: Record<ExerciseBodyPart, string> = {
   other: "その他",
 };
 
-export function bodyPartLabel(bodyPart: ExerciseBodyPart): string {
-  return EXERCISE_BODY_PART_LABELS[bodyPart];
-}
+/** 選択チップの表示順(ラベル定義のキー順をそのまま使う) */
+export const EXERCISE_BODY_PART_ORDER = Object.keys(EXERCISE_BODY_PART_LABELS) as ExerciseBodyPart[];

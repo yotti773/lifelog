@@ -13,7 +13,7 @@ import RecordHeader from "@/components/RecordHeader";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconClose, IconPlus, IconTrash } from "@/components/icons";
 import { getAllExerciseMasterItems } from "@/db/exerciseMaster";
-import { bodyPartLabel } from "@/lib/exerciseBodyParts";
+import { EXERCISE_BODY_PART_LABELS } from "@/lib/exerciseBodyParts";
 import {
   getPreviousWorkoutsByExercise,
   getWorkoutRecordsForDate,
@@ -181,7 +181,7 @@ export default function StrengthRecordPage() {
                     </Typography>
                     {bodyPart && (
                       <Typography component="span" sx={{ fontSize: 11, color: "text.secondary", ml: "8px", flexShrink: 0 }}>
-                        {bodyPartLabel(bodyPart)}
+                        {EXERCISE_BODY_PART_LABELS[bodyPart]}
                       </Typography>
                     )}
                   </li>

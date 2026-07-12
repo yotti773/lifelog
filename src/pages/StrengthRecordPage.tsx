@@ -14,9 +14,11 @@ import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconClose, IconPlus, IconTrash } from "@/components/icons";
 import { getAllExerciseMasterItems } from "@/db/exerciseMaster";
 import {
+  getPreviousWorkoutsByExercise,
   getWorkoutRecordsForDate,
   groupWorkoutRecordsByExercise,
   replaceWorkoutRecordsForDate,
+  type PreviousWorkout,
 } from "@/db/workoutRecords";
 import { formatMonthDay, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
@@ -52,6 +54,8 @@ export default function StrengthRecordPage() {
   const [error, setError] = useState<string | null>(null);
   // 種目名の入力候補(種目マスタ。画面設計書7.1章)
   const masterItems = useLiveQuery(() => getAllExerciseMasterItems(), []);
+  // 種目名を選んだときに参照表示する「前回の重量×回数」(編集中の日より前の最新記録。Issue #100)
+  const previousByName = useLiveQuery(() => getPreviousWorkoutsByExercise(date), [date]);
 
   // その日の記録をドラフトとして読み込む(新規/編集で画面を分けない。画面設計書7章)
   useEffect(() => {
@@ -77,6 +81,13 @@ export default function StrengthRecordPage() {
   const updateExercise = (index: number, patch: Partial<DraftExercise>) => {
     setError(null);
     setExercises((prev) => prev.map((exercise, i) => (i === index ? { ...exercise, ...patch } : exercise)));
+  };
+
+  // 「前回」の内容を現在の種目のセット欄へ転記する(Issue #100)。既存のセット入力は上書きする
+  const applyPrevious = (exerciseIndex: number, previous: PreviousWorkout) => {
+    updateExercise(exerciseIndex, {
+      sets: previous.sets.map((set) => ({ weight: String(set.weightKg), reps: String(set.reps) })),
+    });
   };
 
   const updateSet = (exerciseIndex: number, setIndex: number, patch: Partial<DraftSet>) => {
@@ -124,7 +135,9 @@ export default function StrengthRecordPage() {
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "110px" }}>
       <RecordHeader title={isToday ? "筋トレを記録" : `${formatMonthDay(date)}の筋トレを記録`} onBack={backToHistory} />
 
-      {exercises.map((exercise, exerciseIndex) => (
+      {exercises.map((exercise, exerciseIndex) => {
+        const previous = previousByName?.get(exercise.name.trim());
+        return (
         <Card key={exerciseIndex} sx={{ p: "14px", mb: "14px", borderRadius: "18px" }}>
           {/* 種目名 */}
           <Box sx={{ display: "flex", alignItems: "center", gap: "8px", mb: "12px" }}>
@@ -172,6 +185,53 @@ export default function StrengthRecordPage() {
               <IconTrash size={14} />
             </IconButton>
           </Box>
+
+          {/* 前回の記録(種目名が過去の記録と一致したときに参照表示。Issue #100) */}
+          {previous && previous.sets.length > 0 && (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                bgcolor: tokens.beigeSoft,
+                borderRadius: "12px",
+                p: "8px 10px 8px 12px",
+                mb: "12px",
+              }}
+            >
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "text.secondary", mb: "1px" }}>
+                  前回 {formatMonthDay(previous.date)}
+                </Typography>
+                <Typography
+                  sx={{
+                    fontFamily: fontRounded,
+                    fontWeight: 700,
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {previous.sets.map((set) => `${set.weightKg}kg×${set.reps}`).join("・")}
+                </Typography>
+              </Box>
+              <ButtonBase
+                onClick={() => applyPrevious(exerciseIndex, previous)}
+                sx={{
+                  flexShrink: 0,
+                  height: 30,
+                  px: "12px",
+                  borderRadius: "9px",
+                  bgcolor: "background.paper",
+                  border: `1px solid ${tokens.border}`,
+                  color: "primary.main",
+                }}
+              >
+                <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 12 }}>入力</Typography>
+              </ButtonBase>
+            </Box>
+          )}
 
           {/* セット */}
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "8px" }}>
@@ -263,7 +323,8 @@ export default function StrengthRecordPage() {
             </Typography>
           </ButtonBase>
         </Card>
-      ))}
+        );
+      })}
 
       <ButtonBase
         onClick={() => setExercises((prev) => [...prev, emptyExercise()])}

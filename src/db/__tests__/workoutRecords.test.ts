@@ -3,6 +3,7 @@ import { db } from "@/db/db";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import {
   getAllWorkoutRecordsDesc,
+  getPreviousWorkoutsByExercise,
   getUnsyncedWorkoutRecords,
   getWorkoutRecordsForDate,
   groupWorkoutRecordsByExercise,
@@ -106,6 +107,61 @@ describe("workoutRecords", () => {
     expect(grouped.map((e) => e.name)).toEqual(["ベンチプレス", "ラットプルダウン"]);
     expect(grouped[0].sets.map((s) => s.weightKg)).toEqual([60, 55]);
     expect(grouped[1].sets.map((s) => s.reps)).toEqual([12]);
+  });
+
+  describe("getPreviousWorkoutsByExercise", () => {
+    it("returns each exercise's most recent prior sets keyed by name", async () => {
+      await replaceWorkoutRecordsForDate("2026-07-01", [
+        { name: "ベンチプレス", sets: [{ weightKg: 50, reps: 10 }] },
+      ]);
+      await replaceWorkoutRecordsForDate("2026-07-05", [
+        { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }, { weightKg: 60, reps: 8 }] },
+        { name: "スクワット", sets: [{ weightKg: 80, reps: 5 }] },
+      ]);
+
+      const previous = await getPreviousWorkoutsByExercise("2026-07-10");
+      expect(previous.get("ベンチプレス")).toEqual({
+        date: "2026-07-05",
+        sets: [
+          { weightKg: 60, reps: 10 },
+          { weightKg: 60, reps: 8 },
+        ],
+      });
+      expect(previous.get("スクワット")).toEqual({ date: "2026-07-05", sets: [{ weightKg: 80, reps: 5 }] });
+    });
+
+    it("excludes the target date itself so the day being edited is not its own previous", async () => {
+      await replaceWorkoutRecordsForDate("2026-07-01", [
+        { name: "ベンチプレス", sets: [{ weightKg: 50, reps: 10 }] },
+      ]);
+      await replaceWorkoutRecordsForDate("2026-07-05", [
+        { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }] },
+      ]);
+
+      // 2026-07-05を編集中に呼ぶと、前回は2026-07-01(当日=07-05は含めない)
+      const previous = await getPreviousWorkoutsByExercise("2026-07-05");
+      expect(previous.get("ベンチプレス")).toEqual({ date: "2026-07-01", sets: [{ weightKg: 50, reps: 10 }] });
+    });
+
+    it("returns an empty map when there is no prior record", async () => {
+      expect(await getPreviousWorkoutsByExercise("2026-07-01")).toEqual(new Map());
+    });
+
+    it("keeps sets contiguous by card order when the same exercise appears in multiple cards on one day", async () => {
+      // 同じ日に「ベンチプレス」を2枚のカードで記録(セット番号は各カードで1始まりに振り直される)
+      await replaceWorkoutRecordsForDate("2026-07-01", [
+        { name: "ベンチプレス", sets: [{ weightKg: 60, reps: 10 }, { weightKg: 60, reps: 8 }] },
+        { name: "ベンチプレス", sets: [{ weightKg: 40, reps: 12 }] },
+      ]);
+
+      const previous = await getPreviousWorkoutsByExercise("2026-07-05");
+      // setNumberだけで並べるとカードをまたいで混ざる(60×10, 40×12, 60×8)。exerciseOrder優先で連続させる
+      expect(previous.get("ベンチプレス")?.sets).toEqual([
+        { weightKg: 60, reps: 10 },
+        { weightKg: 60, reps: 8 },
+        { weightKg: 40, reps: 12 },
+      ]);
+    });
   });
 
   it("returns all records date-descending for the history view", async () => {

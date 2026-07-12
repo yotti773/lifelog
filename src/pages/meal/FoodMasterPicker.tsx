@@ -4,6 +4,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import PaginationControls from "@/components/PaginationControls";
+import PfcSummary from "@/components/PfcSummary";
 import { IconSearch } from "@/components/icons";
 import { usePagedFilter } from "@/hooks/usePagedFilter";
 import { fontRounded, tokens } from "@/theme";
@@ -71,9 +72,7 @@ export default function FoodMasterPicker({ items, onSelect }: FoodMasterPickerPr
             <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {item.name}
             </Typography>
-            <Typography sx={{ fontSize: 11, color: "text.secondary", mt: "2px" }}>
-              P{item.proteinG} / F{item.fatG} / C{item.carbsG}g
-            </Typography>
+            <PfcSummary proteinG={item.proteinG} fatG={item.fatG} carbsG={item.carbsG} />
           </Box>
           <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
             {item.kcal}

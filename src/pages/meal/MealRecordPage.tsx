@@ -26,6 +26,7 @@ import { accent, fontRounded, tokens } from "@/theme";
 import type { FoodMasterItem, MealType } from "@/types";
 import DetectedItemsCard from "./DetectedItemsCard";
 import FoodMasterPicker from "./FoodMasterPicker";
+import ManualMealItemAdder from "./ManualMealItemAdder";
 import PendingItemsCard, { type PendingMealItem } from "./PendingItemsCard";
 import PhotoJudgeCard from "./PhotoJudgeCard";
 
@@ -511,6 +512,10 @@ export default function MealRecordPage() {
           <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
         </Card>
 
+        {/* 編集時は写真判定・マスタ選択に加えて、手入力でも「追加で記録する品目」に積めるようにする(Issue #99)。
+            編集フォーム本体(下の料理名〜PFC欄)は編集対象レコードを指すため、追加用の入力欄を分けている */}
+        {isEditing && <ManualMealItemAdder onAdd={(item) => setPendingItems((prev) => [...prev, item])} />}
+
         <FieldLabel>料理名</FieldLabel>
         <TextField
           fullWidth
@@ -552,7 +557,8 @@ export default function MealRecordPage() {
               }}
             >
               <Typography sx={{ fontSize: 10, fontWeight: 700, color, mb: "2px" }}>{label}</Typography>
-              <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "2px" }}>
+              {/* 3桁入力でも数値と単位「g」が別行に折り返さないよう1行固定にする(Issue #93) */}
+              <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "2px", whiteSpace: "nowrap" }}>
                 <TextField
                   variant="standard"
                   type="number"

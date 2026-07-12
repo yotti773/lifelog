@@ -3,8 +3,10 @@ import { getActivityRecordsByDateRange } from "./activityRecords";
 import { getDiaryRecordsByDateRange } from "./diaryRecords";
 import { getRecordedDateSet } from "./recordedDays";
 import { getSettings } from "./settings";
+import { getDailyWaterTotals } from "./waterRecords";
 import { getWeightRecord, getWeightRecordsByDateRange } from "./weightRecords";
 import { getMealDailyTotalsForWeek, getMeasuredTdeeAsOfWeek } from "./weeklyNutrition";
+import { getWorkoutRecordsByDateRange } from "./workoutRecords";
 import { addDaysToDateString, todayDateString } from "@/lib/date";
 import { calcBmr } from "@/lib/nutritionCalc";
 import { countRecordedDaysInRange, currentStreakDays } from "@/lib/recording";
@@ -30,6 +32,8 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     recordedDates,
     diaries,
     activityRecords,
+    workoutRecords,
+    waterDailyTotals,
     firstWeight,
     latestWeight,
     baselineWeight,
@@ -41,6 +45,8 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     getRecordedDateSet(),
     getDiaryRecordsByDateRange(weekStart, weekEnd),
     getActivityRecordsByDateRange(weekStart, weekEnd),
+    getWorkoutRecordsByDateRange(weekStart, weekEnd),
+    getDailyWaterTotals(weekStart, weekEnd),
     db.weightRecords.orderBy("date").first(),
     db.weightRecords.orderBy("date").last(),
     settings.baselineDate ? getWeightRecord(settings.baselineDate) : Promise.resolve(undefined),
@@ -101,5 +107,12 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
       ...(r.totalKcal !== undefined && { totalKcal: r.totalKcal }),
       ...(r.sleepMinutes !== undefined && { sleepMinutes: r.sleepMinutes }),
     })),
+    workoutSets: workoutRecords.map((r) => ({ date: r.date, exerciseName: r.exerciseName })),
+    waterDailyTotals,
+    waterTargetMl: settings.dailyWaterTargetMl ?? null,
+    // 日記本文はオプトイン(Issue #103)がONの週だけAI入力(digest)へ含める(AIコンサルティング設計書7章)
+    diaryTexts: settings.sendDiaryTextToAi
+      ? diaries.map((d) => ({ date: d.date, text: d.text }))
+      : null,
   });
 }

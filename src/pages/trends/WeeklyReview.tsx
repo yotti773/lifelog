@@ -1,11 +1,25 @@
 import { useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
-import { IconActivity, IconArrow, IconBack, IconCheck, IconChevronRight, IconFlame, IconWarning } from "@/components/icons";
+import MoodIcon from "@/components/MoodIcon";
+import {
+  IconActivity,
+  IconArrow,
+  IconBack,
+  IconBarbell,
+  IconCheck,
+  IconChevronRight,
+  IconDiary,
+  IconDrop,
+  IconFlame,
+  IconWarning,
+} from "@/components/icons";
 import { formatSleepDuration } from "./ActivityHistoryList";
+import { getDiaryRecordsByDateRange } from "@/db/diaryRecords";
 import { updateSettings } from "@/db/settings";
 import { formatMonthDay } from "@/lib/date";
 import { suggestCalorieTarget } from "@/lib/nutritionCalc";
@@ -71,10 +85,19 @@ const PFC_COLUMNS = [
 /** 逆算TDEEとGarmin計測消費の乖離がこの割合を超えたら「記録漏れの可能性」の注記を出す */
 const TDEE_DISCREPANCY_RATIO = 0.15;
 
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
 export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext }: WeeklyReviewProps) {
   const [adjustApplied, setAdjustApplied] = useState(false);
 
-  const { weight, calories, pfc, recording, flags, activity } = digest;
+  const { weight, calories, pfc, recording, flags, activity, workout, water } = digest;
+
+  // 週内の日記(Issue #103)。画面表示はオプトインと無関係にローカルの記録をそのまま出す
+  // (AIへ送るかどうか(digest.diaryEntries)とは独立。AIコンサルティング設計書7章)
+  const weekDiaries = useLiveQuery(
+    () => getDiaryRecordsByDateRange(digest.period.start, digest.period.end),
+    [digest.period.start, digest.period.end],
+  );
 
   // 必要ペースとの比較(体重セクションの判定)。減量が必要な週で週平均比較ができるときのみ判定する
   const paceStatus =
@@ -313,6 +336,42 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
         </Card>
       )}
 
+      {/* 筋トレサマリー(Issue #103)。記録が無い週はカードごと出さない(活動と同じ扱い) */}
+      {workout && (
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "4px" }}>
+            <Box sx={{ color: "primary.main", display: "flex" }}>
+              <IconBarbell size={15} />
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>筋トレ</Typography>
+          </Box>
+          <StatRow label="記録した日" value={`${workout.activeDays}`} sub="/ 7日" />
+          <StatRow label="種目数" value={`${workout.exerciseCount}`} sub="種目" />
+          <StatRow label="総セット数" value={`${workout.totalSets}`} sub="セット" />
+        </Card>
+      )}
+
+      {/* 水分サマリー(Issue #103)。記録が無い週はカードごと出さない */}
+      {water && (
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "4px" }}>
+            <Box sx={{ color: tokens.waterMain, display: "flex" }}>
+              <IconDrop size={15} />
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>水分</Typography>
+          </Box>
+          <StatRow
+            label="平均摂取量(記録がある日)"
+            value={water.avgIntakeMl.toLocaleString()}
+            sub={water.targetMl !== null ? `/ 目標 ${water.targetMl.toLocaleString()} ml` : "ml/日"}
+          />
+          {water.daysOnTarget !== null && (
+            <StatRow label="目標を達成した日" value={`${water.daysOnTarget}`} sub="/ 7日" />
+          )}
+          <StatRow label="記録した日" value={`${water.recordedDays}`} sub="/ 7日" />
+        </Card>
+      )}
+
       {/* 実測消費カロリー(実測TDEE。Issue #44) */}
       <Card sx={{ p: "18px" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "10px" }}>
@@ -415,6 +474,46 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
               );
             })}
           </Box>
+        </Card>
+      )}
+
+      {/* 週の日記(Issue #103)。ロード中(undefined)と0件は非表示 */}
+      {weekDiaries && weekDiaries.length > 0 && (
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "10px" }}>
+            <Box sx={{ color: tokens.warnIcon, display: "flex" }}>
+              <IconDiary size={15} />
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>この週の日記</Typography>
+          </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {weekDiaries.map((diary) => {
+              const [, month, dayOfMonth] = diary.date.split("-");
+              const weekday = WEEKDAY_LABELS[new Date(`${diary.date}T00:00:00`).getDay()];
+              return (
+                <Box key={diary.date}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "3px" }}>
+                    <Typography sx={{ flex: 1, fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>
+                      {Number(month)}月{Number(dayOfMonth)}日
+                      <Box component="span" sx={{ fontSize: 11, color: "text.secondary", fontWeight: 500, ml: "5px" }}>
+                        {weekday}
+                      </Box>
+                    </Typography>
+                    {diary.mood && <MoodIcon mood={diary.mood} size={20} />}
+                  </Box>
+                  {diary.text !== "" && (
+                    <Typography sx={{ fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{diary.text}</Typography>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+          {/* AIへ本文が渡るかどうかの現在の状態を明示する(オプトイン。AIコンサルティング設計書7章) */}
+          <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "12px", pt: "10px", borderTop: `1px solid ${tokens.divider}`, lineHeight: 1.6 }}>
+            {digest.diaryEntries
+              ? "設定「日記の本文をAIに送る」がONのため、本文もAIコメント生成に使われます"
+              : "本文はAIコメント生成には使われません(気分タグの集計のみ)。設定でONにできます"}
+          </Typography>
         </Card>
       )}
 

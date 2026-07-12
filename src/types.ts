@@ -148,6 +148,12 @@ export interface Settings {
   dailyProteinTargetG?: number;
   dailyFatTargetG?: number;
   dailyCarbsTargetG?: number;
+
+  /**
+   * AIコーチング生成時に日記本文をWeeklyDigestへ含めるオプトイン(Issue #103でIssue #12を決着)。
+   * デフォルト(undefined)はOFF = 本文は外部AIに送らず気分タグの件数集計のみ(AIコンサルティング設計書7章)
+   */
+  sendDiaryTextToAi?: boolean;
 }
 
 // --- フェーズ3: 週次レビュー・AIコーチング(Issue #45・#12。AIコンサルティング設計書3〜4章) ---
@@ -217,6 +223,25 @@ export interface WeeklyDigest {
     avgSleepMinutes: number | null; // 平均睡眠時間(分)
     recordedDays: number; // 活動データがある日数(0〜7)
   };
+  /** 筋トレの週サマリー(Issue #103)。週内に筋トレ記録が無ければ省略(mood と同じ扱い) */
+  workout?: {
+    activeDays: number; // 筋トレを記録した日数(0〜7)
+    exerciseCount: number; // 週内に行った種目数(種目名の異なり数)
+    totalSets: number; // 週内の総セット数
+  };
+  /** 水分の週サマリー(Issue #103)。週内に水分記録が無ければ省略 */
+  water?: {
+    avgIntakeMl: number; // 記録がある日の平均摂取量(ml)
+    targetMl: number | null; // 1日の目標摂取量(未設定ならnull)
+    daysOnTarget: number | null; // 目標以上飲めた日数(目標未設定ならnull)
+    recordedDays: number; // 水分記録がある日数(0〜7)
+  };
+  /**
+   * 週内の日記本文(Issue #103)。設定のオプトイン(Settings.sendDiaryTextToAi)がONのときだけ含まれ、
+   * そのまま外部AI(Gemini)に送られる。OFF(デフォルト)では省略され、気分はmoodの件数集計のみになる
+   * (AIコンサルティング設計書7章のプライバシー原則)
+   */
+  diaryEntries?: { date: string; text: string }[];
 }
 
 /** AIの出力契約(AIコンサルティング設計書4章)。Workerのstructured outputで強制する */

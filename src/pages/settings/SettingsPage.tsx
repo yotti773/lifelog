@@ -3,11 +3,13 @@ import { useLiveQuery } from "dexie-react-hooks";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
+import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import {
   IconBarbell,
   IconCalendar,
   IconClock,
+  IconDiary,
   IconDrop,
   IconFork,
   IconKey,
@@ -16,7 +18,7 @@ import {
   IconSun,
 } from "@/components/icons";
 import { db } from "@/db/db";
-import { getSettings } from "@/db/settings";
+import { getSettings, updateSettings } from "@/db/settings";
 import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { fontRounded, tokens } from "@/theme";
 import MasterDataSections from "./MasterDataSections";
@@ -197,6 +199,38 @@ export default function SettingsPage() {
       </Card>
       <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
         同期・AI判定のAPIを第三者の呼び出しから守る合言葉です(Workerのシークレット API_AUTH_TOKEN と同じ値を設定)
+      </Typography>
+
+      <SectionLabel>AIコーチング</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "8px" }}>
+        {/* 日記本文のAI送信オプトイン(Issue #103でIssue #12を決着)。デフォルトOFF */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: "13px", p: "9px 16px 9px 16px" }}>
+          <Box
+            sx={{
+              width: 34,
+              height: 34,
+              borderRadius: "11px",
+              bgcolor: tokens.warnBg,
+              color: tokens.warnIcon,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <IconDiary size={18} />
+          </Box>
+          <Typography sx={{ flex: 1, fontSize: 14, fontWeight: 500 }}>日記の本文をAIに送る</Typography>
+          <Switch
+            checked={settings.sendDiaryTextToAi ?? false}
+            onChange={(event) => void updateSettings({ sendDiaryTextToAi: event.target.checked })}
+            color="secondary"
+            slotProps={{ input: { "aria-label": "日記の本文をAIに送る" } }}
+          />
+        </Box>
+      </Card>
+      <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
+        ONにすると、週次レビューのAIコメント生成時にその週の日記本文がGoogle Gemini APIへ送信されます。OFFの間は気分タグの件数集計だけが送られます
       </Typography>
 
       <MasterDataSections />

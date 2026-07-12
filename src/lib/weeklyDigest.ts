@@ -46,6 +46,16 @@ export interface WeeklyDigestSource {
   moods: DiaryMood[];
   /** 週内のGarmin活動記録(Issue #82)。1日1件。項目ごとに欠測しうる */
   activityDays: { steps?: number; totalKcal?: number; sleepMinutes?: number }[];
+  /** 週内の筋トレ記録(1セット=1件。Issue #103) */
+  workoutSets: { date: string; exerciseName: string }[];
+  /** 週内の日別水分合計(記録の無い日は0mlで埋まっていてよい。Issue #103) */
+  waterDailyTotals: { date: string; amountMl: number }[];
+  waterTargetMl: number | null;
+  /**
+   * AIに読ませる週内の日記本文(Issue #103)。オプトイン(Settings.sendDiaryTextToAi)がOFFの週はnullを渡し、
+   * digestのdiaryEntriesを省略する(本文はデフォルトで外部AIに送らない。AIコンサルティング設計書7章)
+   */
+  diaryTexts: { date: string; text: string }[] | null;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -73,6 +83,36 @@ export function aggregateActivity(
     avgTotalKcal: avgOf((d) => d.totalKcal),
     avgSleepMinutes: avgOf((d) => d.sleepMinutes),
     recordedDays: activityDays.length,
+  };
+}
+
+/** 筋トレの週サマリーを集計する(Issue #103)。記録が無い週はundefined(digestからworkoutを省く) */
+export function aggregateWorkout(
+  workoutSets: WeeklyDigestSource["workoutSets"],
+): WeeklyDigest["workout"] | undefined {
+  if (workoutSets.length === 0) return undefined;
+  return {
+    activeDays: new Set(workoutSets.map((s) => s.date)).size,
+    exerciseCount: new Set(workoutSets.map((s) => s.exerciseName)).size,
+    totalSets: workoutSets.length,
+  };
+}
+
+/**
+ * 水分の週サマリーを集計する(Issue #103)。平均は「記録がある日」(合計が0mlでない日)の平均で、
+ * 記録の無い日は分母に入れない(食事・活動の平均と同じ考え方)。記録が無い週はundefined
+ */
+export function aggregateWater(
+  waterDailyTotals: WeeklyDigestSource["waterDailyTotals"],
+  waterTargetMl: number | null,
+): WeeklyDigest["water"] | undefined {
+  const recorded = waterDailyTotals.filter((d) => d.amountMl > 0);
+  if (recorded.length === 0) return undefined;
+  return {
+    avgIntakeMl: Math.round(recorded.reduce((s, d) => s + d.amountMl, 0) / recorded.length),
+    targetMl: waterTargetMl,
+    daysOnTarget: waterTargetMl !== null ? recorded.filter((d) => d.amountMl >= waterTargetMl).length : null,
+    recordedDays: recorded.length,
   };
 }
 
@@ -115,6 +155,10 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
 
   const mood = aggregateMoodCounts(src.moods);
   const activity = aggregateActivity(src.activityDays);
+  const workout = aggregateWorkout(src.workoutSets);
+  const water = aggregateWater(src.waterDailyTotals, src.waterTargetMl);
+  // 本文が空の日記(気分タグのみの記録)はAIに読ませる意味が無いので除く
+  const diaryEntries = src.diaryTexts?.filter((d) => d.text.trim() !== "") ?? null;
 
   const flags: DigestFlag[] = [];
   if (
@@ -179,5 +223,8 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     flags,
     ...(mood !== undefined ? { mood } : {}),
     ...(activity !== undefined ? { activity } : {}),
+    ...(workout !== undefined ? { workout } : {}),
+    ...(water !== undefined ? { water } : {}),
+    ...(diaryEntries !== null && diaryEntries.length > 0 ? { diaryEntries } : {}),
   };
 }

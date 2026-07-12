@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { aggregateActivity, aggregateMoodCounts, buildWeeklyDigest, type WeeklyDigestSource } from "../weeklyDigest";
+import {
+  aggregateActivity,
+  aggregateMoodCounts,
+  aggregateWater,
+  aggregateWorkout,
+  buildWeeklyDigest,
+  type WeeklyDigestSource,
+} from "../weeklyDigest";
 
 /** 順調な週(7日全記録・-0.5kg/週・目標以内5日)のベース入力 */
 function goodWeekSource(): WeeklyDigestSource {
@@ -33,6 +40,20 @@ function goodWeekSource(): WeeklyDigestSource {
       { steps: 10000, totalKcal: 2600, sleepMinutes: 390 },
       { steps: 9000, totalKcal: 2500 }, // 睡眠欠測(時計を着けず就寝)
     ],
+    workoutSets: [
+      { date: "2026-07-07", exerciseName: "ベンチプレス" },
+      { date: "2026-07-07", exerciseName: "ベンチプレス" },
+      { date: "2026-07-07", exerciseName: "スクワット" },
+      { date: "2026-07-10", exerciseName: "ベンチプレス" },
+    ],
+    waterDailyTotals: [
+      { date: "2026-07-06", amountMl: 2000 },
+      { date: "2026-07-07", amountMl: 1500 },
+      { date: "2026-07-08", amountMl: 0 }, // 記録なし(平均の分母に入れない)
+      { date: "2026-07-09", amountMl: 2200 },
+    ],
+    waterTargetMl: 2000,
+    diaryTexts: null, // オプトインOFF(デフォルト)
   };
 }
 
@@ -64,6 +85,38 @@ describe("buildWeeklyDigest", () => {
       avgSleepMinutes: 405,
       recordedDays: 3,
     });
+    // 筋トレ: 日数はdateの異なり数、種目数は種目名の異なり数、セット数は件数(Issue #103)
+    expect(digest.workout).toEqual({ activeDays: 2, exerciseCount: 2, totalSets: 4 });
+    // 水分: 0mlの日(記録なし)は平均・記録日数の分母に入れない
+    expect(digest.water).toEqual({ avgIntakeMl: 1900, targetMl: 2000, daysOnTarget: 2, recordedDays: 3 });
+    // 日記本文はオプトインOFF(diaryTexts=null)なので含まれない(AIコンサルティング設計書7章)
+    expect(digest.diaryEntries).toBeUndefined();
+  });
+
+  it("オプトインONの週は日記本文を含める(本文が空の日は除く)", () => {
+    const src = goodWeekSource();
+    src.diaryTexts = [
+      { date: "2026-07-06", text: "仕事が忙しくて外食続きだった" },
+      { date: "2026-07-07", text: "  " }, // 気分タグのみの日(本文なし)
+    ];
+    expect(buildWeeklyDigest(src).diaryEntries).toEqual([
+      { date: "2026-07-06", text: "仕事が忙しくて外食続きだった" },
+    ]);
+  });
+
+  it("オプトインONでも本文のある日記が無ければdiaryEntriesを省く", () => {
+    const src = goodWeekSource();
+    src.diaryTexts = [{ date: "2026-07-06", text: "" }];
+    expect(buildWeeklyDigest(src).diaryEntries).toBeUndefined();
+  });
+
+  it("筋トレ・水分の記録が無い週はworkout・waterを省く", () => {
+    const src = goodWeekSource();
+    src.workoutSets = [];
+    src.waterDailyTotals = [{ date: "2026-07-06", amountMl: 0 }];
+    const digest = buildWeeklyDigest(src);
+    expect(digest.workout).toBeUndefined();
+    expect(digest.water).toBeUndefined();
   });
 
   it("活動記録が1日も無い週はactivityを省く(Garmin未連携ユーザーのdigestを変えない)", () => {
@@ -167,6 +220,28 @@ describe("aggregateActivity", () => {
 
   it("活動記録が無ければundefined", () => {
     expect(aggregateActivity([])).toBeUndefined();
+  });
+});
+
+describe("aggregateWorkout", () => {
+  it("記録が無ければundefined(digestからworkoutを省く)", () => {
+    expect(aggregateWorkout([])).toBeUndefined();
+  });
+});
+
+describe("aggregateWater", () => {
+  it("目標未設定ならtargetMl・daysOnTargetはnull", () => {
+    expect(aggregateWater([{ date: "2026-07-06", amountMl: 1800 }], null)).toEqual({
+      avgIntakeMl: 1800,
+      targetMl: null,
+      daysOnTarget: null,
+      recordedDays: 1,
+    });
+  });
+
+  it("記録が無ければundefined(0mlの日だけでも同様)", () => {
+    expect(aggregateWater([], 2000)).toBeUndefined();
+    expect(aggregateWater([{ date: "2026-07-06", amountMl: 0 }], 2000)).toBeUndefined();
   });
 });
 

@@ -37,7 +37,7 @@ export const MEAL_JUDGMENT_RESPONSE_SCHEMA = {
  * - 揚げ物・外食の見えない油分など、系統的に過小評価しがちな点を明示する
  * - 出力例(few-shot)を1件示す
  */
-export function buildMealJudgmentPrompt(mealLabel: string, note?: string): string {
+export function buildMealJudgmentPrompt(mealLabel: string, note?: string, photoCount = 1): string {
   const trimmedNote = note?.trim() ?? "";
   const noteSection =
     trimmedNote === ""
@@ -48,7 +48,19 @@ export function buildMealJudgmentPrompt(mealLabel: string, note?: string): strin
 写真だけでは判別しにくい料理名・分量・品目の内訳は、写真からの推測よりこの補足情報を優先して反映すること。
 `;
 
-  return `あなたは日本の食事に詳しい管理栄養士です。写真は${mealLabel}の食事です。写っている料理・食品を判定し、品目ごとの分量とカロリー・PFC(たんぱく質・脂質・炭水化物)を推定してJSONで返してください。
+  // 複数枚の写真は「同じ1回の食事」を写したものとして扱う(Issue #110)。
+  // 別々の食事の合算ではなく、別皿の追加撮影や同じ料理の別アングルを想定する
+  const photoContext =
+    photoCount > 1
+      ? `写真は${photoCount}枚あり、すべて同じ1回の${mealLabel}を写したものです`
+      : `写真は${mealLabel}の食事です`;
+  const multiPhotoRule =
+    photoCount > 1
+      ? `
+- 複数の写真に同じ料理が写っている場合(別アングル・撮り直しなど)は、重複させず1品として1回だけ数える。写真ごとに別の料理が写っている場合はすべて挙げる`
+      : "";
+
+  return `あなたは日本の食事に詳しい管理栄養士です。${photoContext}。写っている料理・食品を判定し、品目ごとの分量とカロリー・PFC(たんぱく質・脂質・炭水化物)を推定してJSONで返してください。
 ${noteSection}
 ## 手順(必ずこの順番で考える)
 1. 写真に写っている料理・食品をすべて挙げる。見分けられる料理が複数あれば(例: 唐揚げ・ご飯・味噌汁)、まとめずに1品ずつitemsの別の要素に分ける。単一の料理なら1件だけにする
@@ -63,7 +75,7 @@ ${noteSection}
 - 卵 1個(可食部50g)= 約71kcal
 - ラーメン 1杯(麺・スープ込み)= 約500kcal
 
-## ルール
+## ルール${multiPhotoRule}
 - kcal・proteinG・fatG・carbsGはその品目単体の値にする(他の品目と合算しない)。概算でよいが必ず数値を入れる
 - 整合性チェック: たんぱく質(g)×4 + 脂質(g)×9 + 炭水化物(g)×4 がkcalとおおむね一致すること。大きくズレていたら数値を見直す
 - 揚げ物・炒め物・外食メニューは、衣・調理油・ドレッシングなど写真では見えない油分も脂質とkcalに含める(過小評価しやすいので注意)

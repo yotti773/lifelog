@@ -15,18 +15,26 @@ export interface MealJudgmentResult {
   isUncertain: boolean;
 }
 
-/** 写真をリサイズしてCloudflare Worker経由でGemini Vision判定を依頼する */
+/** 1回の判定に添付できる写真の上限(Issue #110)。Worker側のworker/index.tsと合わせる */
+export const MAX_MEAL_PHOTOS = 4;
+
+/** 写真(複数可)をリサイズしてCloudflare Worker経由でGemini Vision判定を依頼する */
 export async function judgeMealPhoto(
-  file: File,
+  files: File[],
   mealType: MealType,
   note?: string,
 ): Promise<MealJudgmentResult> {
-  const { base64, mimeType } = await resizeImageToBase64(file);
+  const images = await Promise.all(
+    files.map(async (file) => {
+      const { base64, mimeType } = await resizeImageToBase64(file);
+      return { imageBase64: base64, mimeType };
+    }),
+  );
 
   const res = await fetch("/api/judge-meal", {
     method: "POST",
     headers: { "content-type": "application/json", ...(await apiAuthHeaders()) },
-    body: JSON.stringify({ imageBase64: base64, mimeType, mealType, note }),
+    body: JSON.stringify({ images, mealType, note }),
   });
 
   if (!res.ok) {

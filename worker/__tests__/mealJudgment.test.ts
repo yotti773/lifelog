@@ -88,6 +88,19 @@ describe("buildMealJudgmentPrompt", () => {
     expect(buildMealJudgmentPrompt("夕食", note)).not.toContain("補足情報");
   });
 
+  it("写真1枚(デフォルト)なら複数枚向けの指示を含めない", () => {
+    const prompt = buildMealJudgmentPrompt("朝食");
+    expect(prompt).toContain("写真は朝食の食事です");
+    expect(prompt).not.toContain("枚あり");
+    expect(prompt).not.toContain("重複させず");
+  });
+
+  it("写真が複数枚なら枚数と重複カウント禁止の指示を含める(Issue #110)", () => {
+    const prompt = buildMealJudgmentPrompt("昼食", undefined, 3);
+    expect(prompt).toContain("写真は3枚あり、すべて同じ1回の昼食を写したものです");
+    expect(prompt).toContain("重複させず1品として1回だけ数える");
+  });
+
   it("プロンプトの出力例はレスポンススキーマの必須フィールドと整合している", () => {
     const prompt = buildMealJudgmentPrompt("間食");
     const exampleLine = prompt.split("\n").find((line) => line.startsWith('{"items"'));

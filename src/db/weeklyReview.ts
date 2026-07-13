@@ -12,7 +12,7 @@ import { calcBmr } from "@/lib/nutritionCalc";
 import { countRecordedDaysInRange, currentStreakDays } from "@/lib/recording";
 import { buildWeeklyDigest } from "@/lib/weeklyDigest";
 import { projectWeightAtDate } from "@/lib/weightProjection";
-import type { DiaryMood, WeeklyDigest } from "@/types";
+import type { WeeklyDigest } from "@/types";
 
 /**
  * 指定週(月曜起点)のWeeklyDigestを組み立てる(Issue #45)。
@@ -101,8 +101,13 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     currentStreakDays: currentStreakDays(recordedDates, today),
     estimatedTdeeKcal,
     projectedKg,
-    moods: diaries.map((d) => d.mood).filter((mood): mood is DiaryMood => mood !== undefined),
+    diaryDays: diaries.map((d) => ({
+      date: d.date,
+      ...(d.mood !== undefined && { mood: d.mood }),
+      ...(d.alcohol !== undefined && { alcohol: d.alcohol }),
+    })),
     activityDays: activityRecords.map((r) => ({
+      date: r.date,
       ...(r.steps !== undefined && { steps: r.steps }),
       ...(r.totalKcal !== undefined && { totalKcal: r.totalKcal }),
       ...(r.sleepMinutes !== undefined && { sleepMinutes: r.sleepMinutes }),

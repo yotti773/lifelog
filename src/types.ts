@@ -60,6 +60,11 @@ export interface DiaryRecord {
   timestamp: string; // ISO8601, 最後に保存した時刻
   text: string;
   mood?: DiaryMood;
+  /**
+   * 飲酒タグ(Issue #112)。気分タグと同列の任意入力で、週次レビューのクロス分析の集計軸に使う。
+   * トグルONで保存した日だけtrue。未設定(undefined)は「記録していない」であり「飲酒なし」とは断定しない
+   */
+  alcohol?: boolean;
   synced: boolean; // スプレッドシートへの同期済みフラグ(Issue #72)。本文も含めて同期する
 }
 
@@ -246,6 +251,39 @@ export interface WeeklyDigest {
    * (AIコンサルティング設計書7章のプライバシー原則)
    */
   diaryEntries?: { date: string; text: string }[];
+  /**
+   * 週内データのクロス集計(Issue #112)。計算はコード側で行い、画面・AIとも事実の提示に留める
+   * (週単位はサンプル数が少なく「相関」とは言い切れないため、解釈・断定はしない)。
+   * 各項目は比較が成立する週だけ含め、1つも成立しない週はcrossAnalysis自体を省略する
+   */
+  crossAnalysis?: {
+    /**
+     * 睡眠不足×摂取カロリー。Garminの睡眠時間(その日の朝までの夜間睡眠)が6時間未満だった日と
+     * それ以外の日で、同じ日の摂取カロリーを比較する(睡眠明けの日=シート上の同じ日付)。
+     * 睡眠6時間未満の日に食事記録が1日も無い週は省略
+     */
+    sleepIntake?: {
+      thresholdMinutes: number; // 睡眠不足の閾値(360分=6時間固定)
+      shortSleepDays: number; // 睡眠が閾値未満だった日数(睡眠データがある日のうち)
+      sleepRecordedDays: number; // 睡眠データがある日数
+      avgIntakeOnShortSleepDays: number; // 睡眠不足の日の平均摂取カロリー(食事記録がある日の平均)
+      avgIntakeOnOtherDays: number | null; // 睡眠が閾値以上だった日の平均摂取カロリー(比較対象が無ければnull)
+    };
+    /** 気分×摂取カロリー。気分が良い日(絶好調・良い)と眠い・不調の日の摂取カロリーを比較する。両群に食事記録のある日が無い週は省略 */
+    moodIntake?: {
+      goodMoodDays: number; // 気分が良い日(絶好調・良い)のうち食事記録がある日数
+      badMoodDays: number; // 眠い・不調の日のうち食事記録がある日数
+      avgIntakeOnGoodMoodDays: number;
+      avgIntakeOnBadMoodDays: number;
+    };
+    /** 飲酒×摂取カロリー(Issue #112コメント)。飲酒タグを付けた日が1日も無い週は省略 */
+    alcohol?: {
+      alcoholDays: number; // 飲酒タグを付けた日数
+      avgIntakeOnAlcoholDays: number | null; // 飲酒日の平均摂取カロリー(食事記録が無ければnull)
+      avgIntakeOnOtherDays: number | null; // 飲酒タグの無い日の平均摂取カロリー(食事記録がある日の平均)
+      avgIntakeNextDay: number | null; // 飲酒日の翌日の平均摂取カロリー(翌日が週内で食事記録がある日のみ)
+    };
+  };
 }
 
 /** AIの出力契約(AIコンサルティング設計書4章)。Workerのstructured outputで強制する */

@@ -6,6 +6,7 @@ export interface SaveDiaryRecordInput {
   date: string; // YYYY-MM-DD
   text: string;
   mood?: DiaryMood;
+  alcohol?: boolean; // 飲酒タグ(Issue #112)。トグルONの日だけtrueで保存する
   timestamp?: string; // 省略時は現在時刻
 }
 
@@ -17,6 +18,7 @@ export async function saveDiaryRecord(input: SaveDiaryRecordInput): Promise<Diar
     timestamp: input.timestamp ?? new Date().toISOString(),
     text: input.text,
     mood: input.mood,
+    alcohol: input.alcohol,
     synced: false,
   };
   await db.diaryRecords.put(record);

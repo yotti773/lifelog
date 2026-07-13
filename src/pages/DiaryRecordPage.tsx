@@ -5,6 +5,7 @@ import ButtonBase from "@mui/material/ButtonBase";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import MoodIcon, { MOOD_DEFS, MOOD_ORDER } from "@/components/MoodIcon";
+import { IconMug } from "@/components/icons";
 import RecordHeader from "@/components/RecordHeader";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import SectionLabel from "@/components/SectionLabel";
@@ -27,6 +28,7 @@ export default function DiaryRecordPage() {
 
   const [isLoading, setLoading] = useState(true);
   const [mood, setMood] = useState<DiaryMood | null>(null);
+  const [alcohol, setAlcohol] = useState(false);
   const [text, setText] = useState("");
 
   // 日記は日付キーの1日1件(後勝ち)。その日の分があればドラフトとして読み込む(画面設計書6章)
@@ -36,6 +38,7 @@ export default function DiaryRecordPage() {
       if (cancelled) return;
       if (record) {
         setMood(record.mood ?? null);
+        setAlcohol(record.alcohol ?? false);
         setText(record.text);
       }
       setLoading(false);
@@ -46,13 +49,14 @@ export default function DiaryRecordPage() {
   }, [date]);
 
   const handleSave = async () => {
-    // 本文・気分の両方が空なら「未記録に戻す」扱いで当日分を削除する(画面設計書6章)。
+    // 本文・気分・飲酒タグのすべてが空なら「未記録に戻す」扱いで当日分を削除する(画面設計書6章)。
     // 判定と保存でtrim済みの本文をそろえ、空白のみの本文が「記録あり」として残らないようにする
     const trimmedText = text.trim();
-    if (trimmedText === "" && mood === null) {
+    if (trimmedText === "" && mood === null && !alcohol) {
       await deleteDiaryRecord(date);
     } else {
-      await saveDiaryRecord({ date, text: trimmedText, mood: mood ?? undefined });
+      // 飲酒はトグルONの日だけtrueで持つ(OFFはfalseではなくundefined=「記録なし」。Issue #112)
+      await saveDiaryRecord({ date, text: trimmedText, mood: mood ?? undefined, alcohol: alcohol || undefined });
     }
     backToHistory();
   };
@@ -94,6 +98,29 @@ export default function DiaryRecordPage() {
           );
         })}
       </Box>
+
+      {/* 飲酒タグ(Issue #112)。気分タグと同列の任意入力で、週次レビューのクロス分析の集計軸になる */}
+      <SectionLabel>飲酒</SectionLabel>
+      <ButtonBase
+        onClick={() => setAlcohol((prev) => !prev)}
+        aria-label="飲酒あり"
+        aria-pressed={alcohol}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          px: "14px",
+          py: "10px",
+          mb: "20px",
+          borderRadius: "14px",
+          bgcolor: alcohol ? tokens.moodSelectedBg : "background.paper",
+          border: `2px solid ${alcohol ? tokens.moodBorder : tokens.border}`,
+          color: tokens.moodLabel,
+        }}
+      >
+        <IconMug size={18} />
+        <Typography sx={{ fontSize: 12, fontWeight: 600, color: tokens.moodLabel }}>飲酒あり</Typography>
+      </ButtonBase>
 
       <SectionLabel>ひとこと日記</SectionLabel>
       <TextField

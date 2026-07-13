@@ -49,6 +49,7 @@ interface DiaryRecordInput {
   timestamp: string;
   text: string;
   mood?: string;
+  alcohol?: boolean; // 飲酒タグ(Issue #112)。シートには「あり」/空欄で書く
 }
 
 interface FoodMasterItemInput {
@@ -116,7 +117,8 @@ export const WEIGHT_CONFIG: SheetConfig = { name: "体重記録", idColumnLetter
 export const MEAL_CONFIG: SheetConfig = { name: "食事記録", idColumnLetter: "H" };
 export const WATER_CONFIG: SheetConfig = { name: "水分記録", idColumnLetter: "C" };
 export const WORKOUT_CONFIG: SheetConfig = { name: "筋トレ記録", idColumnLetter: "H" };
-export const DIARY_CONFIG: SheetConfig = { name: "日記記録", idColumnLetter: "E" };
+// 飲酒列(F)はID列(E)より後ろにある(後付けのIssue #112。既存シートのID列を動かさないため。種目マスタの部位列と同じ方針)
+export const DIARY_CONFIG: SheetConfig = { name: "日記記録", idColumnLetter: "E", lastColumnLetter: "F" };
 export const FOOD_MASTER_CONFIG: SheetConfig = { name: "食事マスタ", idColumnLetter: "H" };
 // 部位列(D)はID列(C)より後ろにあるため(後付けのIssue #104。既存シートのID列を動かさないため)、
 // 取り込みの読み取り範囲はID列ではなくlastColumnLetterまで広げる必要がある
@@ -207,6 +209,7 @@ function diaryRecordToRow(r: DiaryRecordInput): (string | number)[] {
     r.text,
     formatJstDateTime(r.timestamp),
     r.id,
+    r.alcohol ? "あり" : "",
   ];
 }
 

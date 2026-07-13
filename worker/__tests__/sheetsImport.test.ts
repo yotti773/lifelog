@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseAlcoholCell,
   parseCalendarDate,
   parseCellNumber,
   parseJstDateTime,
@@ -104,6 +105,20 @@ describe("parseMoodCell", () => {
     expect(parseMoodCell("")).toBeUndefined();
     expect(parseMoodCell(undefined)).toBeUndefined();
     expect(parseMoodCell("最高")).toBeUndefined();
+  });
+});
+
+describe("parseAlcoholCell", () => {
+  it("書き出し形式(あり)とチェックボックス・手入力を想定した表記をtrueに変換する", () => {
+    expect(parseAlcoholCell("あり")).toBe(true);
+    expect(parseAlcoholCell("TRUE")).toBe(true);
+    expect(parseAlcoholCell("○")).toBe(true);
+  });
+
+  it("空・未知の値はundefined(記録なし。falseとは区別する)", () => {
+    expect(parseAlcoholCell("")).toBeUndefined();
+    expect(parseAlcoholCell(undefined)).toBeUndefined();
+    expect(parseAlcoholCell("なし")).toBeUndefined();
   });
 });
 
@@ -293,9 +308,9 @@ describe("planWorkoutImport", () => {
 });
 
 describe("planDiaryImport", () => {
-  const fullRow: CellValue[] = ["2026年07月05日", "良い", "よく眠れた", "2026年07月05日 22:00", "2026-07-05"];
+  const fullRow: CellValue[] = ["2026年07月05日", "良い", "よく眠れた", "2026年07月05日 22:00", "2026-07-05", "あり"];
 
-  it("書き出し済みの行をレコードに逆変換する", () => {
+  it("書き出し済みの行をレコードに逆変換する(飲酒列「あり」はalcohol=true。Issue #112)", () => {
     const plan = planDiaryImport([fullRow]);
     expect(plan.records).toEqual([
       {
@@ -304,10 +319,18 @@ describe("planDiaryImport", () => {
         timestamp: "2026-07-05T13:00:00.000Z",
         text: "よく眠れた",
         mood: "good",
+        alcohol: true,
       },
     ]);
     expect(plan.idBackfills).toEqual([]);
     expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("飲酒列が空・未知の値の行はalcoholを持たない(記録なし扱い)", () => {
+    const noAlcoholCell: CellValue[] = ["2026年07月06日", "良い", "", "2026年07月06日 22:00", "2026-07-06"];
+    const unknownCell: CellValue[] = ["2026年07月07日", "", "", "", "2026-07-07", "たぶん"];
+    const plan = planDiaryImport([noAlcoholCell, unknownCell]);
+    expect(plan.records.map((r) => "alcohol" in r)).toEqual([false, false]);
   });
 
   it("気分・本文・タイムスタンプ・IDが空の手入力行も取り込み、IDは日付で採番して書き戻し対象にする", () => {

@@ -42,10 +42,13 @@ export interface WeeklyDigestSource {
   estimatedTdeeKcal: number | null;
   /** 現在ペースでの着地予測(Issue #25の線形予測)。予測できない場合はnull */
   projectedKg: number | null;
-  /** 週内の日記の気分タグ(本文は含めない。AIコンサルティング設計書7章) */
-  moods: DiaryMood[];
-  /** 週内のGarmin活動記録(Issue #82)。1日1件。項目ごとに欠測しうる */
-  activityDays: { steps?: number; totalKcal?: number; sleepMinutes?: number }[];
+  /**
+   * 週内の日記の記録(本文は含めない。AIコンサルティング設計書7章)。1日1件。
+   * dateは気分・飲酒×摂取カロリーのクロス分析(Issue #112)で食事の日別合計と突き合わせるために持つ
+   */
+  diaryDays: { date: string; mood?: DiaryMood; alcohol?: boolean }[];
+  /** 週内のGarmin活動記録(Issue #82)。1日1件。項目ごとに欠測しうる。dateはクロス分析(Issue #112)用 */
+  activityDays: { date: string; steps?: number; totalKcal?: number; sleepMinutes?: number }[];
   /** 週内の筋トレ記録(1セット=1件。Issue #103) */
   workoutSets: { date: string; exerciseName: string }[];
   /** 週内の日別水分合計(記録の無い日は0mlで埋まっていてよい。Issue #103) */
@@ -116,6 +119,101 @@ export function aggregateWater(
   };
 }
 
+/** クロス分析(Issue #112)で「睡眠不足」とみなす閾値(6時間)。Garminの睡眠時間(分)と比較する */
+export const SHORT_SLEEP_THRESHOLD_MINUTES = 360;
+
+/** 気分タグのうちクロス分析で「気分が良い日」に数える値(aggregateMoodCountsのgood区分と同じ) */
+const GOOD_MOODS: DiaryMood[] = ["great", "good"];
+/** 気分タグのうちクロス分析で「眠い・不調の日」に数える値(aggregateMoodCountsのbad区分と同じ) */
+const BAD_MOODS: DiaryMood[] = ["tired", "bad"];
+
+/**
+ * 週内データのクロス集計(Issue #112)。睡眠不足・気分・飲酒の各条件に当てはまる日と
+ * それ以外の日で、食事の日別合計カロリーを突き合わせる。計算はすべてここで行い、
+ * 画面・AIとも事実の提示に留める(週単位はサンプル数が少なく「相関」とは言い切れないため)。
+ * 各項目は比較が成立する週だけ含め、1つも成立しない週はundefined(digestから省く)。
+ */
+export function buildCrossAnalysis(
+  src: Pick<WeeklyDigestSource, "weekStart" | "mealDailyTotals" | "diaryDays" | "activityDays">,
+): WeeklyDigest["crossAnalysis"] | undefined {
+  const weekEnd = addDaysToDateString(src.weekStart, 6);
+  const kcalByDate = new Map(src.mealDailyTotals.map((d) => [d.date, d.kcal]));
+  // 指定した日付集合のうち食事記録がある日の平均摂取カロリー。1日も無ければavg=null
+  const avgIntake = (dates: string[]): { avg: number | null; days: number } => {
+    const kcals = dates.filter((date) => kcalByDate.has(date)).map((date) => kcalByDate.get(date)!);
+    return {
+      avg: kcals.length > 0 ? Math.round(kcals.reduce((s, v) => s + v, 0) / kcals.length) : null,
+      days: kcals.length,
+    };
+  };
+
+  // 睡眠×摂取: Garminの睡眠時間は「その日の朝までの夜間睡眠」のため、同じ日付の食事と
+  // 突き合わせれば「睡眠不足明けの日の摂取」になる(翌日ではなく同日でペアリングする)
+  const sleepDays = src.activityDays.filter((d) => d.sleepMinutes !== undefined);
+  const shortSleepDates = sleepDays
+    .filter((d) => d.sleepMinutes! < SHORT_SLEEP_THRESHOLD_MINUTES)
+    .map((d) => d.date);
+  const enoughSleepDates = sleepDays
+    .filter((d) => d.sleepMinutes! >= SHORT_SLEEP_THRESHOLD_MINUTES)
+    .map((d) => d.date);
+  const shortSleepIntake = avgIntake(shortSleepDates);
+  const sleepIntake =
+    shortSleepIntake.avg !== null
+      ? {
+          thresholdMinutes: SHORT_SLEEP_THRESHOLD_MINUTES,
+          shortSleepDays: shortSleepDates.length,
+          sleepRecordedDays: sleepDays.length,
+          avgIntakeOnShortSleepDays: shortSleepIntake.avg,
+          avgIntakeOnOtherDays: avgIntake(enoughSleepDates).avg,
+        }
+      : undefined;
+
+  // 気分×摂取: 良い群・悪い群の両方に食事記録がある日が無ければ比較にならないので省く
+  const goodMoodIntake = avgIntake(
+    src.diaryDays.filter((d) => d.mood !== undefined && GOOD_MOODS.includes(d.mood)).map((d) => d.date),
+  );
+  const badMoodIntake = avgIntake(
+    src.diaryDays.filter((d) => d.mood !== undefined && BAD_MOODS.includes(d.mood)).map((d) => d.date),
+  );
+  const moodIntake =
+    goodMoodIntake.avg !== null && badMoodIntake.avg !== null
+      ? {
+          goodMoodDays: goodMoodIntake.days,
+          badMoodDays: badMoodIntake.days,
+          avgIntakeOnGoodMoodDays: goodMoodIntake.avg,
+          avgIntakeOnBadMoodDays: badMoodIntake.avg,
+        }
+      : undefined;
+
+  // 飲酒×摂取: 飲酒タグが1日でもあれば日数だけでも事実として出す(平均はnull許容)。
+  // 「それ以外の日」はタグの無い日全体(未記録の日を含む)で、「飲酒なしと記録した日」ではない
+  const alcoholDates = src.diaryDays.filter((d) => d.alcohol === true).map((d) => d.date);
+  const alcoholDateSet = new Set(alcoholDates);
+  const nextDayDates = alcoholDates
+    .map((date) => addDaysToDateString(date, 1))
+    .filter((date) => date <= weekEnd);
+  const alcohol =
+    alcoholDates.length > 0
+      ? {
+          alcoholDays: alcoholDates.length,
+          avgIntakeOnAlcoholDays: avgIntake(alcoholDates).avg,
+          avgIntakeOnOtherDays: avgIntake(
+            src.mealDailyTotals.map((d) => d.date).filter((date) => !alcoholDateSet.has(date)),
+          ).avg,
+          avgIntakeNextDay: avgIntake(nextDayDates).avg,
+        }
+      : undefined;
+
+  if (sleepIntake === undefined && moodIntake === undefined && alcohol === undefined) {
+    return undefined;
+  }
+  return {
+    ...(sleepIntake !== undefined ? { sleepIntake } : {}),
+    ...(moodIntake !== undefined ? { moodIntake } : {}),
+    ...(alcohol !== undefined ? { alcohol } : {}),
+  };
+}
+
 export function aggregateMoodCounts(moods: DiaryMood[]): { good: number; normal: number; bad: number } | undefined {
   if (moods.length === 0) return undefined;
   const counts = { good: 0, normal: 0, bad: 0 };
@@ -153,10 +251,13 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   const avgOf = (pick: (d: DigestMealDailyTotal) => number) =>
     mealDays > 0 ? round1(src.mealDailyTotals.reduce((s, d) => s + pick(d), 0) / mealDays) : null;
 
-  const mood = aggregateMoodCounts(src.moods);
+  const mood = aggregateMoodCounts(
+    src.diaryDays.map((d) => d.mood).filter((m): m is DiaryMood => m !== undefined),
+  );
   const activity = aggregateActivity(src.activityDays);
   const workout = aggregateWorkout(src.workoutSets);
   const water = aggregateWater(src.waterDailyTotals, src.waterTargetMl);
+  const crossAnalysis = buildCrossAnalysis(src);
   // 本文が空の日記(気分タグのみの記録)はAIに読ませる意味が無いので除く
   const diaryEntries = src.diaryTexts?.filter((d) => d.text.trim() !== "") ?? null;
 
@@ -226,5 +327,6 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     ...(workout !== undefined ? { workout } : {}),
     ...(water !== undefined ? { water } : {}),
     ...(diaryEntries !== null && diaryEntries.length > 0 ? { diaryEntries } : {}),
+    ...(crossAnalysis !== undefined ? { crossAnalysis } : {}),
   };
 }

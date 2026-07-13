@@ -14,7 +14,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { judgeMealPhoto, type MealJudgmentItem } from "@/api/judgeMeal";
+import { judgeMealPhoto, MAX_MEAL_PHOTOS, type MealJudgmentItem } from "@/api/judgeMeal";
 import RecordHeader from "@/components/RecordHeader";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import SegmentedControl from "@/components/SegmentedControl";
@@ -97,8 +97,9 @@ export default function MealRecordPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const [note, setNote] = useState("");
-  // 解析対象の写真。選択と解析を分離し、備考入力後に「AIで解析する」で実行する(Issue #71)
-  const [photo, setPhoto] = useState<File | null>(null);
+  // 解析対象の写真(複数枚可、最大MAX_MEAL_PHOTOS枚。Issue #110)。
+  // 選択と解析を分離し、備考入力後に「AIで解析する」で実行する(Issue #71)
+  const [photos, setPhotos] = useState<File[]>([]);
   const [isJudging, setJudging] = useState(false);
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [judge, setJudge] = useState<PhotoJudgeState | null>(null);
@@ -167,22 +168,23 @@ export default function MealRecordPage() {
     setCarbsG(format(itemCarbsG));
   };
 
-  const handlePhotoSelected = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handlePhotosSelected = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
-    setPhoto(file);
+    if (files.length === 0) return;
+    // 既存の選択に追加する(上限を超えた分は切り捨て)。撮影→ライブラリの混在も可
+    setPhotos((prev) => [...prev, ...files].slice(0, MAX_MEAL_PHOTOS));
     setJudgeError(null);
   };
 
   const handleJudge = async () => {
-    if (!photo) return;
+    if (photos.length === 0) return;
     setJudging(true);
     setJudgeError(null);
     // 解析が失敗しても前回の写真の検出品目リストが残らないよう、先にクリアする
     setJudge(null);
     try {
-      const result = await judgeMealPhoto(photo, mealType, note);
+      const result = await judgeMealPhoto(photos, mealType, note);
       // 編集時は検出品目でフォーム(=編集対象レコード)を勝手に上書きせず、
       // 検出リストから選んで「追加で記録する品目」に積んでもらう(Issue #71)
       setJudge({
@@ -480,11 +482,11 @@ export default function MealRecordPage() {
         {/* 並びは「画像解析→マスタ選択→手入力」(Issue #71)。手入力フォームは反映先なので最後に置く */}
         <PhotoJudgeCard
           isJudging={isJudging}
-          photo={photo}
+          photos={photos}
           note={note}
           onNoteChange={setNote}
-          onPhotoSelected={handlePhotoSelected}
-          onClearPhoto={() => setPhoto(null)}
+          onPhotosSelected={handlePhotosSelected}
+          onRemovePhoto={(index) => setPhotos((prev) => prev.filter((_, i) => i !== index))}
           onJudge={handleJudge}
           judgeError={judgeError}
           showUncertainWarning={judge?.isUncertain === true && (isEditing || aiJudgment !== null)}

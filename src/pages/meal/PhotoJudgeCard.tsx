@@ -5,17 +5,18 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { IconCamera, IconLibrary, IconSparkle, IconWarning } from "@/components/icons";
+import { MAX_MEAL_PHOTOS } from "@/api/judgeMeal";
+import { IconCamera, IconClose, IconLibrary, IconSparkle, IconWarning } from "@/components/icons";
 import { fontRounded, tokens } from "@/theme";
 
 interface PhotoJudgeCardProps {
   isJudging: boolean;
-  /** 選択済みの写真。解析は写真選択と分離されており、解析ボタンで明示的に実行する(Issue #71) */
-  photo: File | null;
+  /** 選択済みの写真(最大MAX_MEAL_PHOTOS枚。Issue #110)。解析は写真選択と分離されており、解析ボタンで明示的に実行する(Issue #71) */
+  photos: File[];
   note: string;
   onNoteChange: (note: string) => void;
-  onPhotoSelected: (e: ChangeEvent<HTMLInputElement>) => void;
-  onClearPhoto: () => void;
+  onPhotosSelected: (e: ChangeEvent<HTMLInputElement>) => void;
+  onRemovePhoto: (index: number) => void;
   onJudge: () => void;
   judgeError: string | null;
   /** 判定の自信が低い場合の注意表示(判定結果をフォームに反映中のときのみ出す) */
@@ -25,26 +26,30 @@ interface PhotoJudgeCardProps {
 /**
  * 食事記録画面の「写真から記録する」カード。
  * 写真を選ぶ→備考を入力→「AIで解析する」ボタンで実行、の流れ(Issue #71)。
- * 以前は写真選択と同時に解析していたが、備考を解析に反映できるよう分離した
+ * 以前は写真選択と同時に解析していたが、備考を解析に反映できるよう分離した。
+ * 写真は複数枚(最大MAX_MEAL_PHOTOS枚)添付でき、1回の解析にまとめて送られる(Issue #110)
  */
 export default function PhotoJudgeCard({
   isJudging,
-  photo,
+  photos,
   note,
   onNoteChange,
-  onPhotoSelected,
-  onClearPhoto,
+  onPhotosSelected,
+  onRemovePhoto,
   onJudge,
   judgeError,
   showUncertainWarning,
 }: PhotoJudgeCardProps) {
-  const previewUrl = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
+  const previewUrls = useMemo(() => photos.map((photo) => URL.createObjectURL(photo)), [photos]);
   useEffect(
     () => () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      for (const url of previewUrls) URL.revokeObjectURL(url);
     },
-    [previewUrl],
+    [previewUrls],
   );
+
+  const isFull = photos.length >= MAX_MEAL_PHOTOS;
+  const canAdd = !isJudging && !isFull;
 
   return (
     <Card sx={{ p: "15px", mb: "14px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
@@ -57,44 +62,66 @@ export default function PhotoJudgeCard({
       <Box sx={{ display: "flex", gap: "8px", mb: "10px" }}>
         <Button
           component="label"
-          disabled={isJudging}
+          disabled={!canAdd}
           startIcon={<IconCamera />}
           sx={{ flex: 1, height: 44, borderRadius: "11px", bgcolor: tokens.primarySoft, color: "primary.main", fontSize: 12, "&:hover": { bgcolor: tokens.primarySoft } }}
         >
           撮影
-          <input type="file" accept="image/*" capture="environment" onChange={onPhotoSelected} disabled={isJudging} hidden />
+          <input type="file" accept="image/*" capture="environment" onChange={onPhotosSelected} disabled={!canAdd} hidden />
         </Button>
         <Button
           component="label"
-          disabled={isJudging}
+          disabled={!canAdd}
           startIcon={<IconLibrary />}
           sx={{ flex: 1, height: 44, borderRadius: "11px", bgcolor: tokens.beigeSoft, color: "text.secondary", fontSize: 12, "&:hover": { bgcolor: tokens.beigeSoft } }}
         >
           ライブラリ
-          <input type="file" accept="image/*" onChange={onPhotoSelected} disabled={isJudging} hidden />
+          <input type="file" accept="image/*" multiple onChange={onPhotosSelected} disabled={!canAdd} hidden />
         </Button>
       </Box>
-      {photo && previewUrl && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: "10px", bgcolor: tokens.beigeSoft, borderRadius: "12px", p: "9px 11px", mb: "10px" }}>
-          <Box
-            component="img"
-            src={previewUrl}
-            alt="選択した食事の写真"
-            sx={{ width: 44, height: 44, borderRadius: "10px", objectFit: "cover", flexShrink: 0 }}
-          />
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 12, fontWeight: 700 }}>写真を選択済み</Typography>
-            <Typography sx={{ fontSize: 10, color: "text.secondary", mt: "2px" }}>
-              補足を書いてから解析すると精度が上がります
-            </Typography>
+      {photos.length > 0 && (
+        <Box sx={{ bgcolor: tokens.beigeSoft, borderRadius: "12px", p: "9px 11px", mb: "10px" }}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: "8px", mb: "8px" }}>
+            {previewUrls.map((url, index) => (
+              <Box key={url} sx={{ position: "relative" }}>
+                <Box
+                  component="img"
+                  src={url}
+                  alt={`選択した食事の写真 ${index + 1}枚目`}
+                  sx={{ display: "block", width: 56, height: 56, borderRadius: "10px", objectFit: "cover" }}
+                />
+                <ButtonBase
+                  onClick={() => onRemovePhoto(index)}
+                  disabled={isJudging}
+                  aria-label={`${index + 1}枚目の写真を取り消す`}
+                  sx={{
+                    position: "absolute",
+                    top: -6,
+                    right: -6,
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    bgcolor: "background.paper",
+                    color: "text.secondary",
+                    boxShadow: tokens.fieldShadow,
+                  }}
+                >
+                  <IconClose size={12} />
+                </ButtonBase>
+              </Box>
+            ))}
           </Box>
-          <ButtonBase
-            onClick={onClearPhoto}
-            disabled={isJudging}
-            sx={{ fontSize: 11, color: "text.secondary", bgcolor: "background.paper", borderRadius: "8px", px: "9px", py: "5px", flexShrink: 0 }}
-          >
-            取り消し
-          </ButtonBase>
+          <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
+            写真を{photos.length}枚選択済み
+            {isFull && (
+              <Box component="span" sx={{ fontWeight: 400, color: "text.secondary" }}>
+                (最大{MAX_MEAL_PHOTOS}枚)
+              </Box>
+            )}
+          </Typography>
+          <Typography sx={{ fontSize: 10, color: "text.secondary", mt: "2px" }}>
+            同じ食事の写真をまとめて解析します。補足を書いてから解析すると精度が上がります
+          </Typography>
         </Box>
       )}
       <TextField
@@ -107,7 +134,7 @@ export default function PhotoJudgeCard({
       />
       <Button
         fullWidth
-        disabled={photo === null || isJudging}
+        disabled={photos.length === 0 || isJudging}
         onClick={onJudge}
         startIcon={<IconSparkle />}
         sx={{
@@ -124,9 +151,9 @@ export default function PhotoJudgeCard({
       >
         {isJudging ? "解析中..." : "AIで解析する"}
       </Button>
-      {photo === null && (
+      {photos.length === 0 && (
         <Typography sx={{ mt: "7px", fontSize: 10, color: tokens.faint, textAlign: "center" }}>
-          写真を選ぶと解析できます
+          写真を選ぶと解析できます(最大{MAX_MEAL_PHOTOS}枚)
         </Typography>
       )}
       {judgeError && <Typography sx={{ mt: "10px", fontSize: 12, color: "primary.main" }}>{judgeError}</Typography>}

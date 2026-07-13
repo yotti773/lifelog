@@ -24,23 +24,33 @@ export interface Env {
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
 }
 
-interface JudgeMealRequestBody {
+/** 1回の判定に添付できる写真の上限(Issue #110)。クライアント側のsrc/api/judgeMeal.tsと合わせる */
+const MAX_MEAL_PHOTOS = 4;
+
+interface JudgeMealImage {
   imageBase64: string;
   mimeType: string;
+}
+
+interface JudgeMealRequestBody {
+  /** 複数写真対応(Issue #110)。1〜4枚 */
+  images?: JudgeMealImage[];
+  /** 旧クライアント(SW更新前の事前キャッシュされたバンドル)向けの単発形式。imagesがあればそちらを優先 */
+  imageBase64?: string;
+  mimeType?: string;
   mealType: string;
   note?: string;
 }
 
 async function judgeMeal(
   env: Env,
-  imageBase64: string,
-  mimeType: string,
+  images: JudgeMealImage[],
   mealType: string,
   note: string | undefined,
 ): Promise<MealJudgmentResult & LegacyMealJudgmentFields> {
   const model = env.GEMINI_MODEL || "gemini-2.5-flash";
   const mealLabel = MEAL_TYPE_LABELS[mealType] ?? mealType;
-  const prompt = buildMealJudgmentPrompt(mealLabel, note);
+  const prompt = buildMealJudgmentPrompt(mealLabel, note, images.length);
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -50,7 +60,12 @@ async function judgeMeal(
       body: JSON.stringify({
         contents: [
           {
-            parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: imageBase64 } }],
+            parts: [
+              { text: prompt },
+              ...images.map((image) => ({
+                inline_data: { mime_type: image.mimeType, data: image.imageBase64 },
+              })),
+            ],
           },
         ],
         generationConfig: {
@@ -101,10 +116,19 @@ export default {
     if (url.pathname === "/api/judge-meal" && request.method === "POST") {
       try {
         const body = (await request.json()) as Partial<JudgeMealRequestBody>;
-        if (!body.imageBase64 || !body.mimeType) {
-          return Response.json({ error: "imageBase64とmimeTypeは必須です" }, { status: 400 });
+        // 新形式(images配列)を優先し、無ければ旧形式(単発のimageBase64/mimeType)を1枚として扱う
+        const images: JudgeMealImage[] = Array.isArray(body.images)
+          ? body.images
+          : body.imageBase64 && body.mimeType
+            ? [{ imageBase64: body.imageBase64, mimeType: body.mimeType }]
+            : [];
+        if (images.length === 0 || images.some((image) => !image?.imageBase64 || !image?.mimeType)) {
+          return Response.json({ error: "imageBase64とmimeTypeを含む写真が1枚以上必要です" }, { status: 400 });
         }
-        const judgment = await judgeMeal(env, body.imageBase64, body.mimeType, body.mealType ?? "", body.note);
+        if (images.length > MAX_MEAL_PHOTOS) {
+          return Response.json({ error: `写真は最大${MAX_MEAL_PHOTOS}枚までです` }, { status: 400 });
+        }
+        const judgment = await judgeMeal(env, images, body.mealType ?? "", body.note);
         return Response.json(judgment);
       } catch (error) {
         const message = error instanceof Error ? error.message : "判定に失敗しました";

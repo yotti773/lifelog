@@ -20,6 +20,7 @@ beforeEach(async () => {
     db.diaryRecords.clear(),
     db.waterRecords.clear(),
     db.workoutRecords.clear(),
+    db.activityRecords.clear(),
     db.settings.clear(),
     db.syncDeletions.clear(),
   ]);
@@ -105,6 +106,48 @@ describe("getWeeklyDigest", () => {
     expect(digest.workout).toEqual({ activeDays: 2, exerciseCount: 2, totalSets: 4 });
     // 07-06: 2000ml(目標達成) / 07-07: 1500ml。記録の無い日は分母に入れない
     expect(digest.water).toEqual({ avgIntakeMl: 1750, targetMl: 2000, daysOnTarget: 1, recordedDays: 2 });
+  });
+
+  it("クロス分析: 睡眠不足・飲酒タグと食事の日別合計を突き合わせる(Issue #112)", async () => {
+    await addMealRecord({
+      mealType: "dinner",
+      confirmedName: "飲み会",
+      confirmedKcal: 2200,
+      confirmedProteinG: 0,
+      confirmedFatG: 0,
+      confirmedCarbsG: 0,
+      timestamp: new Date("2026-07-07T19:00:00").toISOString(),
+    });
+    await addMealRecord({
+      mealType: "lunch",
+      confirmedName: "翌日の昼",
+      confirmedKcal: 1900,
+      confirmedProteinG: 0,
+      confirmedFatG: 0,
+      confirmedCarbsG: 0,
+      timestamp: new Date("2026-07-08T12:00:00").toISOString(),
+    });
+    await saveDiaryRecord({ date: "2026-07-07", text: "", mood: "good", alcohol: true });
+    // 活動記録は取り込み専用のため直接投入する(睡眠5時間=睡眠不足)
+    await db.activityRecords.put({ date: "2026-07-07", sleepMinutes: 300, synced: true });
+
+    const digest = await getWeeklyDigest(WEEK_START, TODAY);
+    expect(digest.crossAnalysis).toEqual({
+      sleepIntake: {
+        thresholdMinutes: 360,
+        shortSleepDays: 1,
+        sleepRecordedDays: 1,
+        avgIntakeOnShortSleepDays: 2200,
+        avgIntakeOnOtherDays: null, // 睡眠が足りた日の記録が無い
+      },
+      alcohol: {
+        alcoholDays: 1,
+        avgIntakeOnAlcoholDays: 2200,
+        avgIntakeOnOtherDays: 1900,
+        avgIntakeNextDay: 1900,
+      },
+      // moodIntakeは悪い群(眠い・不調)の日が無いため省かれる
+    });
   });
 
   it("日記本文はオプトインONの場合のみdiaryEntriesに含める(Issue #103でIssue #12を決着)", async () => {

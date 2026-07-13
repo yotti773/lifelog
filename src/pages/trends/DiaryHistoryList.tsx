@@ -3,7 +3,7 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import MoodIcon from "@/components/MoodIcon";
-import { IconChevronRight } from "@/components/icons";
+import { IconChevronRight, IconMug } from "@/components/icons";
 import { fontRounded, tokens } from "@/theme";
 import type { DiaryRecord } from "@/types";
 
@@ -55,6 +55,11 @@ export default function DiaryHistoryList({ records, onSelect }: DiaryHistoryList
                 </Typography>
               )}
             </Box>
+            {record.alcohol && (
+              <Box aria-label="飲酒あり" sx={{ ml: "10px", display: "flex", flexShrink: 0, color: tokens.faint }}>
+                <IconMug size={18} />
+              </Box>
+            )}
             {record.mood && (
               <Box sx={{ ml: "10px", display: "flex", flexShrink: 0 }}>
                 <MoodIcon mood={record.mood} size={24} />

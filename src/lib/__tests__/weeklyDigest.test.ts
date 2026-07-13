@@ -4,7 +4,9 @@ import {
   aggregateMoodCounts,
   aggregateWater,
   aggregateWorkout,
+  buildCrossAnalysis,
   buildWeeklyDigest,
+  SHORT_SLEEP_THRESHOLD_MINUTES,
   type WeeklyDigestSource,
 } from "../weeklyDigest";
 
@@ -34,11 +36,16 @@ function goodWeekSource(): WeeklyDigestSource {
     currentStreakDays: 12,
     estimatedTdeeKcal: 2400,
     projectedKg: 63.5,
-    moods: ["great", "good", "ok", "tired"],
+    diaryDays: [
+      { date: "2026-07-06", mood: "great" },
+      { date: "2026-07-07", mood: "good" },
+      { date: "2026-07-08", mood: "ok" },
+      { date: "2026-07-09", mood: "tired" },
+    ],
     activityDays: [
-      { steps: 8000, totalKcal: 2400, sleepMinutes: 420 },
-      { steps: 10000, totalKcal: 2600, sleepMinutes: 390 },
-      { steps: 9000, totalKcal: 2500 }, // 睡眠欠測(時計を着けず就寝)
+      { date: "2026-07-06", steps: 8000, totalKcal: 2400, sleepMinutes: 420 },
+      { date: "2026-07-07", steps: 10000, totalKcal: 2600, sleepMinutes: 390 },
+      { date: "2026-07-08", steps: 9000, totalKcal: 2500 }, // 睡眠欠測(時計を着けず就寝)
     ],
     workoutSets: [
       { date: "2026-07-07", exerciseName: "ベンチプレス" },
@@ -91,6 +98,15 @@ describe("buildWeeklyDigest", () => {
     expect(digest.water).toEqual({ avgIntakeMl: 1900, targetMl: 2000, daysOnTarget: 2, recordedDays: 3 });
     // 日記本文はオプトインOFF(diaryTexts=null)なので含まれない(AIコンサルティング設計書7章)
     expect(digest.diaryEntries).toBeUndefined();
+    // クロス分析(Issue #112): 睡眠不足の日・飲酒日が無いのでmoodIntakeのみ
+    expect(digest.crossAnalysis).toEqual({
+      moodIntake: {
+        goodMoodDays: 2, // 7/6(1800)・7/7(1850)
+        badMoodDays: 1, // 7/9(2000)
+        avgIntakeOnGoodMoodDays: 1825,
+        avgIntakeOnBadMoodDays: 2000,
+      },
+    });
   });
 
   it("オプトインONの週は日記本文を含める(本文が空の日は除く)", () => {
@@ -170,7 +186,7 @@ describe("buildWeeklyDigest", () => {
     src.prevWeekWeights = [];
     src.mealDailyTotals = [];
     src.recordedDays = 0;
-    src.moods = [];
+    src.diaryDays = [];
     const digest = buildWeeklyDigest(src);
     expect(digest.flags).toEqual(["LOW_RECORDING_RATE", "NO_WEIGHT_DATA", "INSUFFICIENT_DATA"]);
     expect(digest.weight.weekAvgKg).toBeNull();
@@ -210,7 +226,12 @@ describe("buildWeeklyDigest", () => {
 
 describe("aggregateActivity", () => {
   it("全日欠測の項目はnull(recordedDaysは活動記録がある日数)", () => {
-    expect(aggregateActivity([{ steps: 5000 }, { steps: 7000 }])).toEqual({
+    expect(
+      aggregateActivity([
+        { date: "2026-07-06", steps: 5000 },
+        { date: "2026-07-07", steps: 7000 },
+      ]),
+    ).toEqual({
       avgSteps: 6000,
       avgTotalKcal: null,
       avgSleepMinutes: null,
@@ -242,6 +263,93 @@ describe("aggregateWater", () => {
   it("記録が無ければundefined(0mlの日だけでも同様)", () => {
     expect(aggregateWater([], 2000)).toBeUndefined();
     expect(aggregateWater([{ date: "2026-07-06", amountMl: 0 }], 2000)).toBeUndefined();
+  });
+});
+
+describe("buildCrossAnalysis", () => {
+  /** クロス分析用の最小ソース(食事は月〜日の7日分) */
+  function crossSource(): Pick<
+    WeeklyDigestSource,
+    "weekStart" | "mealDailyTotals" | "diaryDays" | "activityDays"
+  > {
+    return {
+      weekStart: "2026-07-06",
+      mealDailyTotals: [
+        { date: "2026-07-06", kcal: 1800, proteinG: 0, fatG: 0, carbsG: 0 },
+        { date: "2026-07-07", kcal: 2200, proteinG: 0, fatG: 0, carbsG: 0 },
+        { date: "2026-07-08", kcal: 1900, proteinG: 0, fatG: 0, carbsG: 0 },
+        { date: "2026-07-09", kcal: 2100, proteinG: 0, fatG: 0, carbsG: 0 },
+        { date: "2026-07-10", kcal: 1700, proteinG: 0, fatG: 0, carbsG: 0 },
+        { date: "2026-07-11", kcal: 2000, proteinG: 0, fatG: 0, carbsG: 0 },
+        { date: "2026-07-12", kcal: 1600, proteinG: 0, fatG: 0, carbsG: 0 },
+      ],
+      diaryDays: [],
+      activityDays: [],
+    };
+  }
+
+  it("睡眠6時間未満の日がある週は、その日とそれ以外の日の同日摂取カロリーを比較する", () => {
+    const src = crossSource();
+    src.activityDays = [
+      { date: "2026-07-07", sleepMinutes: 300 }, // 睡眠不足 → 当日2200kcal
+      { date: "2026-07-09", sleepMinutes: 350 }, // 睡眠不足 → 当日2100kcal
+      { date: "2026-07-10", sleepMinutes: 420 }, // 十分 → 当日1700kcal
+      { date: "2026-07-11", steps: 8000 }, // 睡眠欠測(分母に入れない)
+    ];
+    expect(buildCrossAnalysis(src)?.sleepIntake).toEqual({
+      thresholdMinutes: SHORT_SLEEP_THRESHOLD_MINUTES,
+      shortSleepDays: 2,
+      sleepRecordedDays: 3,
+      avgIntakeOnShortSleepDays: 2150,
+      avgIntakeOnOtherDays: 1700,
+    });
+  });
+
+  it("睡眠不足の日に食事記録が無い週はsleepIntakeを省く(比較が成立しない)", () => {
+    const src = crossSource();
+    src.mealDailyTotals = src.mealDailyTotals.filter((d) => d.date !== "2026-07-07");
+    src.activityDays = [{ date: "2026-07-07", sleepMinutes: 300 }];
+    expect(buildCrossAnalysis(src)?.sleepIntake).toBeUndefined();
+  });
+
+  it("飲酒日がある週は、当日・それ以外の日・翌日(週内のみ)の摂取カロリーを集計する", () => {
+    const src = crossSource();
+    src.diaryDays = [
+      { date: "2026-07-07", alcohol: true }, // 当日2200・翌日(7/8)1900
+      { date: "2026-07-12", alcohol: true }, // 日曜: 翌日は週外なので翌日平均に入れない。当日1600
+      { date: "2026-07-10" }, // タグ無し
+    ];
+    expect(buildCrossAnalysis(src)?.alcohol).toEqual({
+      alcoholDays: 2,
+      avgIntakeOnAlcoholDays: 1900, // (2200+1600)/2
+      avgIntakeOnOtherDays: 1900, // (1800+1900+2100+1700+2000)/5
+      avgIntakeNextDay: 1900, // 7/8のみ
+    });
+  });
+
+  it("飲酒日があれば食事記録が無くても日数を事実として出す(平均はnull)", () => {
+    const src = crossSource();
+    src.mealDailyTotals = [];
+    src.diaryDays = [{ date: "2026-07-08", alcohol: true }];
+    expect(buildCrossAnalysis(src)?.alcohol).toEqual({
+      alcoholDays: 1,
+      avgIntakeOnAlcoholDays: null,
+      avgIntakeOnOtherDays: null,
+      avgIntakeNextDay: null,
+    });
+  });
+
+  it("気分の良い群・悪い群の片方にしか食事記録が無い週はmoodIntakeを省く", () => {
+    const src = crossSource();
+    src.diaryDays = [
+      { date: "2026-07-06", mood: "great" },
+      { date: "2026-07-08", mood: "ok" }, // 普通はどちらの群にも入らない
+    ];
+    expect(buildCrossAnalysis(src)?.moodIntake).toBeUndefined();
+  });
+
+  it("比較が1つも成立しない週はundefined(digestからcrossAnalysis自体を省く)", () => {
+    expect(buildCrossAnalysis(crossSource())).toBeUndefined();
   });
 });
 

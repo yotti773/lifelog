@@ -61,6 +61,7 @@ export interface ImportedDiaryRecordOutput {
   timestamp: string;
   text: string;
   mood?: string;
+  alcohol?: boolean; // 飲酒タグ(Issue #112)
 }
 
 export interface ImportedActivityRecordOutput {
@@ -208,6 +209,16 @@ export function parseBodyPartCell(value: CellValue): string | undefined {
   if (BODY_PART_BY_LABEL[s]) return BODY_PART_BY_LABEL[s];
   if (s in EXERCISE_BODY_PART_LABELS) return s;
   return undefined;
+}
+
+/**
+ * 飲酒セル(書き出し側の「あり」のほか、手入力・チェックボックスを想定した表記も許容)をbooleanに変換する。
+ * 空・未知の値はundefined(=記録なし。falseとは区別する。Issue #112)
+ */
+export function parseAlcoholCell(value: CellValue): boolean | undefined {
+  const s = String(value ?? "").trim();
+  if (s === "") return undefined;
+  return ["あり", "TRUE", "true", "○", "◯", "1"].includes(s) ? true : undefined;
 }
 
 /** 気分タグセル(日本語ラベル or 英語キー)をDiaryMoodキーに変換する。空・未知の値はundefined */
@@ -456,7 +467,15 @@ export function planDiaryImport(rows: CellValue[][]): SheetImportPlan<ImportedDi
       idBackfills.push({ rowNumber, id: date });
     }
 
-    records.push({ id: date, date, timestamp, text, ...(mood !== undefined && { mood }) });
+    const alcohol = parseAlcoholCell(cells?.[5]);
+    records.push({
+      id: date,
+      date,
+      timestamp,
+      text,
+      ...(mood !== undefined && { mood }),
+      ...(alcohol !== undefined && { alcohol }),
+    });
   });
 
   return { records, idBackfills, skippedRowCount };

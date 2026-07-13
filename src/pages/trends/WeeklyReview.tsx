@@ -16,6 +16,8 @@ import {
   IconDiary,
   IconDrop,
   IconFlame,
+  IconMug,
+  IconTrends,
   IconWarning,
 } from "@/components/icons";
 import { formatSleepDuration } from "./ActivityHistoryList";
@@ -87,10 +89,43 @@ const TDEE_DISCREPANCY_RATIO = 0.15;
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
+/** クロス分析(Issue #112)の1項目。太字の見出し+事実の提示文(解釈・断定はAIコメントに委ねる) */
+function CrossAnalysisRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Box>
+      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary", mb: "2px" }}>{label}</Typography>
+      <Typography sx={{ fontSize: 12, lineHeight: 1.7 }}>{children}</Typography>
+    </Box>
+  );
+}
+
+const formatKcal = (kcal: number) => `${kcal.toLocaleString()}kcal`;
+
+/**
+ * 飲酒×食事の事実文を組み立てる。当日・翌日の平均は食事記録が無いとnullになるため、
+ * 出せる要素だけを「。〜でした」の1文にまとめる(nullの要素を飛ばしても文が壊れないように)
+ */
+function formatAlcoholFact(alcohol: NonNullable<NonNullable<WeeklyDigest["crossAnalysis"]>["alcohol"]>): string {
+  const clauses: string[] = [];
+  if (alcohol.avgIntakeOnAlcoholDays !== null) {
+    clauses.push(
+      `その日の平均摂取カロリーは${formatKcal(alcohol.avgIntakeOnAlcoholDays)}${
+        alcohol.avgIntakeOnOtherDays !== null ? `(それ以外の日は${formatKcal(alcohol.avgIntakeOnOtherDays)})` : ""
+      }`,
+    );
+  }
+  if (alcohol.avgIntakeNextDay !== null) {
+    clauses.push(`飲酒した翌日の平均は${formatKcal(alcohol.avgIntakeNextDay)}`);
+  }
+  return `飲酒タグのある日が${alcohol.alcoholDays}日ありました${
+    clauses.length > 0 ? `。${clauses.join("、")}でした` : ""
+  }`;
+}
+
 export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext }: WeeklyReviewProps) {
   const [adjustApplied, setAdjustApplied] = useState(false);
 
-  const { weight, calories, pfc, recording, flags, activity, workout, water } = digest;
+  const { weight, calories, pfc, recording, flags, activity, workout, water, crossAnalysis } = digest;
 
   // 週内の日記(Issue #103)。画面表示はオプトインと無関係にローカルの記録をそのまま出す
   // (AIへ送るかどうか(digest.diaryEntries)とは独立。AIコンサルティング設計書7章)
@@ -457,6 +492,46 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
         )}
       </Card>
 
+      {/* クロス分析(Issue #112)。集計はdigest側で済んでおり、ここでは事実の提示に徹する
+          (週単位はサンプル数が少なく「相関」とは言い切れないため断定しない。解釈はAIコメントに委ねる)。
+          比較が成立する項目が無い週はカードごと出さない */}
+      {crossAnalysis && (
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "10px" }}>
+            <Box sx={{ color: "secondary.main", display: "flex" }}>
+              <IconTrends size={15} />
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>クロス分析</Typography>
+          </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {crossAnalysis.sleepIntake && (
+              <CrossAnalysisRow label="睡眠 × 食事">
+                睡眠{Math.round(crossAnalysis.sleepIntake.thresholdMinutes / 60)}時間未満の日が
+                {crossAnalysis.sleepIntake.shortSleepDays}日(睡眠データのある{crossAnalysis.sleepIntake.sleepRecordedDays}
+                日中)あり、その日の平均摂取カロリーは{formatKcal(crossAnalysis.sleepIntake.avgIntakeOnShortSleepDays)}
+                {crossAnalysis.sleepIntake.avgIntakeOnOtherDays !== null &&
+                  `(それ以外の日は${formatKcal(crossAnalysis.sleepIntake.avgIntakeOnOtherDays)})`}
+                でした
+              </CrossAnalysisRow>
+            )}
+            {crossAnalysis.moodIntake && (
+              <CrossAnalysisRow label="気分 × 食事">
+                気分が良い日({crossAnalysis.moodIntake.goodMoodDays}日)の平均摂取カロリーは
+                {formatKcal(crossAnalysis.moodIntake.avgIntakeOnGoodMoodDays)}、眠い・不調の日(
+                {crossAnalysis.moodIntake.badMoodDays}日)は
+                {formatKcal(crossAnalysis.moodIntake.avgIntakeOnBadMoodDays)}でした
+              </CrossAnalysisRow>
+            )}
+            {crossAnalysis.alcohol && (
+              <CrossAnalysisRow label="飲酒 × 食事">{formatAlcoholFact(crossAnalysis.alcohol)}</CrossAnalysisRow>
+            )}
+          </Box>
+          <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "10px", pt: "8px", borderTop: `1px solid ${tokens.divider}`, lineHeight: 1.6 }}>
+            1週間分のデータによる事実の提示です。日数が少ないため、差は偶然の範囲のこともあります
+          </Typography>
+        </Card>
+      )}
+
       {/* 警告フラグ(コード側で判定。AIの判断に依存しない) */}
       {flags.length > 0 && (
         <Card sx={{ p: "18px" }}>
@@ -502,6 +577,11 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
                         {weekday}
                       </Box>
                     </Typography>
+                    {diary.alcohol && (
+                      <Box aria-label="飲酒あり" sx={{ display: "flex", color: tokens.faint }}>
+                        <IconMug size={16} />
+                      </Box>
+                    )}
                     {diary.mood && <MoodIcon mood={diary.mood} size={20} />}
                   </Box>
                   {diary.text !== "" && (

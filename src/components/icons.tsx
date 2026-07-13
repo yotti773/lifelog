@@ -296,6 +296,28 @@ export function IconDiary(props: IconProps) {
   );
 }
 
+/** ジョッキ(日記の飲酒タグ) */
+export function IconMug(props: IconProps) {
+  return (
+    <svg {...base({ size: 21, ...props }, "0 0 24 24")}>
+      <path
+        d="M6.5 6h9.5v12.5A1.5 1.5 0 0 1 14.5 20H8a1.5 1.5 0 0 1-1.5-1.5V6Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M16 9h1.5A1.5 1.5 0 0 1 19 10.5v3a1.5 1.5 0 0 1-1.5 1.5H16"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M9.5 10v6M13 10v6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** バーベル(筋トレ) */
 export function IconBarbell(props: IconProps) {
   return (

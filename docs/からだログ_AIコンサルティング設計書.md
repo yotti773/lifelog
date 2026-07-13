@@ -80,6 +80,27 @@ interface WeeklyDigest {
     recordedDays: number;                        // 水分記録がある日数(0〜7)
   };
   diaryEntries?: { date: string; text: string }[];  // 週内の日記本文。オプトインON時のみ含める(7章。Issue #103)
+  crossAnalysis?: {                              // 週内データのクロス集計(Issue #112)。比較が1つも成立しない週は省略
+    sleepIntake?: {                              // 睡眠不足×摂取カロリー(同じ日付でペアリング。下記補足)
+      thresholdMinutes: number;                  // 睡眠不足の閾値(360分=6時間固定)
+      shortSleepDays: number;                    // 睡眠が閾値未満だった日数(睡眠データがある日のうち)
+      sleepRecordedDays: number;                 // 睡眠データがある日数
+      avgIntakeOnShortSleepDays: number;         // 睡眠不足の日の平均摂取カロリー(食事記録がある日の平均)
+      avgIntakeOnOtherDays: number | null;       // 睡眠が閾値以上だった日の平均(比較対象が無ければnull)
+    };
+    moodIntake?: {                               // 気分×摂取カロリー。両群に食事記録のある日が無い週は省略
+      goodMoodDays: number;                      // 気分が良い日(絶好調・良い)のうち食事記録がある日数
+      badMoodDays: number;                       // 眠い・不調の日のうち食事記録がある日数
+      avgIntakeOnGoodMoodDays: number;
+      avgIntakeOnBadMoodDays: number;
+    };
+    alcohol?: {                                  // 飲酒×摂取カロリー。飲酒タグの無い週は省略
+      alcoholDays: number;                       // 飲酒タグを付けた日数
+      avgIntakeOnAlcoholDays: number | null;     // 飲酒日の平均摂取カロリー
+      avgIntakeOnOtherDays: number | null;       // 飲酒タグの無い日の平均(「飲酒なしと記録した日」ではない)
+      avgIntakeNextDay: number | null;           // 飲酒日の翌日の平均(翌日が週内で食事記録がある日のみ)
+    };
+  };
 }
 ```
 
@@ -102,6 +123,11 @@ interface WeeklyDigest {
 - `requiredWeeklyPaceKg` は「減量が必要なら負」の符号で持つ(`weeklyChangeKg` と直接比較できるように)。体重記録が皆無・目標日超過の場合は `0` とし、状況はフラグ側で伝える
 - `workout`・`water` は週次レビューへの筋トレ・水分の統合(Issue #103)で追加した週サマリー。activityと同じ扱いで、記録が無い週は省略する(セクション・プロンプトとも従来と変わらない)。水分の平均は「記録がある日」(日別合計が0mlでない日)の平均で、記録の無い日は分母に入れない(食事・活動の平均と同じ考え方)。筋トレ・水分由来の新しい警告フラグは設けない(継続の多寡は安全判定ではなく解釈の領域のため)
 - `diaryEntries` は週内の日記本文の配列(Issue #103でIssue #12を決着)。設定のオプトイン(`Settings.sendDiaryTextToAi`、デフォルトOFF)がONの週だけ含め、本文が空の日記(気分タグのみ)は除く。プロンプトでは「生活背景・気分の文脈として読み、winsやactionsをユーザーの実際の状況に沿ったものにする材料にしてよい。本文をそのまま長く引用しない。日記に書かれた内容から病気の診断・治療の提案をしない」と指示する(7章)
+- `crossAnalysis` は週内データのクロス集計(Issue #112)。「計算はコード・言語化はAI」の分業を維持し、集計は `buildCrossAnalysis()`(`src/lib/weeklyDigest.ts`)で決定論的に行う。週次レビュー画面はこの値を事実の提示スタイルで表示し(画面設計書8.2章)、AIには気づきの材料として渡す。週単位はサンプル数が少なく「相関」とは言い切れないため、画面・AIとも断定しない(5章のプロンプト制約)。設計上の要点:
+  - 睡眠×食事は**同じ日付**でペアリングする。Garminの睡眠時間はその日の朝までの夜間睡眠のため、同日の食事が「睡眠不足明けの日の食事」に相当する(「翌日の摂取カロリー」を日付+1で取ると1日ズレる)
+  - 飲酒×食事の「翌日」は週内(月〜日)に収まる日だけを分母にする(日曜の飲酒の翌日は翌週のdigestの範囲のため含めない)。digestを週単位で自己完結させ、画面とAIが同じ事実を見る原則を保つ
+  - 飲酒タグは`DiaryRecord.alcohol`(画面設計書6章)。未設定は「記録なし」であり「飲酒なし」ではないため、「それ以外の日」はタグの無い日全体として集計・表現する
+  - crossAnalysis由来の新しい警告フラグは設けない(掛け合わせの多寡は安全判定ではなく解釈の領域のため。activity・workout・waterと同じ判断)
 - `paceBaseKg` は `requiredWeeklyPaceKg` の計算に使った基準体重(週平均、無ければ全期間の最新体重)をそのまま持つ。UI側で「必要ペース0.00kg/週(既に目標体重付近)」と「計算不能(体重記録が無い・目標日超過)」を区別するために使う。週次レビュー画面のTDEE補正提案(実測消費カロリー節)でも、設定画面の自動計算(#43。`src/pages/settings/ValueEditorDrawer.tsx`)と同じ `suggestCalorieTarget()` の入力(現在体重)として再利用し、ガードレール(基礎代謝クランプ・ペース超過警告)を画面間で一貫させている
 
 ## 4. データ契約(2): WeeklyAdvice(出力)
@@ -126,6 +152,7 @@ interface WeeklyAdvice {
   - 役割: 減量に伴走するパーソナルトレーナー。断定的すぎず、継続を励ますトーン(日本語)
   - 制約: (1) digestに無い数値を出さない・計算しない、(2) `flags` に無い問題を新たに指摘しない、(3) `flags` にある項目は必ず `summary` または `actions` で言及する、(4) 医学的診断・極端な食事制限の提案をしない、(5) 出力はスキーマに従うJSONのみ
   - `verdict` の判定基準: 必要ペースとの乖離・フラグの有無から機械的に選べるよう、条件を列挙して指示する
+  - `crossAnalysis` の扱い(Issue #112): 気づきの材料としてsummary・actionsに使ってよいが、1週間分の少ないデータのため相関・因果を断定しない(「〜の傾向が見られます」程度に留める)。数値の差の計算はさせない。飲酒は記録された事実として扱い、責めるトーンにしない
 - **ユーザー入力**: `WeeklyDigest` のJSONそのまま(整形・自然文化はしない)
 - few-shot例は初版では持たず、6章の品質確認で不足があれば1〜2例追加する(入力トークンとのトレードオフ)
 

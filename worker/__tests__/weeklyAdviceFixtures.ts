@@ -37,10 +37,25 @@ const base = {
   mood: { good: 3, normal: 2, bad: 1 },
 };
 
-/** 順調な週: 全記録・ペースどおり・フラグ無し → on_track想定。Garmin活動データあり(Issue #82) */
+/** 順調な週: 全記録・ペースどおり・フラグ無し → on_track想定。Garmin活動データ+クロス分析あり(Issue #82・#112) */
 export const digestOnTrack = {
   ...structuredClone(base),
   activity: { avgSteps: 9200, avgTotalKcal: 2460, avgSleepMinutes: 405, recordedDays: 7 },
+  crossAnalysis: {
+    sleepIntake: {
+      thresholdMinutes: 360,
+      shortSleepDays: 2,
+      sleepRecordedDays: 7,
+      avgIntakeOnShortSleepDays: 2050,
+      avgIntakeOnOtherDays: 1770,
+    },
+    alcohol: {
+      alcoholDays: 1,
+      avgIntakeOnAlcoholDays: 2100,
+      avgIntakeOnOtherDays: 1810,
+      avgIntakeNextDay: 1750,
+    },
+  },
 };
 
 /** 停滞週: 体重が減らずペース不足 → behind想定 */

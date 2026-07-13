@@ -32,6 +32,14 @@ describe("diaryRecords", () => {
     expect(record?.mood).toBeUndefined();
   });
 
+  it("飲酒タグを保存できる。省略時はundefined(記録なし。Issue #112)", async () => {
+    await saveDiaryRecord({ date: "2026-07-01", text: "晩酌", alcohol: true });
+    expect((await getDiaryRecord("2026-07-01"))?.alcohol).toBe(true);
+
+    await saveDiaryRecord({ date: "2026-07-02", text: "タグなし" });
+    expect((await getDiaryRecord("2026-07-02"))?.alcohol).toBeUndefined();
+  });
+
   it("overwrites the same date instead of creating a second record (last-write-wins)", async () => {
     await saveDiaryRecord({ date: "2026-07-01", text: "1回目", mood: "great" });
     await saveDiaryRecord({ date: "2026-07-01", text: "2回目", mood: "tired" });

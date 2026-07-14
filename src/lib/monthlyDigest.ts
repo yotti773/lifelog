@@ -1,6 +1,11 @@
 import { addDaysToDateString, daysBetween } from "./date";
 import { weeklyMeasuredTdee, type WeeklyNutritionSummary } from "./tdee";
-import { buildCrossAnalysis, type DigestMealDailyTotal, type WeeklyDigestSource } from "./weeklyDigest";
+import {
+  aggregateBloodPressure,
+  buildCrossAnalysis,
+  type DigestMealDailyTotal,
+  type WeeklyDigestSource,
+} from "./weeklyDigest";
 import type { DigestFlag, MonthlyDigest } from "@/types";
 
 /**
@@ -37,6 +42,8 @@ export interface MonthlyDigestSource {
   recordedDays: number;
   diaryDays: WeeklyDigestSource["diaryDays"];
   activityDays: WeeklyDigestSource["activityDays"];
+  /** 月内の血圧記録(1日1件。Issue #117)。記録が無ければ空配列 */
+  bloodPressureDays: WeeklyDigestSource["bloodPressureDays"];
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -108,6 +115,17 @@ export function buildMonthlyDigest(src: MonthlyDigestSource): MonthlyDigest {
     activityDays: src.activityDays,
   });
 
+  // 血圧の月サマリー(Issue #117)。月窓では体重×血圧の併記は行わず、月平均と高値日数の事実提示に絞る
+  const bpWeekly = aggregateBloodPressure(src.bloodPressureDays, null);
+  const bloodPressure = bpWeekly
+    ? {
+        avgSystolic: bpWeekly.avgSystolic,
+        avgDiastolic: bpWeekly.avgDiastolic,
+        recordedDays: bpWeekly.recordedDays,
+        highReadingDays: bpWeekly.highReadingDays,
+      }
+    : undefined;
+
   // フラグは週次と同じ語彙(DigestFlag)を月窓の閾値で判定する
   const flags: DigestFlag[] = [];
   if (
@@ -170,5 +188,6 @@ export function buildMonthlyDigest(src: MonthlyDigestSource): MonthlyDigest {
     },
     flags,
     ...(crossAnalysis !== undefined ? { crossAnalysis } : {}),
+    ...(bloodPressure !== undefined ? { bloodPressure } : {}),
   };
 }

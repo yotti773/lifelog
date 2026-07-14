@@ -92,7 +92,7 @@ const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext }: WeeklyReviewProps) {
   const [adjustApplied, setAdjustApplied] = useState(false);
 
-  const { weight, calories, pfc, recording, flags, activity, workout, water, crossAnalysis } = digest;
+  const { weight, calories, pfc, recording, flags, activity, workout, water, bloodPressure, crossAnalysis } = digest;
 
   // 週内の日記(Issue #103)。画面表示はオプトインと無関係にローカルの記録をそのまま出す
   // (AIへ送るかどうか(digest.diaryEntries)とは独立。AIコンサルティング設計書7章)
@@ -374,6 +374,35 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
             <StatRow label="目標を達成した日" value={`${water.daysOnTarget}`} sub="/ 7日" />
           )}
           <StatRow label="記録した日" value={`${water.recordedDays}`} sub="/ 7日" />
+        </Card>
+      )}
+
+      {/* 血圧サマリー(Issue #117)。記録が無い週はカードごと出さない。医学的判断はせず事実の提示に留める */}
+      {bloodPressure && (
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "4px" }}>
+            <Box sx={{ color: "primary.main", display: "flex" }}>
+              <IconActivity size={15} />
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>血圧(朝の家庭血圧)</Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "baseline", gap: "4px", mb: "2px" }}>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 28, lineHeight: 1 }}>
+              {bloodPressure.avgSystolic}/{bloodPressure.avgDiastolic}
+            </Typography>
+            <Typography sx={{ fontFamily: fontRounded, fontSize: 12, color: "text.secondary" }}>mmHg</Typography>
+            <Typography sx={{ fontSize: 11, color: tokens.faint, ml: "2px" }}>週平均</Typography>
+          </Box>
+          <Box sx={{ borderTop: `1px solid ${tokens.divider}`, mt: "8px", pt: "4px" }}>
+            <StatRow label="記録した日" value={`${bloodPressure.recordedDays}`} sub="/ 7日" />
+            <StatRow label="135/85以上だった日" value={`${bloodPressure.highReadingDays}`} sub="日" />
+            {bloodPressure.weekAvgWeightKg !== null && (
+              <StatRow label="同じ週の週平均体重" value={bloodPressure.weekAvgWeightKg.toFixed(1)} sub="kg" />
+            )}
+          </Box>
+          <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "8px", lineHeight: 1.6 }}>
+            数値は事実の提示です(本アプリは医療機器ではなく、医学的な判断は行いません)。減量と血圧の推移を並べて見る参考にしてください
+          </Typography>
         </Card>
       )}
 

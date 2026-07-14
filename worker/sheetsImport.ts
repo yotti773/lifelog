@@ -4,10 +4,15 @@ import { EXERCISE_BODY_PART_LABELS } from "./exerciseBodyPartLabels";
 import type { Env } from "./index";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 import {
+  BLOOD_PRESSURE_CONFIG,
+  BODY_MEASUREMENT_CONFIG,
   DIARY_CONFIG,
   EXERCISE_MASTER_CONFIG,
   EXERCISE_MASTER_HEADER,
   FOOD_MASTER_CONFIG,
+  HABIT_MASTER_CONFIG,
+  HABIT_MASTER_HEADER,
+  HABIT_RECORD_CONFIG,
   MEAL_CONFIG,
   SHEETS_API_BASE,
   WATER_CONFIG,
@@ -94,6 +99,43 @@ export interface ImportedExerciseMasterItemOutput {
   createdAt: string;
 }
 
+export interface ImportedBloodPressureRecordOutput {
+  id: string;
+  date: string;
+  timestamp: string;
+  systolic: number;
+  diastolic: number;
+  pulse?: number;
+  note?: string;
+}
+
+export interface ImportedBodyMeasurementRecordOutput {
+  id: string;
+  date: string;
+  timestamp: string;
+  waistCm: number;
+  chestCm?: number;
+  thighCm?: number;
+  note?: string;
+}
+
+export interface ImportedHabitMasterItemOutput {
+  id: string;
+  name: string;
+  targetWeeklyFrequency?: number;
+  archived: boolean;
+  order: number;
+  createdAt: string;
+}
+
+export interface ImportedHabitRecordOutput {
+  id: string;
+  date: string;
+  habitId: string;
+  habitName: string;
+  timestamp: string;
+}
+
 interface SheetsImportResultOutput {
   weightRecords: ImportedWeightRecordOutput[];
   mealRecords: ImportedMealRecordOutput[];
@@ -103,6 +145,10 @@ interface SheetsImportResultOutput {
   activityRecords: ImportedActivityRecordOutput[];
   foodMasterItems: ImportedFoodMasterItemOutput[];
   exerciseMasterItems: ImportedExerciseMasterItemOutput[];
+  bloodPressureRecords: ImportedBloodPressureRecordOutput[];
+  bodyMeasurementRecords: ImportedBodyMeasurementRecordOutput[];
+  habitMasterItems: ImportedHabitMasterItemOutput[];
+  habitRecords: ImportedHabitRecordOutput[];
   skippedWeightRows: number;
   skippedMealRows: number;
   skippedWaterRows: number;
@@ -111,6 +157,10 @@ interface SheetsImportResultOutput {
   skippedActivityRows: number;
   skippedFoodMasterRows: number;
   skippedExerciseMasterRows: number;
+  skippedBloodPressureRows: number;
+  skippedBodyMeasurementRows: number;
+  skippedHabitMasterRows: number;
+  skippedHabitRecordRows: number;
 }
 
 /** Sheets APIのvalues.get(FORMATTED_VALUE)が返しうるセル値 */
@@ -644,6 +694,206 @@ export function planExerciseMasterImport(
   return { records, idBackfills, skippedRowCount };
 }
 
+/**
+ * 血圧記録タブの全行をレコードに逆変換する(Issue #117)。
+ * 日付・最高血圧・最低血圧が読み取れない行はスキップ。ID列が空の行はID=日付を採番して書き戻し対象にする。
+ * 血圧記録のIDは常に日付(saveBloodPressureRecordの不変条件)。同じ日付の2行目以降は重複としてスキップする。
+ */
+export function planBloodPressureImport(
+  rows: CellValue[][],
+): SheetImportPlan<ImportedBloodPressureRecordOutput> {
+  const records: ImportedBloodPressureRecordOutput[] = [];
+  const idBackfills: IdBackfill[] = [];
+  let skippedRowCount = 0;
+  const seenIds = new Set<string>();
+
+  rows.forEach((cells, index) => {
+    const rowNumber = index + 1;
+    const date = parseCalendarDate(cells?.[0]);
+    const systolic = parseCellNumber(cells?.[1]);
+    const diastolic = parseCellNumber(cells?.[2]);
+    if (date === null || systolic === null || diastolic === null) {
+      if (rowNumber !== 1) skippedRowCount++;
+      return;
+    }
+    if (seenIds.has(date)) {
+      skippedRowCount++;
+      return;
+    }
+    seenIds.add(date);
+
+    const pulse = parseCellNumber(cells?.[3]) ?? undefined;
+    const note = String(cells?.[4] ?? "").trim();
+    const timestamp = parseJstDateTime(cells?.[5]) ?? parseJstDateTime(date)!;
+    if (String(cells?.[6] ?? "").trim() === "") {
+      idBackfills.push({ rowNumber, id: date });
+    }
+
+    records.push({
+      id: date,
+      date,
+      timestamp,
+      systolic,
+      diastolic,
+      ...(pulse !== undefined && { pulse }),
+      ...(note !== "" && { note }),
+    });
+  });
+
+  return { records, idBackfills, skippedRowCount };
+}
+
+/**
+ * 周囲径記録タブの全行をレコードに逆変換する(Issue #118)。
+ * 日付・腹囲が読み取れない行はスキップ。胸囲・太ももは任意。ID列が空の行はID=日付を採番して書き戻し対象にする。
+ */
+export function planBodyMeasurementImport(
+  rows: CellValue[][],
+): SheetImportPlan<ImportedBodyMeasurementRecordOutput> {
+  const records: ImportedBodyMeasurementRecordOutput[] = [];
+  const idBackfills: IdBackfill[] = [];
+  let skippedRowCount = 0;
+  const seenIds = new Set<string>();
+
+  rows.forEach((cells, index) => {
+    const rowNumber = index + 1;
+    const date = parseCalendarDate(cells?.[0]);
+    const waistCm = parseCellNumber(cells?.[1]);
+    if (date === null || waistCm === null) {
+      if (rowNumber !== 1) skippedRowCount++;
+      return;
+    }
+    if (seenIds.has(date)) {
+      skippedRowCount++;
+      return;
+    }
+    seenIds.add(date);
+
+    const chestCm = parseCellNumber(cells?.[2]) ?? undefined;
+    const thighCm = parseCellNumber(cells?.[3]) ?? undefined;
+    const note = String(cells?.[4] ?? "").trim();
+    const timestamp = parseJstDateTime(cells?.[5]) ?? parseJstDateTime(date)!;
+    if (String(cells?.[6] ?? "").trim() === "") {
+      idBackfills.push({ rowNumber, id: date });
+    }
+
+    records.push({
+      id: date,
+      date,
+      timestamp,
+      waistCm,
+      ...(chestCm !== undefined && { chestCm }),
+      ...(thighCm !== undefined && { thighCm }),
+      ...(note !== "" && { note }),
+    });
+  });
+
+  return { records, idBackfills, skippedRowCount };
+}
+
+/** アーカイブ列(書き出し側の「アーカイブ」のほか手入力・チェックボックスの表記も許容)をbooleanに変換する */
+function parseArchivedCell(value: CellValue): boolean {
+  const s = String(value ?? "").trim();
+  return ["アーカイブ", "TRUE", "true", "○", "◯", "1"].includes(s);
+}
+
+/**
+ * 習慣マスタタブの全行を習慣に逆変換する(Issue #113)。
+ * 習慣名が読み取れない行はスキップ。登録日時が無い/読めない手入力行は取り込み時刻(nowIso)を使う。
+ * ID列が空の行はUUIDを採番して書き戻し対象にする。同名(前後空白無視)の2行目以降は、
+ * アプリ側の名前ユニーク制約(チェックリストの識別のキーが名前)と整合するよう重複としてスキップする。
+ */
+export function planHabitMasterImport(
+  rows: CellValue[][],
+  generateId: () => string,
+  nowIso: string,
+): SheetImportPlan<ImportedHabitMasterItemOutput> {
+  const records: ImportedHabitMasterItemOutput[] = [];
+  const idBackfills: IdBackfill[] = [];
+  let skippedRowCount = 0;
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
+
+  rows.forEach((cells, index) => {
+    const rowNumber = index + 1;
+    const name = String(cells?.[0] ?? "").trim();
+    // 習慣マスタは必須項目が名前だけのため、種目マスタと同様に自動作成ヘッダーの先頭ラベルと一致する1行目を見出しとみなす
+    if (rowNumber === 1 && name === HABIT_MASTER_HEADER[0]) {
+      return;
+    }
+    if (name === "") {
+      if (rowNumber !== 1) skippedRowCount++;
+      return;
+    }
+
+    const rawId = String(cells?.[5] ?? "").trim();
+    const id = rawId === "" ? generateId() : rawId;
+    if (seenIds.has(id) || seenNames.has(name)) {
+      skippedRowCount++;
+      return;
+    }
+    seenIds.add(id);
+    seenNames.add(name);
+    if (rawId === "") {
+      idBackfills.push({ rowNumber, id });
+    }
+
+    const targetWeeklyFrequency = parseCellNumber(cells?.[1]) ?? undefined;
+    const order = parseCellNumber(cells?.[3]) ?? rowNumber;
+    records.push({
+      id,
+      name,
+      ...(targetWeeklyFrequency !== undefined && { targetWeeklyFrequency }),
+      archived: parseArchivedCell(cells?.[2]),
+      order,
+      createdAt: parseJstDateTime(cells?.[4]) ?? nowIso,
+    });
+  });
+
+  return { records, idBackfills, skippedRowCount };
+}
+
+/**
+ * 習慣記録タブの全行をレコードに逆変換する(Issue #113)。
+ * 日付・習慣IDが読み取れない行はスキップ(IDで習慣マスタと紐づくため習慣IDは必須)。
+ * レコードIDは常に`${date}_${habitId}`。ID列が空の行はそれを採番して書き戻し対象にする。
+ */
+export function planHabitRecordImport(
+  rows: CellValue[][],
+): SheetImportPlan<ImportedHabitRecordOutput> {
+  const records: ImportedHabitRecordOutput[] = [];
+  const idBackfills: IdBackfill[] = [];
+  let skippedRowCount = 0;
+  const seenIds = new Set<string>();
+
+  rows.forEach((cells, index) => {
+    const rowNumber = index + 1;
+    const date = parseCalendarDate(cells?.[0]);
+    const habitName = String(cells?.[1] ?? "").trim();
+    const habitId = String(cells?.[2] ?? "").trim();
+    if (date === null || habitId === "") {
+      if (rowNumber !== 1) skippedRowCount++;
+      return;
+    }
+    // レコードIDは合成キー。ID列に値があってもアプリの不変条件(`${date}_${habitId}`)を優先する
+    const id = `${date}_${habitId}`;
+    if (seenIds.has(id)) {
+      skippedRowCount++;
+      return;
+    }
+    seenIds.add(id);
+
+    const timestamp = parseJstDateTime(cells?.[3]) ?? parseJstDateTime(date)!;
+    if (String(cells?.[4] ?? "").trim() !== id) {
+      idBackfills.push({ rowNumber, id });
+    }
+
+    records.push({ id, date, habitId, habitName, timestamp });
+  });
+
+  return { records, idBackfills, skippedRowCount };
+}
+
 // ===== Google Sheets API 呼び出し =====
 
 /** 指定タブのA列〜最終列(ID列より後ろに列がある場合はlastColumnLetter)を全行読み取る */
@@ -766,17 +1016,35 @@ export async function handleImportSheets(env: Env): Promise<Response> {
 
   const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
   try {
-    const [weightRows, mealRows, waterRows, workoutRows, diaryRows, activityRows, foodMasterRows, exerciseMasterRows] =
-      await Promise.all([
-        readSheetRows(accessToken, spreadsheetId, WEIGHT_CONFIG),
-        readSheetRows(accessToken, spreadsheetId, MEAL_CONFIG),
-        readSheetRows(accessToken, spreadsheetId, WATER_CONFIG),
-        readSheetRows(accessToken, spreadsheetId, WORKOUT_CONFIG),
-        readSheetRows(accessToken, spreadsheetId, DIARY_CONFIG),
-        readActivityRowsIfPresent(accessToken, spreadsheetId),
-        readSheetRowsIfPresent(accessToken, spreadsheetId, FOOD_MASTER_CONFIG),
-        readSheetRowsIfPresent(accessToken, spreadsheetId, EXERCISE_MASTER_CONFIG),
-      ]);
+    const [
+      weightRows,
+      mealRows,
+      waterRows,
+      workoutRows,
+      diaryRows,
+      activityRows,
+      foodMasterRows,
+      exerciseMasterRows,
+      bloodPressureRows,
+      bodyMeasurementRows,
+      habitMasterRows,
+      habitRecordRows,
+    ] = await Promise.all([
+      readSheetRows(accessToken, spreadsheetId, WEIGHT_CONFIG),
+      readSheetRows(accessToken, spreadsheetId, MEAL_CONFIG),
+      readSheetRows(accessToken, spreadsheetId, WATER_CONFIG),
+      readSheetRows(accessToken, spreadsheetId, WORKOUT_CONFIG),
+      readSheetRows(accessToken, spreadsheetId, DIARY_CONFIG),
+      readActivityRowsIfPresent(accessToken, spreadsheetId),
+      readSheetRowsIfPresent(accessToken, spreadsheetId, FOOD_MASTER_CONFIG),
+      readSheetRowsIfPresent(accessToken, spreadsheetId, EXERCISE_MASTER_CONFIG),
+      // 血圧・周囲径・習慣の各タブは後付け(Issue #117・#118・#113)で、初回同期までシートに存在しないため
+      // マスタ系と同じく欠如を取り込み全体の失敗にしない(readSheetRowsIfPresentで400=タブ欠如を空扱い)
+      readSheetRowsIfPresent(accessToken, spreadsheetId, BLOOD_PRESSURE_CONFIG),
+      readSheetRowsIfPresent(accessToken, spreadsheetId, BODY_MEASUREMENT_CONFIG),
+      readSheetRowsIfPresent(accessToken, spreadsheetId, HABIT_MASTER_CONFIG),
+      readSheetRowsIfPresent(accessToken, spreadsheetId, HABIT_RECORD_CONFIG),
+    ]);
 
     const nowIso = new Date().toISOString();
     const weightPlan = planWeightImport(weightRows);
@@ -787,6 +1055,10 @@ export async function handleImportSheets(env: Env): Promise<Response> {
     const activityPlan = planActivityImport(activityRows);
     const foodMasterPlan = planFoodMasterImport(foodMasterRows, () => crypto.randomUUID(), nowIso);
     const exerciseMasterPlan = planExerciseMasterImport(exerciseMasterRows, () => crypto.randomUUID(), nowIso);
+    const bloodPressurePlan = planBloodPressureImport(bloodPressureRows);
+    const bodyMeasurementPlan = planBodyMeasurementImport(bodyMeasurementRows);
+    const habitMasterPlan = planHabitMasterImport(habitMasterRows, () => crypto.randomUUID(), nowIso);
+    const habitRecordPlan = planHabitRecordImport(habitRecordRows);
 
     // 書き戻しに失敗したら取り込み全体を失敗させる。IDがシートに無いままレコードだけ
     // クライアントへ返すと、以後の編集同期が既存行を見つけられず重複行を生むため
@@ -798,6 +1070,10 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       writeBackIds(accessToken, spreadsheetId, DIARY_CONFIG, diaryPlan.idBackfills),
       writeBackIds(accessToken, spreadsheetId, FOOD_MASTER_CONFIG, foodMasterPlan.idBackfills),
       writeBackIds(accessToken, spreadsheetId, EXERCISE_MASTER_CONFIG, exerciseMasterPlan.idBackfills),
+      writeBackIds(accessToken, spreadsheetId, BLOOD_PRESSURE_CONFIG, bloodPressurePlan.idBackfills),
+      writeBackIds(accessToken, spreadsheetId, BODY_MEASUREMENT_CONFIG, bodyMeasurementPlan.idBackfills),
+      writeBackIds(accessToken, spreadsheetId, HABIT_MASTER_CONFIG, habitMasterPlan.idBackfills),
+      writeBackIds(accessToken, spreadsheetId, HABIT_RECORD_CONFIG, habitRecordPlan.idBackfills),
     ]);
 
     return Response.json({
@@ -809,6 +1085,10 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       activityRecords: activityPlan.records,
       foodMasterItems: foodMasterPlan.records,
       exerciseMasterItems: exerciseMasterPlan.records,
+      bloodPressureRecords: bloodPressurePlan.records,
+      bodyMeasurementRecords: bodyMeasurementPlan.records,
+      habitMasterItems: habitMasterPlan.records,
+      habitRecords: habitRecordPlan.records,
       skippedWeightRows: weightPlan.skippedRowCount,
       skippedMealRows: mealPlan.skippedRowCount,
       skippedWaterRows: waterPlan.skippedRowCount,
@@ -817,6 +1097,10 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       skippedActivityRows: activityPlan.skippedRowCount,
       skippedFoodMasterRows: foodMasterPlan.skippedRowCount,
       skippedExerciseMasterRows: exerciseMasterPlan.skippedRowCount,
+      skippedBloodPressureRows: bloodPressurePlan.skippedRowCount,
+      skippedBodyMeasurementRows: bodyMeasurementPlan.skippedRowCount,
+      skippedHabitMasterRows: habitMasterPlan.skippedRowCount,
+      skippedHabitRecordRows: habitRecordPlan.skippedRowCount,
     } satisfies SheetsImportResultOutput);
   } catch (error) {
     const message = error instanceof Error ? error.message : "スプレッドシートの読み取りに失敗しました";

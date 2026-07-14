@@ -70,6 +70,43 @@ interface ExerciseMasterItemInput {
   createdAt: string;
 }
 
+interface BloodPressureRecordInput {
+  id: string;
+  date: string;
+  timestamp: string;
+  systolic: number;
+  diastolic: number;
+  pulse?: number;
+  note?: string;
+}
+
+interface BodyMeasurementRecordInput {
+  id: string;
+  date: string;
+  timestamp: string;
+  waistCm: number;
+  chestCm?: number;
+  thighCm?: number;
+  note?: string;
+}
+
+interface HabitMasterItemInput {
+  id: string;
+  name: string;
+  targetWeeklyFrequency?: number;
+  archived: boolean;
+  order: number;
+  createdAt: string;
+}
+
+interface HabitRecordInput {
+  id: string;
+  date: string;
+  habitId: string;
+  habitName: string;
+  timestamp: string;
+}
+
 interface SyncPushPayloadInput {
   weightRecords?: WeightRecordInput[];
   mealRecords?: MealRecordInput[];
@@ -78,6 +115,10 @@ interface SyncPushPayloadInput {
   diaryRecords?: DiaryRecordInput[];
   foodMasterItems?: FoodMasterItemInput[];
   exerciseMasterItems?: ExerciseMasterItemInput[];
+  bloodPressureRecords?: BloodPressureRecordInput[];
+  bodyMeasurementRecords?: BodyMeasurementRecordInput[];
+  habitMasterItems?: HabitMasterItemInput[];
+  habitRecords?: HabitRecordInput[];
   deletedWeightIds?: string[];
   deletedMealIds?: string[];
   deletedWaterIds?: string[];
@@ -85,6 +126,10 @@ interface SyncPushPayloadInput {
   deletedDiaryIds?: string[];
   deletedFoodMasterIds?: string[];
   deletedExerciseMasterIds?: string[];
+  deletedBloodPressureIds?: string[];
+  deletedBodyMeasurementIds?: string[];
+  deletedHabitMasterIds?: string[];
+  deletedHabitRecordIds?: string[];
 }
 
 interface SyncPushResultOutput {
@@ -95,6 +140,10 @@ interface SyncPushResultOutput {
   syncedDiaryDates: string[];
   syncedFoodMasterIds: string[];
   syncedExerciseMasterIds: string[];
+  syncedBloodPressureDates: string[];
+  syncedBodyMeasurementDates: string[];
+  syncedHabitMasterIds: string[];
+  syncedHabitRecordIds: string[];
   deletedWeightIds: string[];
   deletedMealIds: string[];
   deletedWaterIds: string[];
@@ -102,6 +151,10 @@ interface SyncPushResultOutput {
   deletedDiaryIds: string[];
   deletedFoodMasterIds: string[];
   deletedExerciseMasterIds: string[];
+  deletedBloodPressureIds: string[];
+  deletedBodyMeasurementIds: string[];
+  deletedHabitMasterIds: string[];
+  deletedHabitRecordIds: string[];
 }
 
 export interface SheetConfig {
@@ -123,11 +176,21 @@ export const FOOD_MASTER_CONFIG: SheetConfig = { name: "食事マスタ", idColu
 // 部位列(D)はID列(C)より後ろにあるため(後付けのIssue #104。既存シートのID列を動かさないため)、
 // 取り込みの読み取り範囲はID列ではなくlastColumnLetterまで広げる必要がある
 export const EXERCISE_MASTER_CONFIG: SheetConfig = { name: "種目マスタ", idColumnLetter: "C", lastColumnLetter: "D" };
+// 血圧・周囲径・習慣の各タブは後付け(Issue #117・#118・#113)のため既存スプレッドシートには存在しない。
+// マスタ系と同様、同期時にタブが無ければWorkerがヘッダー行付きで自動作成する(下記の*_HEADERを渡す)
+export const BLOOD_PRESSURE_CONFIG: SheetConfig = { name: "血圧記録", idColumnLetter: "G" };
+export const BODY_MEASUREMENT_CONFIG: SheetConfig = { name: "周囲径記録", idColumnLetter: "G" };
+export const HABIT_MASTER_CONFIG: SheetConfig = { name: "習慣マスタ", idColumnLetter: "F" };
+export const HABIT_RECORD_CONFIG: SheetConfig = { name: "習慣記録", idColumnLetter: "E" };
 
 // マスタ系タブは記録系と違い後付けのため(Issue #96)、既存スプレッドシートには存在しない。
 // 同期時にタブが無ければWorkerがこのヘッダー行付きで自動作成する(記録系タブは手動作成が前提のまま)
 export const FOOD_MASTER_HEADER = ["品目名", "カロリー(kcal)", "たんぱく質(g)", "脂質(g)", "炭水化物(g)", "出典", "登録日時", "ID"];
 export const EXERCISE_MASTER_HEADER = ["種目名", "登録日時", "ID", "部位"];
+export const BLOOD_PRESSURE_HEADER = ["日付", "最高血圧(mmHg)", "最低血圧(mmHg)", "脈拍(bpm)", "メモ", "記録日時", "ID"];
+export const BODY_MEASUREMENT_HEADER = ["日付", "腹囲(cm)", "胸囲(cm)", "太もも(cm)", "メモ", "記録日時", "ID"];
+export const HABIT_MASTER_HEADER = ["習慣名", "目標頻度(週)", "アーカイブ", "並び順", "登録日時", "ID"];
+export const HABIT_RECORD_HEADER = ["日付", "習慣名", "習慣ID", "記録日時", "ID"];
 
 export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
@@ -228,6 +291,38 @@ function foodMasterItemToRow(r: FoodMasterItemInput): (string | number)[] {
 
 function exerciseMasterItemToRow(r: ExerciseMasterItemInput): (string | number)[] {
   return [r.name, formatJstDateTime(r.createdAt), r.id, (r.bodyPart && EXERCISE_BODY_PART_LABELS[r.bodyPart]) ?? r.bodyPart ?? ""];
+}
+
+function bloodPressureRecordToRow(r: BloodPressureRecordInput): (string | number)[] {
+  return [
+    formatCalendarDate(r.date),
+    r.systolic,
+    r.diastolic,
+    r.pulse ?? "",
+    r.note ?? "",
+    formatJstDateTime(r.timestamp),
+    r.id,
+  ];
+}
+
+function bodyMeasurementRecordToRow(r: BodyMeasurementRecordInput): (string | number)[] {
+  return [
+    formatCalendarDate(r.date),
+    r.waistCm,
+    r.chestCm ?? "",
+    r.thighCm ?? "",
+    r.note ?? "",
+    formatJstDateTime(r.timestamp),
+    r.id,
+  ];
+}
+
+function habitMasterItemToRow(r: HabitMasterItemInput): (string | number)[] {
+  return [r.name, r.targetWeeklyFrequency ?? "", r.archived ? "アーカイブ" : "", r.order, formatJstDateTime(r.createdAt), r.id];
+}
+
+function habitRecordToRow(r: HabitRecordInput): (string | number)[] {
+  return [formatCalendarDate(r.date), r.habitName, r.habitId, formatJstDateTime(r.timestamp), r.id];
 }
 
 // ===== 純粋なプランニング関数(ネットワークに依存せずテスト可能) =====
@@ -500,6 +595,10 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   const diaryRecords = payload.diaryRecords ?? [];
   const foodMasterItems = payload.foodMasterItems ?? [];
   const exerciseMasterItems = payload.exerciseMasterItems ?? [];
+  const bloodPressureRecords = payload.bloodPressureRecords ?? [];
+  const bodyMeasurementRecords = payload.bodyMeasurementRecords ?? [];
+  const habitMasterItems = payload.habitMasterItems ?? [];
+  const habitRecords = payload.habitRecords ?? [];
   const deletedWeightIds = payload.deletedWeightIds ?? [];
   const deletedMealIds = payload.deletedMealIds ?? [];
   const deletedWaterIds = payload.deletedWaterIds ?? [];
@@ -507,6 +606,10 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   const deletedDiaryIds = payload.deletedDiaryIds ?? [];
   const deletedFoodMasterIds = payload.deletedFoodMasterIds ?? [];
   const deletedExerciseMasterIds = payload.deletedExerciseMasterIds ?? [];
+  const deletedBloodPressureIds = payload.deletedBloodPressureIds ?? [];
+  const deletedBodyMeasurementIds = payload.deletedBodyMeasurementIds ?? [];
+  const deletedHabitMasterIds = payload.deletedHabitMasterIds ?? [];
+  const deletedHabitRecordIds = payload.deletedHabitRecordIds ?? [];
 
   let accessToken: string;
   try {
@@ -517,7 +620,19 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   }
 
   const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  const [weightResult, mealResult, waterResult, workoutResult, diaryResult, foodMasterResult, exerciseMasterResult] = await Promise.allSettled([
+  const [
+    weightResult,
+    mealResult,
+    waterResult,
+    workoutResult,
+    diaryResult,
+    foodMasterResult,
+    exerciseMasterResult,
+    bloodPressureResult,
+    bodyMeasurementResult,
+    habitMasterResult,
+    habitRecordResult,
+  ] = await Promise.allSettled([
     syncOneSheet(
       accessToken,
       spreadsheetId,
@@ -569,6 +684,38 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       deletedExerciseMasterIds,
       EXERCISE_MASTER_HEADER,
     ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      BLOOD_PRESSURE_CONFIG,
+      bloodPressureRecords.map((r) => ({ id: r.id, cells: bloodPressureRecordToRow(r) })),
+      deletedBloodPressureIds,
+      BLOOD_PRESSURE_HEADER,
+    ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      BODY_MEASUREMENT_CONFIG,
+      bodyMeasurementRecords.map((r) => ({ id: r.id, cells: bodyMeasurementRecordToRow(r) })),
+      deletedBodyMeasurementIds,
+      BODY_MEASUREMENT_HEADER,
+    ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      HABIT_MASTER_CONFIG,
+      habitMasterItems.map((r) => ({ id: r.id, cells: habitMasterItemToRow(r) })),
+      deletedHabitMasterIds,
+      HABIT_MASTER_HEADER,
+    ),
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      HABIT_RECORD_CONFIG,
+      habitRecords.map((r) => ({ id: r.id, cells: habitRecordToRow(r) })),
+      deletedHabitRecordIds,
+      HABIT_RECORD_HEADER,
+    ),
   ]);
 
   const syncedWeightDates = weightResult.status === "fulfilled" ? weightResult.value.syncedIds : [];
@@ -587,6 +734,20 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     exerciseMasterResult.status === "fulfilled" ? exerciseMasterResult.value.syncedIds : [];
   const deletedExerciseMasterIdsOut =
     exerciseMasterResult.status === "fulfilled" ? exerciseMasterResult.value.deletedIds : [];
+  const syncedBloodPressureDates =
+    bloodPressureResult.status === "fulfilled" ? bloodPressureResult.value.syncedIds : [];
+  const deletedBloodPressureIdsOut =
+    bloodPressureResult.status === "fulfilled" ? bloodPressureResult.value.deletedIds : [];
+  const syncedBodyMeasurementDates =
+    bodyMeasurementResult.status === "fulfilled" ? bodyMeasurementResult.value.syncedIds : [];
+  const deletedBodyMeasurementIdsOut =
+    bodyMeasurementResult.status === "fulfilled" ? bodyMeasurementResult.value.deletedIds : [];
+  const syncedHabitMasterIds = habitMasterResult.status === "fulfilled" ? habitMasterResult.value.syncedIds : [];
+  const deletedHabitMasterIdsOut =
+    habitMasterResult.status === "fulfilled" ? habitMasterResult.value.deletedIds : [];
+  const syncedHabitRecordIds = habitRecordResult.status === "fulfilled" ? habitRecordResult.value.syncedIds : [];
+  const deletedHabitRecordIdsOut =
+    habitRecordResult.status === "fulfilled" ? habitRecordResult.value.deletedIds : [];
 
   if (weightResult.status === "rejected") console.error("体重記録の同期に失敗:", weightResult.reason);
   if (mealResult.status === "rejected") console.error("食事記録の同期に失敗:", mealResult.reason);
@@ -596,6 +757,10 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   if (foodMasterResult.status === "rejected") console.error("食事マスタの同期に失敗:", foodMasterResult.reason);
   if (exerciseMasterResult.status === "rejected")
     console.error("種目マスタの同期に失敗:", exerciseMasterResult.reason);
+  if (bloodPressureResult.status === "rejected") console.error("血圧記録の同期に失敗:", bloodPressureResult.reason);
+  if (bodyMeasurementResult.status === "rejected") console.error("周囲径記録の同期に失敗:", bodyMeasurementResult.reason);
+  if (habitMasterResult.status === "rejected") console.error("習慣マスタの同期に失敗:", habitMasterResult.reason);
+  if (habitRecordResult.status === "rejected") console.error("習慣記録の同期に失敗:", habitRecordResult.reason);
 
   const attempted =
     weightRecords.length +
@@ -605,13 +770,21 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       diaryRecords.length +
       foodMasterItems.length +
       exerciseMasterItems.length +
+      bloodPressureRecords.length +
+      bodyMeasurementRecords.length +
+      habitMasterItems.length +
+      habitRecords.length +
       deletedWeightIds.length +
       deletedMealIds.length +
       deletedWaterIds.length +
       deletedWorkoutIds.length +
       deletedDiaryIds.length +
       deletedFoodMasterIds.length +
-      deletedExerciseMasterIds.length >
+      deletedExerciseMasterIds.length +
+      deletedBloodPressureIds.length +
+      deletedBodyMeasurementIds.length +
+      deletedHabitMasterIds.length +
+      deletedHabitRecordIds.length >
     0;
   const nothingSynced =
     syncedWeightDates.length +
@@ -627,7 +800,15 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       syncedFoodMasterIds.length +
       deletedFoodMasterIdsOut.length +
       syncedExerciseMasterIds.length +
-      deletedExerciseMasterIdsOut.length ===
+      deletedExerciseMasterIdsOut.length +
+      syncedBloodPressureDates.length +
+      deletedBloodPressureIdsOut.length +
+      syncedBodyMeasurementDates.length +
+      deletedBodyMeasurementIdsOut.length +
+      syncedHabitMasterIds.length +
+      deletedHabitMasterIdsOut.length +
+      syncedHabitRecordIds.length +
+      deletedHabitRecordIdsOut.length ===
     0;
   const results = [
     weightResult,
@@ -637,6 +818,10 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     diaryResult,
     foodMasterResult,
     exerciseMasterResult,
+    bloodPressureResult,
+    bodyMeasurementResult,
+    habitMasterResult,
+    habitRecordResult,
   ];
   const anyFailure = results.some((r) => r.status === "rejected");
 
@@ -655,6 +840,10 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     syncedDiaryDates,
     syncedFoodMasterIds,
     syncedExerciseMasterIds,
+    syncedBloodPressureDates,
+    syncedBodyMeasurementDates,
+    syncedHabitMasterIds,
+    syncedHabitRecordIds,
     deletedWeightIds: deletedWeightIdsOut,
     deletedMealIds: deletedMealIdsOut,
     deletedWaterIds: deletedWaterIdsOut,
@@ -662,5 +851,9 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     deletedDiaryIds: deletedDiaryIdsOut,
     deletedFoodMasterIds: deletedFoodMasterIdsOut,
     deletedExerciseMasterIds: deletedExerciseMasterIdsOut,
+    deletedBloodPressureIds: deletedBloodPressureIdsOut,
+    deletedBodyMeasurementIds: deletedBodyMeasurementIdsOut,
+    deletedHabitMasterIds: deletedHabitMasterIdsOut,
+    deletedHabitRecordIds: deletedHabitRecordIdsOut,
   } satisfies SyncPushResultOutput);
 }

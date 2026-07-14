@@ -10,6 +10,12 @@ import type { DiaryMood, DigestFlag, WeeklyDigest } from "@/types";
 
 /** LOW_RECORDING_RATE: 記録した日がこの日数未満の週は記録率低下とみなす */
 export const LOW_RECORDING_THRESHOLD_DAYS = 5;
+/**
+ * 家庭血圧の高値の目安(Issue #117)。高血圧治療ガイドラインの家庭血圧135/85mmHgを閾値に使うが、
+ * アプリは医療機器ではないため「この値以上の日が何日」という事実の提示にのみ使い、医学的判断はしない。
+ */
+export const HOME_BP_HIGH_SYSTOLIC = 135;
+export const HOME_BP_HIGH_DIASTOLIC = 85;
 /** INSUFFICIENT_DATA: 記録した日がこの日数未満の週は評価に適さないとみなす(利用開始直後など) */
 export const INSUFFICIENT_DATA_THRESHOLD_DAYS = 2;
 
@@ -54,6 +60,8 @@ export interface WeeklyDigestSource {
   /** 週内の日別水分合計(記録の無い日は0mlで埋まっていてよい。Issue #103) */
   waterDailyTotals: { date: string; amountMl: number }[];
   waterTargetMl: number | null;
+  /** 週内の血圧記録(1日1件。Issue #117)。記録が無ければ空配列 */
+  bloodPressureDays: { systolic: number; diastolic: number }[];
   /**
    * AIに読ませる週内の日記本文(Issue #103)。オプトイン(Settings.sendDiaryTextToAi)がOFFの週はnullを渡し、
    * digestのdiaryEntriesを省略する(本文はデフォルトで外部AIに送らない。AIコンサルティング設計書7章)
@@ -116,6 +124,28 @@ export function aggregateWater(
     targetMl: waterTargetMl,
     daysOnTarget: waterTargetMl !== null ? recorded.filter((d) => d.amountMl >= waterTargetMl).length : null,
     recordedDays: recorded.length,
+  };
+}
+
+/**
+ * 血圧の週サマリーを集計する(Issue #117)。記録が無い週はundefined(digestからbloodPressureを省く)。
+ * highReadingDaysは家庭血圧135/85以上の日数の事実提示のみで、医学的判断はしない。
+ * weekAvgWeightKgを併記し、体重×血圧を並べて見せる(#112のクロス分析の軸)。
+ */
+export function aggregateBloodPressure(
+  bloodPressureDays: WeeklyDigestSource["bloodPressureDays"],
+  weekAvgWeightKg: number | null,
+): WeeklyDigest["bloodPressure"] | undefined {
+  if (bloodPressureDays.length === 0) return undefined;
+  const n = bloodPressureDays.length;
+  return {
+    avgSystolic: Math.round(bloodPressureDays.reduce((s, d) => s + d.systolic, 0) / n),
+    avgDiastolic: Math.round(bloodPressureDays.reduce((s, d) => s + d.diastolic, 0) / n),
+    recordedDays: n,
+    highReadingDays: bloodPressureDays.filter(
+      (d) => d.systolic >= HOME_BP_HIGH_SYSTOLIC || d.diastolic >= HOME_BP_HIGH_DIASTOLIC,
+    ).length,
+    weekAvgWeightKg,
   };
 }
 
@@ -264,6 +294,7 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   const activity = aggregateActivity(src.activityDays);
   const workout = aggregateWorkout(src.workoutSets);
   const water = aggregateWater(src.waterDailyTotals, src.waterTargetMl);
+  const bloodPressure = aggregateBloodPressure(src.bloodPressureDays, weekAvgKg);
   const crossAnalysis = buildCrossAnalysis({
     periodStart: src.weekStart,
     periodEnd: weekEnd,
@@ -339,6 +370,7 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     ...(activity !== undefined ? { activity } : {}),
     ...(workout !== undefined ? { workout } : {}),
     ...(water !== undefined ? { water } : {}),
+    ...(bloodPressure !== undefined ? { bloodPressure } : {}),
     ...(diaryEntries !== null && diaryEntries.length > 0 ? { diaryEntries } : {}),
     ...(crossAnalysis !== undefined ? { crossAnalysis } : {}),
   };

@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { getActivityRecordsByDateRange } from "./activityRecords";
+import { getBloodPressureRecordsByDateRange } from "./bloodPressureRecords";
 import { getDiaryRecordsByDateRange } from "./diaryRecords";
 import { getRecordedDateSet } from "./recordedDays";
 import { getSettings } from "./settings";
@@ -34,6 +35,7 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     activityRecords,
     workoutRecords,
     waterDailyTotals,
+    bloodPressureRecords,
     firstWeight,
     latestWeight,
     baselineWeight,
@@ -47,6 +49,7 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     getActivityRecordsByDateRange(weekStart, weekEnd),
     getWorkoutRecordsByDateRange(weekStart, weekEnd),
     getDailyWaterTotals(weekStart, weekEnd),
+    getBloodPressureRecordsByDateRange(weekStart, weekEnd),
     db.weightRecords.orderBy("date").first(),
     db.weightRecords.orderBy("date").last(),
     settings.baselineDate ? getWeightRecord(settings.baselineDate) : Promise.resolve(undefined),
@@ -115,6 +118,7 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     workoutSets: workoutRecords.map((r) => ({ date: r.date, exerciseName: r.exerciseName })),
     waterDailyTotals,
     waterTargetMl: settings.dailyWaterTargetMl ?? null,
+    bloodPressureDays: bloodPressureRecords.map((r) => ({ systolic: r.systolic, diastolic: r.diastolic })),
     // 日記本文はオプトイン(Issue #103)がONの週だけAI入力(digest)へ含める(AIコンサルティング設計書7章)
     diaryTexts: settings.sendDiaryTextToAi
       ? diaries.map((d) => ({ date: d.date, text: d.text }))

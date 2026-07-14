@@ -7,6 +7,8 @@ import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import ActivityHistoryList from "./ActivityHistoryList";
+import BloodPressureHistoryList from "./BloodPressureHistoryList";
+import BodyMeasurementHistoryList from "./BodyMeasurementHistoryList";
 import DiaryHistoryList from "./DiaryHistoryList";
 import GoalBar from "./GoalBar";
 import MealHistoryList from "./MealHistoryList";
@@ -20,6 +22,14 @@ import WorkoutHistoryList, { groupWorkoutHistoryDays } from "./WorkoutHistoryLis
 import { IconSync } from "@/components/icons";
 import { db } from "@/db/db";
 import { getAllActivityRecordsDesc, getDailyActivityTotals } from "@/db/activityRecords";
+import {
+  getAllBloodPressureRecordsDesc,
+  getBloodPressureRecordsByDateRange,
+} from "@/db/bloodPressureRecords";
+import {
+  getAllBodyMeasurementRecords,
+  getAllBodyMeasurementRecordsDesc,
+} from "@/db/bodyMeasurementRecords";
 import { getAllDiaryRecordsDesc } from "@/db/diaryRecords";
 import { getAllMealRecordsDesc, getDailyCalorieTotals } from "@/db/mealRecords";
 import { getSettings } from "@/db/settings";
@@ -44,10 +54,27 @@ import {
 } from "@/lib/date";
 import { projectWeightAtDate } from "@/lib/weightProjection";
 import { fontRounded, tokens } from "@/theme";
-import type { ActivityRecord, DiaryRecord, MealRecord, WaterRecord, WeightRecord, WorkoutRecord } from "@/types";
+import type {
+  ActivityRecord,
+  BloodPressureRecord,
+  BodyMeasurementRecord,
+  DiaryRecord,
+  MealRecord,
+  WaterRecord,
+  WeightRecord,
+  WorkoutRecord,
+} from "@/types";
 
 type ViewMode = "chart" | "history" | "review";
-type HistoryKind = "weight" | "meal" | "water" | "strength" | "diary" | "activity";
+type HistoryKind =
+  | "weight"
+  | "meal"
+  | "water"
+  | "strength"
+  | "diary"
+  | "activity"
+  | "bloodPressure"
+  | "bodyMeasurement";
 type ReviewSpan = "week" | "month";
 
 const VIEW_MODE_OPTIONS = [
@@ -68,6 +95,8 @@ const HISTORY_KIND_OPTIONS = [
   { value: "strength", label: "筋トレ" },
   { value: "diary", label: "日記" },
   { value: "activity", label: "活動" },
+  { value: "bloodPressure", label: "血圧" },
+  { value: "bodyMeasurement", label: "サイズ" },
 ] as const;
 
 export default function TrendsPage() {
@@ -111,6 +140,16 @@ export default function TrendsPage() {
     const days = period === "week" ? 6 : 29;
     return getWeightRecordsByDateRange(dateStringDaysAgo(days), todayDateString());
   }, [period]);
+
+  // 血圧の推移グラフ用(Issue #117)。体重と同じ期間ロジック
+  const bloodPressureChartRecords = useLiveQuery(() => {
+    if (period === "all") return getAllBloodPressureRecordsDesc().then((rs) => rs.reverse());
+    const days = period === "week" ? 6 : 29;
+    return getBloodPressureRecordsByDateRange(dateStringDaysAgo(days), todayDateString());
+  }, [period]);
+
+  // 周囲径の推移グラフ用(Issue #118)。低頻度のため期間で切らず常に全期間を表示する(月1の点が消えないように)
+  const bodyMeasurementChartRecords = useLiveQuery(() => getAllBodyMeasurementRecords(), []);
 
   const calorieDailyTotals = useLiveQuery(async () => {
     const endDate = todayDateString();
@@ -191,6 +230,20 @@ export default function TrendsPage() {
         : Promise.resolve<ActivityRecord[]>([]),
     [viewMode, historyKind],
   );
+  const bloodPressureHistoryRecords = useLiveQuery(
+    () =>
+      viewMode === "history" && historyKind === "bloodPressure"
+        ? getAllBloodPressureRecordsDesc()
+        : Promise.resolve<BloodPressureRecord[]>([]),
+    [viewMode, historyKind],
+  );
+  const bodyMeasurementHistoryRecords = useLiveQuery(
+    () =>
+      viewMode === "history" && historyKind === "bodyMeasurement"
+        ? getAllBodyMeasurementRecordsDesc()
+        : Promise.resolve<BodyMeasurementRecord[]>([]),
+    [viewMode, historyKind],
+  );
   // 週次レビューのダイジェスト(Issue #45)。レビュータブ表示中のみ集計する。
   // 「未表示」もnullに解決するため、undefined(ロード中)と区別できる(CLAUDE.mdのuseLiveQueryパターン)
   const reviewDigest = useLiveQuery(
@@ -215,6 +268,8 @@ export default function TrendsPage() {
     lastWeightRecord === undefined ||
     baselineWeightRecord === undefined ||
     weightChartRecords === undefined ||
+    bloodPressureChartRecords === undefined ||
+    bodyMeasurementChartRecords === undefined ||
     calorieDailyTotals === undefined ||
     waterDailyTotals === undefined ||
     activityDailyTotals === undefined ||
@@ -224,6 +279,8 @@ export default function TrendsPage() {
     workoutHistoryRecords === undefined ||
     diaryHistoryRecords === undefined ||
     activityHistoryRecords === undefined ||
+    bloodPressureHistoryRecords === undefined ||
+    bodyMeasurementHistoryRecords === undefined ||
     reviewDigest === undefined ||
     monthlyReviewDigest === undefined
   ) {
@@ -256,6 +313,8 @@ export default function TrendsPage() {
   const filteredWorkoutDays = groupWorkoutHistoryDays(workoutHistoryRecords).filter((day) => inHistoryRange(day.date));
   const filteredDiaryHistory = diaryHistoryRecords.filter((record) => inHistoryRange(record.date));
   const filteredActivityHistory = activityHistoryRecords.filter((record) => inHistoryRange(record.date));
+  const filteredBloodPressureHistory = bloodPressureHistoryRecords.filter((record) => inHistoryRange(record.date));
+  const filteredBodyMeasurementHistory = bodyMeasurementHistoryRecords.filter((record) => inHistoryRange(record.date));
   // 水分・筋トレは日付単位の行になるため、件数も日数を表す
   const historyCount = {
     weight: filteredHistory.length,
@@ -264,6 +323,8 @@ export default function TrendsPage() {
     strength: filteredWorkoutDays.length,
     diary: filteredDiaryHistory.length,
     activity: filteredActivityHistory.length,
+    bloodPressure: filteredBloodPressureHistory.length,
+    bodyMeasurement: filteredBodyMeasurementHistory.length,
   }[historyKind];
 
   return (
@@ -296,6 +357,8 @@ export default function TrendsPage() {
             calorieDailyTotals={calorieDailyTotals}
             waterDailyTotals={waterDailyTotals}
             activityDailyTotals={activityDailyTotals}
+            bloodPressureChartRecords={bloodPressureChartRecords}
+            bodyMeasurementChartRecords={bodyMeasurementChartRecords}
             goalWeightKg={settings.goalWeightKg}
             dailyCalorieTarget={settings.dailyCalorieTarget}
             dailyWaterTargetMl={settings.dailyWaterTargetMl ?? null}
@@ -401,8 +464,18 @@ export default function TrendsPage() {
               records={filteredDiaryHistory}
               onSelect={(date) => navigate(`/record/diary?date=${date}`)}
             />
-          ) : (
+          ) : historyKind === "activity" ? (
             <ActivityHistoryList records={filteredActivityHistory} />
+          ) : historyKind === "bloodPressure" ? (
+            <BloodPressureHistoryList
+              records={filteredBloodPressureHistory}
+              onSelect={(date) => navigate(`/record/blood-pressure?date=${date}`)}
+            />
+          ) : (
+            <BodyMeasurementHistoryList
+              records={filteredBodyMeasurementHistory}
+              onSelect={(date) => navigate(`/record/measurement?date=${date}`)}
+            />
           )}
         </>
       )}

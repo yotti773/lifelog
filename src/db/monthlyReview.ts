@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { getActivityRecordsByDateRange } from "./activityRecords";
+import { getBloodPressureRecordsByDateRange } from "./bloodPressureRecords";
 import { getDiaryRecordsByDateRange } from "./diaryRecords";
 import { getRecordedDateSet } from "./recordedDays";
 import { getSettings } from "./settings";
@@ -23,7 +24,7 @@ export async function getMonthlyDigest(month: string, today: string = todayDateS
   const periodEnd = addDaysToDateString(weekStarts[weekStarts.length - 1], 6);
 
   const settings = await getSettings();
-  const [weekSummaries, mealDailyTotals, recordedDates, diaries, activityRecords, latestWeight] =
+  const [weekSummaries, mealDailyTotals, recordedDates, diaries, activityRecords, bloodPressureRecords, latestWeight] =
     await Promise.all([
       // index 0は月の直前週(週次TDEE逆算の比較用)、以降が月内の各週
       Promise.all(
@@ -35,6 +36,7 @@ export async function getMonthlyDigest(month: string, today: string = todayDateS
       getRecordedDateSet(),
       getDiaryRecordsByDateRange(periodStart, periodEnd),
       getActivityRecordsByDateRange(periodStart, periodEnd),
+      getBloodPressureRecordsByDateRange(periodStart, periodEnd),
       db.weightRecords.orderBy("date").last(),
     ]);
 
@@ -74,5 +76,6 @@ export async function getMonthlyDigest(month: string, today: string = todayDateS
       ...(r.totalKcal !== undefined && { totalKcal: r.totalKcal }),
       ...(r.sleepMinutes !== undefined && { sleepMinutes: r.sleepMinutes }),
     })),
+    bloodPressureDays: bloodPressureRecords.map((r) => ({ systolic: r.systolic, diastolic: r.diastolic })),
   });
 }

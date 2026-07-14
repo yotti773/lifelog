@@ -3,9 +3,16 @@ import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Typography from "@mui/material/Typography";
 import { moodLabel } from "@/components/MoodIcon";
-import { IconBarbell, IconChevronRight, IconDiary, IconDrop } from "@/components/icons";
+import { IconActivity, IconBarbell, IconChevronRight, IconDiary, IconDrop, IconRuler } from "@/components/icons";
+import { formatMonthDay } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
-import type { DiaryRecord, WaterRecord, WorkoutRecord } from "@/types";
+import type {
+  BloodPressureRecord,
+  BodyMeasurementRecord,
+  DiaryRecord,
+  WaterRecord,
+  WorkoutRecord,
+} from "@/types";
 
 interface SummaryRowProps {
   /** タップで遷移する記録画面のパス */
@@ -61,16 +68,30 @@ function SummaryRow({ to, icon, iconBg, iconColor, children, right }: SummaryRow
 }
 
 interface DailyExtrasListProps {
+  /** 記録画面の遷移先を組み立てる基準日(今日)。血圧・周囲径は当日分があれば編集で開く */
+  today: string;
   waterRecords: WaterRecord[];
   /** 1日の目標水分摂取量(ml)。未設定なら進捗バーを出さず合計mlのみ表示する */
   waterTargetMl: number | undefined;
   /** 今日の日記。null=未記録 */
   diary: DiaryRecord | null;
   workoutRecords: WorkoutRecord[];
+  /** 今日の血圧記録(Issue #117)。null=未記録 */
+  bloodPressure: BloodPressureRecord | null;
+  /** 直近の周囲径記録(Issue #118。低頻度のため当日でなくても最新値を表示)。null=記録なし */
+  latestMeasurement: BodyMeasurementRecord | null;
 }
 
-/** ホーム画面の「その他の記録」セクション(水分・日記・筋トレ。画面設計書2章) */
-export default function DailyExtrasList({ waterRecords, waterTargetMl, diary, workoutRecords }: DailyExtrasListProps) {
+/** ホーム画面の「その他の記録」セクション(水分・日記・筋トレ・血圧・周囲径。画面設計書2章) */
+export default function DailyExtrasList({
+  today,
+  waterRecords,
+  waterTargetMl,
+  diary,
+  workoutRecords,
+  bloodPressure,
+  latestMeasurement,
+}: DailyExtrasListProps) {
   const waterTotalMl = waterRecords.reduce((sum, record) => sum + record.amountMl, 0);
   const waterProgress = waterTargetMl ? Math.max(0, Math.min(100, (waterTotalMl / waterTargetMl) * 100)) : 0;
   const workoutExerciseCount = new Set(workoutRecords.map((record) => record.exerciseOrder)).size;
@@ -162,6 +183,56 @@ export default function DailyExtrasList({ waterRecords, waterTargetMl, diary, wo
             }}
           >
             {workoutRecords.length > 0 ? `${workoutExerciseCount}種目・${workoutRecords.length}セット` : "未記録"}
+          </Typography>
+        </SummaryRow>
+
+        {/* 血圧: 今日の測定値(最高/最低)。朝の測定を想定(Issue #117) */}
+        <SummaryRow
+          to={`/record/blood-pressure?date=${today}`}
+          icon={<IconActivity size={21} />}
+          iconBg={tokens.primarySoft}
+          iconColor="primary.main"
+          right={
+            bloodPressure ? (
+              <>
+                <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>
+                  {bloodPressure.systolic}/{bloodPressure.diastolic}
+                </Typography>
+                <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 10, color: "text.secondary", ml: "2px" }}>
+                  mmHg
+                </Typography>
+              </>
+            ) : undefined
+          }
+        >
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "2px" }}>血圧</Typography>
+          <Typography sx={{ fontSize: 12, color: bloodPressure ? "text.secondary" : tokens.faint }}>
+            {bloodPressure ? "今日の測定値" : "未記録"}
+          </Typography>
+        </SummaryRow>
+
+        {/* 周囲径: 最新の腹囲(低頻度のため最新値と測定日を表示。Issue #118) */}
+        <SummaryRow
+          to={`/record/measurement?date=${today}`}
+          icon={<IconRuler size={21} />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          right={
+            latestMeasurement ? (
+              <>
+                <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>
+                  {latestMeasurement.waistCm}
+                </Typography>
+                <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 10, color: "text.secondary", ml: "2px" }}>
+                  cm
+                </Typography>
+              </>
+            ) : undefined
+          }
+        >
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "2px" }}>サイズ(おなか周り)</Typography>
+          <Typography sx={{ fontSize: 12, color: latestMeasurement ? "text.secondary" : tokens.faint }}>
+            {latestMeasurement ? `最新 ${formatMonthDay(latestMeasurement.date)}` : "未記録"}
           </Typography>
         </SummaryRow>
       </Box>

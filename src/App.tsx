@@ -7,11 +7,14 @@ import TrendsPage from "./pages/trends/TrendsPage";
 import SettingsPage from "./pages/settings/SettingsPage";
 import FoodMasterPage from "./pages/settings/FoodMasterPage";
 import ExerciseMasterPage from "./pages/settings/ExerciseMasterPage";
+import HabitMasterPage from "./pages/settings/HabitMasterPage";
 import WeightRecordPage from "./pages/WeightRecordPage";
 import MealRecordPage from "./pages/meal/MealRecordPage";
 import WaterRecordPage from "./pages/WaterRecordPage";
 import DiaryRecordPage from "./pages/DiaryRecordPage";
 import StrengthRecordPage from "./pages/StrengthRecordPage";
+import BloodPressureRecordPage from "./pages/BloodPressureRecordPage";
+import BodyMeasurementRecordPage from "./pages/BodyMeasurementRecordPage";
 import { createAutoSyncRunner } from "./sync/autoSync";
 
 export default function App() {
@@ -51,11 +54,14 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/food-master" element={<FoodMasterPage />} />
         <Route path="/settings/exercise-master" element={<ExerciseMasterPage />} />
+        <Route path="/settings/habit-master" element={<HabitMasterPage />} />
         <Route path="/record/weight" element={<WeightRecordPage />} />
         <Route path="/record/meal" element={<MealRecordPage />} />
         <Route path="/record/water" element={<WaterRecordPage />} />
         <Route path="/record/diary" element={<DiaryRecordPage />} />
         <Route path="/record/strength" element={<StrengthRecordPage />} />
+        <Route path="/record/blood-pressure" element={<BloodPressureRecordPage />} />
+        <Route path="/record/measurement" element={<BodyMeasurementRecordPage />} />
       </Routes>
 
       {!isRecordFlow && <BottomNav />}

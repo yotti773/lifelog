@@ -10,6 +10,67 @@ export interface WeightRecord {
   synced: boolean; // スプレッドシートへの同期済みフラグ
 }
 
+/**
+ * 血圧記録(Issue #117)。体重記録と同型で、dateを1日1件のキー(後勝ち)にする。
+ * 家庭血圧の基準に合わせ「朝の測定値」を記録する運用を想定(体重と同じ朝のリズム)。
+ * アプリは医療機器ではないため、値の医学的判断はせず事実の提示に留める(要件定義書フェーズ4)。
+ */
+export interface BloodPressureRecord {
+  id: string;
+  date: string; // YYYY-MM-DD, 1日1件のキー
+  timestamp: string; // ISO8601, 最後に保存した時刻
+  systolic: number; // 収縮期(最高血圧)mmHg
+  diastolic: number; // 拡張期(最低血圧)mmHg
+  pulse?: number; // 脈拍(bpm)。任意入力
+  note?: string;
+  synced: boolean; // スプレッドシートへの同期済みフラグ
+}
+
+/**
+ * 周囲径記録(Issue #118)。体重記録と同型で、dateを1日1件のキー(後勝ち)にする。
+ * 減量停滞期に体重が動かなくても腹囲は減っていることが多く、体重以外の進捗指標になる。
+ * 月1回程度の低頻度入力を想定。腹囲を必須とし、胸囲・太ももは任意。
+ */
+export interface BodyMeasurementRecord {
+  id: string;
+  date: string; // YYYY-MM-DD, 1日1件のキー
+  timestamp: string; // ISO8601, 最後に保存した時刻
+  waistCm: number; // 腹囲(cm)。必須
+  chestCm?: number; // 胸囲(cm)。任意
+  thighCm?: number; // 太もも(cm)。任意
+  note?: string;
+  synced: boolean; // スプレッドシートへの同期済みフラグ
+}
+
+/**
+ * 習慣マスタ(Issue #113)。「ストレッチ」「読書」「血圧の薬」等の、やった/やらないだけを記録する習慣。
+ * 食事マスタ・種目マスタと同じ構成で設定画面から管理する。同名の重複登録は弾く(チェックリストの識別のため)。
+ */
+export interface HabitMasterItem {
+  id: string;
+  name: string;
+  targetWeeklyFrequency?: number; // 目標頻度(週あたり日数、1〜7)。任意
+  archived: boolean; // アーカイブ済み(チェックリストに出さないが記録は残す)
+  order: number; // チェックリストの並び順(小さいほど上。同値は登録順)
+  createdAt: string; // ISO8601
+  synced: boolean; // スプレッドシートへの同期済みフラグ
+}
+
+/**
+ * 習慣記録(Issue #113)。日付×習慣のチェック1件。1日1習慣1件・後勝ち。
+ * idは`${date}_${habitId}`の合成キーで、これによりput()だけで上書きが成立する(体重・日記と同じ考え方)。
+ * チェックを外す操作は記録の削除(トゥームストーンを残す)で表す — 記録の存在が「その日にやった」を意味する。
+ * habitNameは書き出したシートの可読性のための非正規化コピー(筋トレのexerciseNameと同じ)。
+ */
+export interface HabitRecord {
+  id: string; // `${date}_${habitId}`
+  date: string; // YYYY-MM-DD
+  habitId: string;
+  habitName: string; // 記録時点の習慣名のコピー(シート表示用)
+  timestamp: string; // ISO8601
+  synced: boolean; // スプレッドシートへの同期済みフラグ
+}
+
 export interface MealRecord {
   id: string;
   timestamp: string; // ISO8601
@@ -115,7 +176,18 @@ export interface ActivityRecord {
 }
 
 /** どちらのスプレッドシートタブの行を指すかの識別子 */
-export type SyncSheet = "weight" | "meal" | "water" | "workout" | "diary" | "foodMaster" | "exerciseMaster";
+export type SyncSheet =
+  | "weight"
+  | "meal"
+  | "water"
+  | "workout"
+  | "diary"
+  | "foodMaster"
+  | "exerciseMaster"
+  | "bloodPressure"
+  | "bodyMeasurement"
+  | "habitMaster"
+  | "habitRecord";
 
 /**
  * 同期済み(スプレッドシートに書き出し済み)の可能性がある記録を削除したときのトゥームストーン。
@@ -128,7 +200,9 @@ export interface SyncDeletion {
   /**
    * スプレッドシートのID列に書かれている値。
    * WeightRecord.id=日付 / MealRecord.id・WaterRecord.id・WorkoutRecord.id=UUID / DiaryRecord.id=日付 /
-   * FoodMasterItem.id・ExerciseMasterItem.id=UUID(Issue #96)
+   * FoodMasterItem.id・ExerciseMasterItem.id=UUID(Issue #96) /
+   * BloodPressureRecord.id・BodyMeasurementRecord.id=日付(Issue #117・#118) /
+   * HabitMasterItem.id=UUID・HabitRecord.id=`${date}_${habitId}`(Issue #113)
    */
   recordId: string;
   deletedAt: string; // ISO8601
@@ -246,6 +320,19 @@ export interface WeeklyDigest {
     recordedDays: number; // 水分記録がある日数(0〜7)
   };
   /**
+   * 血圧の週サマリー(Issue #117)。週内に血圧記録が無ければ省略。
+   * アプリは医療機器ではないため、highReadingDaysは「家庭血圧135/85以上の日が何日」という
+   * 事実の提示に留め、医学的判断はしない(AIコーチングの医療免責と同じ整理)。
+   * weekAvgWeightKgを併記し、医学的に確立した体重×血圧の関係を並べて見せる(#112のクロス分析の軸)。
+   */
+  bloodPressure?: {
+    avgSystolic: number; // 週平均の最高血圧(記録がある日の平均)
+    avgDiastolic: number; // 週平均の最低血圧
+    recordedDays: number; // 血圧記録がある日数(0〜7)
+    highReadingDays: number; // 最高135以上または最低85以上だった日数(事実提示)
+    weekAvgWeightKg: number | null; // 同じ週の週平均体重(体重×血圧を並べて見せる)
+  };
+  /**
    * 週内の日記本文(Issue #103)。設定のオプトイン(Settings.sendDiaryTextToAi)がONのときだけ含まれ、
    * そのまま外部AI(Gemini)に送られる。OFF(デフォルト)では省略され、気分はmoodの件数集計のみになる
    * (AIコンサルティング設計書7章のプライバシー原則)
@@ -336,6 +423,16 @@ export interface MonthlyDigest {
   flags: DigestFlag[];
   /** 月窓のクロス集計(Issue #112の集計を月幅で再実行。週次より標本数が多い) */
   crossAnalysis?: WeeklyDigest["crossAnalysis"];
+  /**
+   * 血圧の月サマリー(Issue #117)。月内に血圧記録が無ければ省略。週次と同じく事実の提示に留める。
+   * 月窓は週次よりサンプルが多く、体重×血圧の傾向が安定して見える。
+   */
+  bloodPressure?: {
+    avgSystolic: number; // 月内の記録がある日の平均最高血圧
+    avgDiastolic: number; // 同・平均最低血圧
+    recordedDays: number; // 血圧記録がある日数
+    highReadingDays: number; // 最高135以上または最低85以上だった日数(事実提示)
+  };
 }
 
 /** AIの出力契約(AIコンサルティング設計書4章)。Workerのstructured outputで強制する */

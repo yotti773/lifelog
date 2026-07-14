@@ -61,6 +61,7 @@ function goodWeekSource(): WeeklyDigestSource {
       { date: "2026-07-09", amountMl: 2200 },
     ],
     waterTargetMl: 2000,
+    bloodPressureDays: [],
     diaryTexts: null, // オプトインOFF(デフォルト)
   };
 }

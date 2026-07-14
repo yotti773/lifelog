@@ -127,16 +127,23 @@ const GOOD_MOODS: DiaryMood[] = ["great", "good"];
 /** 気分タグのうちクロス分析で「眠い・不調の日」に数える値(aggregateMoodCountsのbad区分と同じ) */
 const BAD_MOODS: DiaryMood[] = ["tired", "bad"];
 
+/** クロス集計の入力(期間はperiodStart〜periodEnd)。週次・月次(Issue #114)で同じ集計を窓幅だけ変えて使う */
+export interface CrossAnalysisSource {
+  periodStart: string; // YYYY-MM-DD
+  periodEnd: string; // YYYY-MM-DD(この日を含む)
+  mealDailyTotals: DigestMealDailyTotal[];
+  diaryDays: WeeklyDigestSource["diaryDays"];
+  activityDays: WeeklyDigestSource["activityDays"];
+}
+
 /**
- * 週内データのクロス集計(Issue #112)。睡眠不足・気分・飲酒の各条件に当てはまる日と
+ * 期間内データのクロス集計(Issue #112)。睡眠不足・気分・飲酒の各条件に当てはまる日と
  * それ以外の日で、食事の日別合計カロリーを突き合わせる。計算はすべてここで行い、
- * 画面・AIとも事実の提示に留める(週単位はサンプル数が少なく「相関」とは言い切れないため)。
- * 各項目は比較が成立する週だけ含め、1つも成立しない週はundefined(digestから省く)。
+ * 画面・AIとも事実の提示に留める(サンプル数が少なく「相関」とは言い切れないため)。
+ * 各項目は比較が成立する期間だけ含め、1つも成立しない期間はundefined(digestから省く)。
+ * 期間は週(週次レビュー)にも月(月次レビュー。Issue #114)にも取れる。
  */
-export function buildCrossAnalysis(
-  src: Pick<WeeklyDigestSource, "weekStart" | "mealDailyTotals" | "diaryDays" | "activityDays">,
-): WeeklyDigest["crossAnalysis"] | undefined {
-  const weekEnd = addDaysToDateString(src.weekStart, 6);
+export function buildCrossAnalysis(src: CrossAnalysisSource): WeeklyDigest["crossAnalysis"] | undefined {
   const kcalByDate = new Map(src.mealDailyTotals.map((d) => [d.date, d.kcal]));
   // 指定した日付集合のうち食事記録がある日の平均摂取カロリー。1日も無ければavg=null
   const avgIntake = (dates: string[]): { avg: number | null; days: number } => {
@@ -191,7 +198,7 @@ export function buildCrossAnalysis(
   const alcoholDateSet = new Set(alcoholDates);
   const nextDayDates = alcoholDates
     .map((date) => addDaysToDateString(date, 1))
-    .filter((date) => date <= weekEnd);
+    .filter((date) => date <= src.periodEnd);
   const alcohol =
     alcoholDates.length > 0
       ? {
@@ -257,7 +264,13 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   const activity = aggregateActivity(src.activityDays);
   const workout = aggregateWorkout(src.workoutSets);
   const water = aggregateWater(src.waterDailyTotals, src.waterTargetMl);
-  const crossAnalysis = buildCrossAnalysis(src);
+  const crossAnalysis = buildCrossAnalysis({
+    periodStart: src.weekStart,
+    periodEnd: weekEnd,
+    mealDailyTotals: src.mealDailyTotals,
+    diaryDays: src.diaryDays,
+    activityDays: src.activityDays,
+  });
   // 本文が空の日記(気分タグのみの記録)はAIに読ませる意味が無いので除く
   const diaryEntries = src.diaryTexts?.filter((d) => d.text.trim() !== "") ?? null;
 

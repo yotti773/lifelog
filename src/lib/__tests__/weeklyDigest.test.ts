@@ -7,6 +7,7 @@ import {
   buildCrossAnalysis,
   buildWeeklyDigest,
   SHORT_SLEEP_THRESHOLD_MINUTES,
+  type CrossAnalysisSource,
   type WeeklyDigestSource,
 } from "../weeklyDigest";
 
@@ -268,12 +269,10 @@ describe("aggregateWater", () => {
 
 describe("buildCrossAnalysis", () => {
   /** クロス分析用の最小ソース(食事は月〜日の7日分) */
-  function crossSource(): Pick<
-    WeeklyDigestSource,
-    "weekStart" | "mealDailyTotals" | "diaryDays" | "activityDays"
-  > {
+  function crossSource(): CrossAnalysisSource {
     return {
-      weekStart: "2026-07-06",
+      periodStart: "2026-07-06",
+      periodEnd: "2026-07-12",
       mealDailyTotals: [
         { date: "2026-07-06", kcal: 1800, proteinG: 0, fatG: 0, carbsG: 0 },
         { date: "2026-07-07", kcal: 2200, proteinG: 0, fatG: 0, carbsG: 0 },

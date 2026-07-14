@@ -11,6 +11,7 @@ import DiaryHistoryList from "./DiaryHistoryList";
 import GoalBar from "./GoalBar";
 import MealHistoryList from "./MealHistoryList";
 import SegmentedControl from "@/components/SegmentedControl";
+import MonthlyReview from "./MonthlyReview";
 import WaterHistoryList, { groupWaterHistoryDays } from "./WaterHistoryList";
 import WeeklyReview from "./WeeklyReview";
 import WeightHistoryList from "./WeightHistoryList";
@@ -30,19 +31,34 @@ import {
   getWeightRecord,
   getWeightRecordsByDateRange,
 } from "@/db/weightRecords";
+import { getMonthlyDigest } from "@/db/monthlyReview";
 import { getWeeklyDigest } from "@/db/weeklyReview";
-import { addDaysToDateString, dateStringDaysAgo, formatDate, todayDateString, weekStartOf } from "@/lib/date";
+import {
+  addDaysToDateString,
+  addMonthsToMonthKey,
+  dateStringDaysAgo,
+  formatDate,
+  monthKeyOfWeek,
+  todayDateString,
+  weekStartOf,
+} from "@/lib/date";
 import { projectWeightAtDate } from "@/lib/weightProjection";
 import { fontRounded, tokens } from "@/theme";
 import type { ActivityRecord, DiaryRecord, MealRecord, WaterRecord, WeightRecord, WorkoutRecord } from "@/types";
 
 type ViewMode = "chart" | "history" | "review";
 type HistoryKind = "weight" | "meal" | "water" | "strength" | "diary" | "activity";
+type ReviewSpan = "week" | "month";
 
 const VIEW_MODE_OPTIONS = [
   { value: "chart", label: "グラフ" },
   { value: "history", label: "履歴" },
   { value: "review", label: "レビュー" },
+] as const;
+
+const REVIEW_SPAN_OPTIONS = [
+  { value: "week", label: "週" },
+  { value: "month", label: "月" },
 ] as const;
 
 const HISTORY_KIND_OPTIONS = [
@@ -69,6 +85,9 @@ export default function TrendsPage() {
   const [historyTo, setHistoryTo] = useState("");
   // 週次レビューの表示週(月曜起点)。デフォルトは今週(画面設計書8.2章)
   const [reviewWeekStart, setReviewWeekStart] = useState(() => weekStartOf(todayDateString()));
+  // レビューの粒度(週/月。Issue #114)と月次レビューの表示月(YYYY-MM)。デフォルトは今週が属する月
+  const [reviewSpan, setReviewSpan] = useState<ReviewSpan>("week");
+  const [reviewMonth, setReviewMonth] = useState(() => monthKeyOfWeek(weekStartOf(todayDateString())));
 
   const settings = useLiveQuery(() => getSettings(), []);
   // .first()/.last()は記録が1件もないとundefinedを返すが、useLiveQueryは
@@ -175,8 +194,19 @@ export default function TrendsPage() {
   // 週次レビューのダイジェスト(Issue #45)。レビュータブ表示中のみ集計する。
   // 「未表示」もnullに解決するため、undefined(ロード中)と区別できる(CLAUDE.mdのuseLiveQueryパターン)
   const reviewDigest = useLiveQuery(
-    () => (viewMode === "review" ? getWeeklyDigest(reviewWeekStart) : Promise.resolve(null)),
-    [viewMode, reviewWeekStart],
+    () =>
+      viewMode === "review" && reviewSpan === "week"
+        ? getWeeklyDigest(reviewWeekStart)
+        : Promise.resolve(null),
+    [viewMode, reviewSpan, reviewWeekStart],
+  );
+  // 月次レビューのダイジェスト(Issue #114)。「月」選択中のみ集計する(週次と同じnull正規化パターン)
+  const monthlyReviewDigest = useLiveQuery(
+    () =>
+      viewMode === "review" && reviewSpan === "month"
+        ? getMonthlyDigest(reviewMonth)
+        : Promise.resolve(null),
+    [viewMode, reviewSpan, reviewMonth],
   );
 
   if (
@@ -194,7 +224,8 @@ export default function TrendsPage() {
     workoutHistoryRecords === undefined ||
     diaryHistoryRecords === undefined ||
     activityHistoryRecords === undefined ||
-    reviewDigest === undefined
+    reviewDigest === undefined ||
+    monthlyReviewDigest === undefined
   ) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
@@ -271,17 +302,32 @@ export default function TrendsPage() {
           />
         </>
       ) : viewMode === "review" ? (
-        reviewDigest && (
-          <WeeklyReview
-            // 週を切り替えるたびに再マウントし、生成中フラグ・エラー表示・反映済み表示などの
-            // ローカル状態が前の週から持ち越されないようにする(週ごとに独立した状態であるべきため)
-            key={reviewWeekStart}
-            digest={reviewDigest}
-            onPrevWeek={() => setReviewWeekStart(addDaysToDateString(reviewWeekStart, -7))}
-            onNextWeek={() => setReviewWeekStart(addDaysToDateString(reviewWeekStart, 7))}
-            canGoNext={reviewWeekStart < weekStartOf(todayDateString())}
-          />
-        )
+        <>
+          {/* レビューの粒度切り替え(週/月。Issue #114)。役割を分ける: 週=行動を変える振り返り、月=俯瞰 */}
+          <SegmentedControl options={REVIEW_SPAN_OPTIONS} value={reviewSpan} onChange={setReviewSpan} />
+          {reviewSpan === "week"
+            ? reviewDigest && (
+                <WeeklyReview
+                  // 週を切り替えるたびに再マウントし、生成中フラグ・エラー表示・反映済み表示などの
+                  // ローカル状態が前の週から持ち越されないようにする(週ごとに独立した状態であるべきため)
+                  key={reviewWeekStart}
+                  digest={reviewDigest}
+                  onPrevWeek={() => setReviewWeekStart(addDaysToDateString(reviewWeekStart, -7))}
+                  onNextWeek={() => setReviewWeekStart(addDaysToDateString(reviewWeekStart, 7))}
+                  canGoNext={reviewWeekStart < weekStartOf(todayDateString())}
+                />
+              )
+            : monthlyReviewDigest && (
+                <MonthlyReview
+                  // 週次と同じ理由で、月を切り替えるたびに再マウントしてローカル状態を持ち越さない
+                  key={reviewMonth}
+                  digest={monthlyReviewDigest}
+                  onPrevMonth={() => setReviewMonth(addMonthsToMonthKey(reviewMonth, -1))}
+                  onNextMonth={() => setReviewMonth(addMonthsToMonthKey(reviewMonth, 1))}
+                  canGoNext={reviewMonth < monthKeyOfWeek(weekStartOf(todayDateString()))}
+                />
+              )}
+        </>
       ) : (
         <>
           <SegmentedControl options={HISTORY_KIND_OPTIONS} value={historyKind} onChange={setHistoryKind} />

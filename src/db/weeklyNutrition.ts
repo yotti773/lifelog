@@ -24,10 +24,9 @@ export interface MealDailyTotal {
   carbsG: number;
 }
 
-/** 指定週の食事の日別合計(食事記録がある日のみ。日付昇順) */
-export async function getMealDailyTotalsForWeek(weekStart: string): Promise<MealDailyTotal[]> {
-  const weekEnd = addDaysToDateString(weekStart, 6);
-  const records = await getMealRecordsByDateRange(weekStart, weekEnd);
+/** 指定期間の食事の日別合計(食事記録がある日のみ。日付昇順)。週次・月次レビュー共用(Issue #114) */
+export async function getMealDailyTotals(startDate: string, endDate: string): Promise<MealDailyTotal[]> {
+  const records = await getMealRecordsByDateRange(startDate, endDate);
 
   const byDate = new Map<string, MealDailyTotal>();
   for (const record of records) {
@@ -40,6 +39,11 @@ export async function getMealDailyTotalsForWeek(weekStart: string): Promise<Meal
     byDate.set(date, total);
   }
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** 指定週の食事の日別合計(食事記録がある日のみ。日付昇順) */
+export async function getMealDailyTotalsForWeek(weekStart: string): Promise<MealDailyTotal[]> {
+  return getMealDailyTotals(weekStart, addDaysToDateString(weekStart, 6));
 }
 
 /** 指定週のWeeklyNutritionSummary(実測TDEE計算の入力)を集計する */

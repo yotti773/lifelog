@@ -125,7 +125,7 @@ export default function BodyMeasurementRecordPage() {
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (waistCm === "" || Number.isNaN(parsedWaist)) {
-      setError("腹囲を入力してください");
+      setError("おなか周りを入力してください");
       return;
     }
     if (chestCm !== "" && Number.isNaN(parsedChest)) {
@@ -167,7 +167,7 @@ export default function BodyMeasurementRecordPage() {
         <RecordHeader title="記録が見つかりません" onBack={() => navigate("/trends", { state: { viewMode: "history", historyKind: "bodyMeasurement" } })} />
         <Card sx={{ p: "16px", mb: "16px" }}>
           <Typography sx={{ fontSize: 14, color: "text.secondary" }}>
-            指定された日付の周囲径記録は見つかりませんでした。別の端末で削除された可能性があります。
+            指定された日付のサイズの記録は見つかりませんでした。別の端末で削除された可能性があります。
           </Typography>
         </Card>
         <Button
@@ -184,7 +184,7 @@ export default function BodyMeasurementRecordPage() {
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "110px" }}>
-      <RecordHeader title={isEditing ? "周囲径を編集" : "周囲径を記録"} onBack={() => navigate(-1)} />
+      <RecordHeader title={isEditing ? "サイズを編集" : "サイズを記録"} onBack={() => navigate(-1)} />
 
       <Box component="form" onSubmit={handleSubmit}>
         <FieldLabel>日時</FieldLabel>
@@ -199,7 +199,7 @@ export default function BodyMeasurementRecordPage() {
         />
 
         <Box sx={{ mb: "14px" }}>
-          <CmField label="腹囲" value={waistCm} onChange={setWaistCm} placeholder="80.0" big />
+          <CmField label="おなか周り" value={waistCm} onChange={setWaistCm} placeholder="80.0" big />
         </Box>
 
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", mb: "14px" }}>

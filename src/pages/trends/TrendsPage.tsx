@@ -96,7 +96,7 @@ const HISTORY_KIND_OPTIONS = [
   { value: "diary", label: "日記" },
   { value: "activity", label: "活動" },
   { value: "bloodPressure", label: "血圧" },
-  { value: "bodyMeasurement", label: "周囲径" },
+  { value: "bodyMeasurement", label: "サイズ" },
 ] as const;
 
 export default function TrendsPage() {

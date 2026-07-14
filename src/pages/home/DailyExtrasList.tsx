@@ -230,7 +230,7 @@ export default function DailyExtrasList({
             ) : undefined
           }
         >
-          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "2px" }}>周囲径(腹囲)</Typography>
+          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "2px" }}>サイズ(おなか周り)</Typography>
           <Typography sx={{ fontSize: 12, color: latestMeasurement ? "text.secondary" : tokens.faint }}>
             {latestMeasurement ? `最新 ${formatMonthDay(latestMeasurement.date)}` : "未記録"}
           </Typography>

@@ -79,7 +79,7 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
           `体重${importedWeightCount}件・食事${importedMealCount}件・水分${importedWaterCount}件・` +
           `筋トレ${importedWorkoutCount}件・日記${importedDiaryCount}件・活動${importedActivityCount}件・` +
           `食事マスタ${importedFoodMasterCount}件・種目マスタ${importedExerciseMasterCount}件・` +
-          `血圧${importedBloodPressureCount}件・周囲径${importedBodyMeasurementCount}件・` +
+          `血圧${importedBloodPressureCount}件・サイズ${importedBodyMeasurementCount}件・` +
           `習慣マスタ${importedHabitMasterCount}件・習慣記録${importedHabitRecordCount}件を取り込みました`;
         if (skippedExistingCount > 0) {
           message += `(既にある${skippedExistingCount}件はスキップ)`;

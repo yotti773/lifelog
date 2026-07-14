@@ -36,7 +36,7 @@ export default function BodyMeasurementChart({ records }: BodyMeasurementChartPr
           color: "#8C8C8C",
         }}
       >
-        腹囲の記録がありません
+        おなか周りの記録がありません
       </div>
     );
   }
@@ -68,7 +68,7 @@ export default function BodyMeasurementChart({ records }: BodyMeasurementChartPr
   const ticks = axisTicks(minValue - yPad, maxValue + yPad);
 
   return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: "100%", display: "block" }} role="img" aria-label="腹囲推移グラフ">
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: "100%", display: "block" }} role="img" aria-label="おなか周りの推移グラフ">
       {ticks.map((tick) => (
         <g key={tick.value}>
           <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={yScale(tick.value)} y2={yScale(tick.value)} stroke={COLORS.grid} strokeWidth={1} />

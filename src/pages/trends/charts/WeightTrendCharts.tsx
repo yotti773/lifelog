@@ -156,7 +156,7 @@ export default function WeightTrendCharts({
       {bodyMeasurementChartRecords.length > 0 && (
         <Card sx={{ p: "16px" }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px" }}>
-            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>腹囲</Typography>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>おなか周り</Typography>
             <Typography sx={{ fontSize: 10, fontWeight: 500, color: "text.secondary" }}>cm</Typography>
           </Box>
           <BodyMeasurementChart records={bodyMeasurementChartRecords} />

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { db } from "@/db/db";
+import { getBloodPressureRecord } from "@/db/bloodPressureRecords";
 import { getDiaryRecord } from "@/db/diaryRecords";
 import { getRecordedDateSet } from "@/db/recordedDays";
 import { getSettings } from "@/db/settings";
@@ -14,6 +15,7 @@ import { fontRounded, tokens } from "@/theme";
 import BodyMetricsCards from "./BodyMetricsCards";
 import CalorieCard from "./CalorieCard";
 import DailyExtrasList from "./DailyExtrasList";
+import HabitChecklist from "./HabitChecklist";
 import TodayMealList from "./TodayMealList";
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -48,6 +50,12 @@ export default function HomePage() {
   // 「未記録」に正当に解決しうるクエリはnullに正規化する(undefined=ロード中と区別するため。TrendsPage.tsx参照)
   const diary = useLiveQuery(() => getDiaryRecord(today).then((v) => v ?? null), [today]);
   const workoutRecords = useLiveQuery(() => getWorkoutRecordsForDate(today), [today]);
+  // 血圧(今日)・周囲径(最新)。「未記録」とロード中を区別するためnullに正規化する(Issue #117・#118)
+  const bloodPressure = useLiveQuery(() => getBloodPressureRecord(today).then((v) => v ?? null), [today]);
+  const latestMeasurement = useLiveQuery(
+    () => db.bodyMeasurementRecords.orderBy("date").last().then((v) => v ?? null),
+    [],
+  );
   // 連続記録日数(Issue #46)。常時表示のためaccent色は使わない(デザインガイドの制約)
   const streakDays = useLiveQuery(
     async () => currentStreakDays(await getRecordedDateSet(), today),
@@ -59,7 +67,9 @@ export default function HomePage() {
     settings === undefined ||
     waterRecords === undefined ||
     diary === undefined ||
-    workoutRecords === undefined
+    workoutRecords === undefined ||
+    bloodPressure === undefined ||
+    latestMeasurement === undefined
   ) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
@@ -138,11 +148,16 @@ export default function HomePage() {
       <TodayMealList meals={meals} totalKcal={totalKcal} />
 
       <DailyExtrasList
+        today={today}
         waterRecords={waterRecords}
         waterTargetMl={settings.dailyWaterTargetMl}
         diary={diary}
         workoutRecords={workoutRecords}
+        bloodPressure={bloodPressure}
+        latestMeasurement={latestMeasurement}
       />
+
+      <HabitChecklist today={today} />
     </Box>
   );
 }

@@ -15,6 +15,10 @@ export type ImportOutcome =
       importedActivityCount: number;
       importedFoodMasterCount: number;
       importedExerciseMasterCount: number;
+      importedBloodPressureCount: number;
+      importedBodyMeasurementCount: number;
+      importedHabitMasterCount: number;
+      importedHabitRecordCount: number;
       /** ローカルに既にある・削除保留中のためスキップした件数(マスタは同名の既存品目・種目もスキップ対象) */
       skippedExistingCount: number;
       /** シート側で解釈できずスキップされた行数(見出し行を除く) */
@@ -57,6 +61,10 @@ export async function runImport({
         db.activityRecords,
         db.foodMasterItems,
         db.exerciseMasterItems,
+        db.bloodPressureRecords,
+        db.bodyMeasurementRecords,
+        db.habitMasterItems,
+        db.habitRecords,
         db.syncDeletions,
       ],
       async () => {
@@ -68,6 +76,10 @@ export async function runImport({
           pendingDiaryIds,
           pendingFoodMasterIds,
           pendingExerciseMasterIds,
+          pendingBloodPressureIds,
+          pendingBodyMeasurementIds,
+          pendingHabitMasterIds,
+          pendingHabitRecordIds,
         ] = await Promise.all([
           getPendingDeletionIds("weight"),
           getPendingDeletionIds("meal"),
@@ -76,6 +88,10 @@ export async function runImport({
           getPendingDeletionIds("diary"),
           getPendingDeletionIds("foodMaster"),
           getPendingDeletionIds("exerciseMaster"),
+          getPendingDeletionIds("bloodPressure"),
+          getPendingDeletionIds("bodyMeasurement"),
+          getPendingDeletionIds("habitMaster"),
+          getPendingDeletionIds("habitRecord"),
         ]);
         const pendingWeightSet = new Set(pendingWeightIds);
         const pendingMealSet = new Set(pendingMealIds);
@@ -84,6 +100,10 @@ export async function runImport({
         const pendingDiarySet = new Set(pendingDiaryIds);
         const pendingFoodMasterSet = new Set(pendingFoodMasterIds);
         const pendingExerciseMasterSet = new Set(pendingExerciseMasterIds);
+        const pendingBloodPressureSet = new Set(pendingBloodPressureIds);
+        const pendingBodyMeasurementSet = new Set(pendingBodyMeasurementIds);
+        const pendingHabitMasterSet = new Set(pendingHabitMasterIds);
+        const pendingHabitRecordSet = new Set(pendingHabitRecordIds);
 
         let importedWeightCount = 0;
         let importedMealCount = 0;
@@ -92,6 +112,10 @@ export async function runImport({
         let importedDiaryCount = 0;
         let importedFoodMasterCount = 0;
         let importedExerciseMasterCount = 0;
+        let importedBloodPressureCount = 0;
+        let importedBodyMeasurementCount = 0;
+        let importedHabitMasterCount = 0;
+        let importedHabitRecordCount = 0;
         let skippedExistingCount = 0;
 
         for (const record of pulled.weightRecords) {
@@ -185,6 +209,64 @@ export async function runImport({
           importedExerciseMasterCount++;
         }
 
+        // 血圧・周囲径は体重と同じく日付キー・追加のみ・ローカル優先(Issue #117・#118)
+        for (const record of pulled.bloodPressureRecords ?? []) {
+          if (
+            pendingBloodPressureSet.has(record.date) ||
+            (await db.bloodPressureRecords.get(record.date)) !== undefined
+          ) {
+            skippedExistingCount++;
+            continue;
+          }
+          await db.bloodPressureRecords.put({ ...record, synced: true });
+          importedBloodPressureCount++;
+        }
+
+        for (const record of pulled.bodyMeasurementRecords ?? []) {
+          if (
+            pendingBodyMeasurementSet.has(record.date) ||
+            (await db.bodyMeasurementRecords.get(record.date)) !== undefined
+          ) {
+            skippedExistingCount++;
+            continue;
+          }
+          await db.bodyMeasurementRecords.put({ ...record, synced: true });
+          importedBodyMeasurementCount++;
+        }
+
+        // 習慣マスタはマスタ系と同じくIDに加えて名前でも重複を弾く(Issue #113)。
+        // orderが欠けている取り込み行は末尾に採番していく
+        const existingHabits = await db.habitMasterItems.toArray();
+        const existingHabitNames = new Set(existingHabits.map((item) => item.name.trim()));
+        let maxHabitOrder = existingHabits.reduce((max, item) => Math.max(max, item.order), 0);
+        for (const item of pulled.habitMasterItems ?? []) {
+          if (
+            pendingHabitMasterSet.has(item.id) ||
+            existingHabitNames.has(item.name.trim()) ||
+            (await db.habitMasterItems.get(item.id)) !== undefined
+          ) {
+            skippedExistingCount++;
+            continue;
+          }
+          maxHabitOrder += 1;
+          await db.habitMasterItems.put({ ...item, order: item.order || maxHabitOrder, synced: true });
+          existingHabitNames.add(item.name.trim());
+          importedHabitMasterCount++;
+        }
+
+        // 習慣記録は合成キー(id=`${date}_${habitId}`)で追加のみ・ローカル優先(Issue #113)
+        for (const record of pulled.habitRecords ?? []) {
+          if (
+            pendingHabitRecordSet.has(record.id) ||
+            (await db.habitRecords.get(record.id)) !== undefined
+          ) {
+            skippedExistingCount++;
+            continue;
+          }
+          await db.habitRecords.put({ ...record, synced: true });
+          importedHabitRecordCount++;
+        }
+
         return {
           importedWeightCount,
           importedMealCount,
@@ -194,6 +276,10 @@ export async function runImport({
           importedActivityCount,
           importedFoodMasterCount,
           importedExerciseMasterCount,
+          importedBloodPressureCount,
+          importedBodyMeasurementCount,
+          importedHabitMasterCount,
+          importedHabitRecordCount,
           skippedExistingCount,
         };
       },
@@ -210,7 +296,11 @@ export async function runImport({
         pulled.skippedDiaryRows +
         pulled.skippedActivityRows +
         (pulled.skippedFoodMasterRows ?? 0) +
-        (pulled.skippedExerciseMasterRows ?? 0),
+        (pulled.skippedExerciseMasterRows ?? 0) +
+        (pulled.skippedBloodPressureRows ?? 0) +
+        (pulled.skippedBodyMeasurementRows ?? 0) +
+        (pulled.skippedHabitMasterRows ?? 0) +
+        (pulled.skippedHabitRecordRows ?? 0),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "取り込みに失敗しました";

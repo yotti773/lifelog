@@ -4,7 +4,7 @@ import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import CrossAnalysisCard from "./CrossAnalysisCard";
 import MonthlyAdviceCard from "./MonthlyAdviceCard";
-import { IconArrow, IconBack, IconChevronRight, IconFlame, IconWarning } from "@/components/icons";
+import { IconActivity, IconArrow, IconBack, IconChevronRight, IconFlame, IconWarning } from "@/components/icons";
 import { formatMonthDay, formatMonthKey } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 import type { DigestFlag, MonthlyDigest } from "@/types";
@@ -154,7 +154,7 @@ function WeeklyAvgWeightChart({ weeks }: { weeks: MonthlyDigest["weeks"] }) {
 }
 
 export default function MonthlyReview({ digest, onPrevMonth, onNextMonth, canGoNext }: MonthlyReviewProps) {
-  const { weight, calories, recording, flags, crossAnalysis } = digest;
+  const { weight, calories, recording, flags, crossAnalysis, bloodPressure } = digest;
 
   // 必要ペースとの比較(マイルストーンの判定)。減量が必要な月でペースが計算できたときのみ判定する
   const paceStatus =
@@ -352,6 +352,32 @@ export default function MonthlyReview({ digest, onPrevMonth, onNextMonth, canGoN
           />
         </Box>
       </Card>
+
+      {/* 血圧サマリー(Issue #117)。記録が無い月はカードごと出さない。医学的判断はせず事実の提示に留める */}
+      {bloodPressure && (
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "4px" }}>
+            <Box sx={{ color: "primary.main", display: "flex" }}>
+              <IconActivity size={15} />
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>血圧(朝の家庭血圧)</Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "baseline", gap: "4px", mb: "2px" }}>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 28, lineHeight: 1 }}>
+              {bloodPressure.avgSystolic}/{bloodPressure.avgDiastolic}
+            </Typography>
+            <Typography sx={{ fontFamily: fontRounded, fontSize: 12, color: "text.secondary" }}>mmHg</Typography>
+            <Typography sx={{ fontSize: 11, color: tokens.faint, ml: "2px" }}>月平均</Typography>
+          </Box>
+          <Box sx={{ borderTop: `1px solid ${tokens.divider}`, mt: "8px", pt: "4px" }}>
+            <StatRow label="記録した日" value={`${bloodPressure.recordedDays}`} sub={`/ ${recording.totalDays}日`} />
+            <StatRow label="135/85以上だった日" value={`${bloodPressure.highReadingDays}`} sub="日" />
+          </Box>
+          <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "8px", lineHeight: 1.6 }}>
+            数値は事実の提示です(本アプリは医療機器ではなく、医学的な判断は行いません)
+          </Typography>
+        </Card>
+      )}
 
       {/* クロス分析(月窓。Issue #112の集計を月幅で再実行)。比較が成立する項目が無い月はカードごと出さない */}
       {crossAnalysis && (

@@ -50,6 +50,10 @@ const successOutcome = (overrides: {
   importedActivityCount?: number;
   importedFoodMasterCount?: number;
   importedExerciseMasterCount?: number;
+  importedBloodPressureCount?: number;
+  importedBodyMeasurementCount?: number;
+  importedHabitMasterCount?: number;
+  importedHabitRecordCount?: number;
   skippedExistingCount?: number;
   skippedRowCount?: number;
 }) => ({
@@ -62,6 +66,10 @@ const successOutcome = (overrides: {
   importedActivityCount: 0,
   importedFoodMasterCount: 0,
   importedExerciseMasterCount: 0,
+  importedBloodPressureCount: 0,
+  importedBodyMeasurementCount: 0,
+  importedHabitMasterCount: 0,
+  importedHabitRecordCount: 0,
   skippedExistingCount: 0,
   skippedRowCount: 0,
   ...overrides,

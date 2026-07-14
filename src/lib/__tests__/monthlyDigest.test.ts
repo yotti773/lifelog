@@ -48,6 +48,7 @@ function baseSource(overrides?: Partial<MonthlyDigestSource>): MonthlyDigestSour
     recordedDays: 33,
     diaryDays: [],
     activityDays: [],
+    bloodPressureDays: [],
     ...overrides,
   };
 }

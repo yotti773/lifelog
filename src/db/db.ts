@@ -2,9 +2,13 @@ import Dexie, { type EntityTable } from "dexie";
 import type {
   ActivityRecord,
   AdviceRecord,
+  BloodPressureRecord,
+  BodyMeasurementRecord,
   DiaryRecord,
   ExerciseMasterItem,
   FoodMasterItem,
+  HabitMasterItem,
+  HabitRecord,
   MealRecord,
   MonthlyAdviceRecord,
   Settings,
@@ -29,6 +33,10 @@ export const db = new Dexie("lifelog") as Dexie & {
   adviceRecords: EntityTable<AdviceRecord, "weekStart">;
   activityRecords: EntityTable<ActivityRecord, "date">;
   monthlyAdviceRecords: EntityTable<MonthlyAdviceRecord, "month">;
+  bloodPressureRecords: EntityTable<BloodPressureRecord, "date">;
+  bodyMeasurementRecords: EntityTable<BodyMeasurementRecord, "date">;
+  habitMasterItems: EntityTable<HabitMasterItem, "id">;
+  habitRecords: EntityTable<HabitRecord, "id">;
 };
 
 // weightRecords: dateを主キーにすることで、同じ日付のput()が自動的に上書き(後勝ち)になる
@@ -80,4 +88,21 @@ db.version(7)
 // 月(YYYY-MM)を主キーにして「1月1件、再生成で上書き(後勝ち)」を成立させる(週次のadviceRecordsと同じ仕組み)
 db.version(8).stores({
   monthlyAdviceRecords: "month",
+});
+
+// 血圧記録(Issue #117)。体重・日記と同じくdateを主キーにして「1日1件、後勝ち」を成立させる
+db.version(9).stores({
+  bloodPressureRecords: "date, timestamp",
+});
+
+// 周囲径記録(Issue #118)。血圧と同じくdateを主キーにして「1日1件、後勝ち」を成立させる
+db.version(10).stores({
+  bodyMeasurementRecords: "date, timestamp",
+});
+
+// 習慣トラッカー(Issue #113。要件定義書フェーズ4)。
+// habitRecordsは`${date}_${habitId}`を主キーにして「1日1習慣1件、後勝ち」を成立させる
+db.version(11).stores({
+  habitMasterItems: "id, name, archived, order",
+  habitRecords: "id, date, habitId",
 });

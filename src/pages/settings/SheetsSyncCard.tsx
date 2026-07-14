@@ -5,9 +5,13 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import { IconDownload, IconSync, IconWarning } from "@/components/icons";
+import { getUnsyncedBloodPressureRecords } from "@/db/bloodPressureRecords";
+import { getUnsyncedBodyMeasurementRecords } from "@/db/bodyMeasurementRecords";
 import { getUnsyncedDiaryRecords } from "@/db/diaryRecords";
 import { getUnsyncedExerciseMasterItems } from "@/db/exerciseMaster";
 import { getUnsyncedFoodMasterItems } from "@/db/foodMaster";
+import { getUnsyncedHabitMasterItems } from "@/db/habitMaster";
+import { getUnsyncedHabitRecords } from "@/db/habitRecords";
 import { getUnsyncedMealRecords } from "@/db/mealRecords";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWaterRecords } from "@/db/waterRecords";
@@ -44,6 +48,10 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedActivityCount,
         importedFoodMasterCount,
         importedExerciseMasterCount,
+        importedBloodPressureCount,
+        importedBodyMeasurementCount,
+        importedHabitMasterCount,
+        importedHabitRecordCount,
         skippedExistingCount,
         skippedRowCount,
       } = outcome;
@@ -55,7 +63,11 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedDiaryCount +
         importedActivityCount +
         importedFoodMasterCount +
-        importedExerciseMasterCount;
+        importedExerciseMasterCount +
+        importedBloodPressureCount +
+        importedBodyMeasurementCount +
+        importedHabitMasterCount +
+        importedHabitRecordCount;
       let message: string;
       if (totalImported === 0) {
         message =
@@ -66,7 +78,9 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         message =
           `体重${importedWeightCount}件・食事${importedMealCount}件・水分${importedWaterCount}件・` +
           `筋トレ${importedWorkoutCount}件・日記${importedDiaryCount}件・活動${importedActivityCount}件・` +
-          `食事マスタ${importedFoodMasterCount}件・種目マスタ${importedExerciseMasterCount}件を取り込みました`;
+          `食事マスタ${importedFoodMasterCount}件・種目マスタ${importedExerciseMasterCount}件・` +
+          `血圧${importedBloodPressureCount}件・周囲径${importedBodyMeasurementCount}件・` +
+          `習慣マスタ${importedHabitMasterCount}件・習慣記録${importedHabitRecordCount}件を取り込みました`;
         if (skippedExistingCount > 0) {
           message += `(既にある${skippedExistingCount}件はスキップ)`;
         }
@@ -100,6 +114,10 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       diaries,
       foodMasters,
       exerciseMasters,
+      bloodPressures,
+      bodyMeasurements,
+      habitMasters,
+      habitRecords,
       weightDeletions,
       mealDeletions,
       waterDeletions,
@@ -107,6 +125,10 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       diaryDeletions,
       foodMasterDeletions,
       exerciseMasterDeletions,
+      bloodPressureDeletions,
+      bodyMeasurementDeletions,
+      habitMasterDeletions,
+      habitRecordDeletions,
     ] = await Promise.all([
       getUnsyncedWeightRecords(),
       getUnsyncedMealRecords(),
@@ -115,6 +137,10 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       getUnsyncedDiaryRecords(),
       getUnsyncedFoodMasterItems(),
       getUnsyncedExerciseMasterItems(),
+      getUnsyncedBloodPressureRecords(),
+      getUnsyncedBodyMeasurementRecords(),
+      getUnsyncedHabitMasterItems(),
+      getUnsyncedHabitRecords(),
       getPendingDeletionIds("weight"),
       getPendingDeletionIds("meal"),
       getPendingDeletionIds("water"),
@@ -122,6 +148,10 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       getPendingDeletionIds("diary"),
       getPendingDeletionIds("foodMaster"),
       getPendingDeletionIds("exerciseMaster"),
+      getPendingDeletionIds("bloodPressure"),
+      getPendingDeletionIds("bodyMeasurement"),
+      getPendingDeletionIds("habitMaster"),
+      getPendingDeletionIds("habitRecord"),
     ]);
     return (
       weights.length +
@@ -131,13 +161,21 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       diaries.length +
       foodMasters.length +
       exerciseMasters.length +
+      bloodPressures.length +
+      bodyMeasurements.length +
+      habitMasters.length +
+      habitRecords.length +
       weightDeletions.length +
       mealDeletions.length +
       waterDeletions.length +
       workoutDeletions.length +
       diaryDeletions.length +
       foodMasterDeletions.length +
-      exerciseMasterDeletions.length
+      exerciseMasterDeletions.length +
+      bloodPressureDeletions.length +
+      bodyMeasurementDeletions.length +
+      habitMasterDeletions.length +
+      habitRecordDeletions.length
     );
   }, []);
 

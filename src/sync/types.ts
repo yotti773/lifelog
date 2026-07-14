@@ -1,8 +1,12 @@
 import type {
   ActivityRecord,
+  BloodPressureRecord,
+  BodyMeasurementRecord,
   DiaryRecord,
   ExerciseMasterItem,
   FoodMasterItem,
+  HabitMasterItem,
+  HabitRecord,
   MealRecord,
   WaterRecord,
   WeightRecord,
@@ -17,6 +21,10 @@ export interface SyncPushPayload {
   diaryRecords: DiaryRecord[];
   foodMasterItems: FoodMasterItem[];
   exerciseMasterItems: ExerciseMasterItem[];
+  bloodPressureRecords: BloodPressureRecord[];
+  bodyMeasurementRecords: BodyMeasurementRecord[];
+  habitMasterItems: HabitMasterItem[];
+  habitRecords: HabitRecord[];
   /** スプレッドシートから削除すべき体重記録のID(=日付)一覧。トゥームストーン由来(Issue #30) */
   deletedWeightIds: string[];
   /** スプレッドシートから削除すべき食事記録のID一覧。トゥームストーン由来(Issue #30) */
@@ -31,6 +39,14 @@ export interface SyncPushPayload {
   deletedFoodMasterIds: string[];
   /** スプレッドシートから削除すべき種目マスタのID一覧。トゥームストーン由来(Issue #96) */
   deletedExerciseMasterIds: string[];
+  /** スプレッドシートから削除すべき血圧記録のID(=日付)一覧。トゥームストーン由来(Issue #117) */
+  deletedBloodPressureIds: string[];
+  /** スプレッドシートから削除すべき周囲径記録のID(=日付)一覧。トゥームストーン由来(Issue #118) */
+  deletedBodyMeasurementIds: string[];
+  /** スプレッドシートから削除すべき習慣マスタのID一覧。トゥームストーン由来(Issue #113) */
+  deletedHabitMasterIds: string[];
+  /** スプレッドシートから削除すべき習慣記録のID一覧。トゥームストーン由来(Issue #113) */
+  deletedHabitRecordIds: string[];
 }
 
 export interface SyncPushResult {
@@ -48,6 +64,14 @@ export interface SyncPushResult {
   syncedFoodMasterIds?: string[];
   /** 送信(追記/更新)に成功したExerciseMasterItemのid一覧。マスタ未対応の旧Workerは返さないため省略可(Issue #96) */
   syncedExerciseMasterIds?: string[];
+  /** 送信に成功したBloodPressureRecordのdate一覧。未対応の旧Workerは返さないため省略可(Issue #117) */
+  syncedBloodPressureDates?: string[];
+  /** 送信に成功したBodyMeasurementRecordのdate一覧。未対応の旧Workerは返さないため省略可(Issue #118) */
+  syncedBodyMeasurementDates?: string[];
+  /** 送信に成功したHabitMasterItemのid一覧。未対応の旧Workerは返さないため省略可(Issue #113) */
+  syncedHabitMasterIds?: string[];
+  /** 送信に成功したHabitRecordのid一覧。未対応の旧Workerは返さないため省略可(Issue #113) */
+  syncedHabitRecordIds?: string[];
   /** 削除を確定できた体重記録のID一覧。省略時は空とみなす(Issue #30) */
   deletedWeightIds?: string[];
   /** 削除を確定できた食事記録のID一覧。省略時は空とみなす(Issue #30) */
@@ -62,6 +86,14 @@ export interface SyncPushResult {
   deletedFoodMasterIds?: string[];
   /** 削除を確定できた種目マスタのID一覧。省略時は空とみなす(Issue #96) */
   deletedExerciseMasterIds?: string[];
+  /** 削除を確定できた血圧記録のID一覧。省略時は空とみなす(Issue #117) */
+  deletedBloodPressureIds?: string[];
+  /** 削除を確定できた周囲径記録のID一覧。省略時は空とみなす(Issue #118) */
+  deletedBodyMeasurementIds?: string[];
+  /** 削除を確定できた習慣マスタのID一覧。省略時は空とみなす(Issue #113) */
+  deletedHabitMasterIds?: string[];
+  /** 削除を確定できた習慣記録のID一覧。省略時は空とみなす(Issue #113) */
+  deletedHabitRecordIds?: string[];
 }
 
 /**
@@ -108,6 +140,18 @@ export type PulledFoodMasterItem = Omit<FoodMasterItem, "synced">;
 /** スプレッドシートから取り込んだ種目マスタ(Issue #96)。シートに無い`synced`を除きExerciseMasterItemと同形 */
 export type PulledExerciseMasterItem = Omit<ExerciseMasterItem, "synced">;
 
+/** スプレッドシートから取り込んだ血圧記録(Issue #117)。シートに無い`synced`を除きBloodPressureRecordと同形 */
+export type PulledBloodPressureRecord = Omit<BloodPressureRecord, "synced">;
+
+/** スプレッドシートから取り込んだ周囲径記録(Issue #118)。シートに無い`synced`を除きBodyMeasurementRecordと同形 */
+export type PulledBodyMeasurementRecord = Omit<BodyMeasurementRecord, "synced">;
+
+/** スプレッドシートから取り込んだ習慣マスタ(Issue #113)。シートに無い`synced`を除きHabitMasterItemと同形 */
+export type PulledHabitMasterItem = Omit<HabitMasterItem, "synced">;
+
+/** スプレッドシートから取り込んだ習慣記録(Issue #113)。シートに無い`synced`を除きHabitRecordと同形 */
+export type PulledHabitRecord = Omit<HabitRecord, "synced">;
+
 export interface SyncPullResult {
   weightRecords: PulledWeightRecord[];
   mealRecords: PulledMealRecord[];
@@ -119,6 +163,14 @@ export interface SyncPullResult {
   foodMasterItems?: PulledFoodMasterItem[];
   /** マスタ未対応の旧Workerは返さないため省略可(Issue #96) */
   exerciseMasterItems?: PulledExerciseMasterItem[];
+  /** 未対応の旧Workerは返さないため省略可(Issue #117) */
+  bloodPressureRecords?: PulledBloodPressureRecord[];
+  /** 未対応の旧Workerは返さないため省略可(Issue #118) */
+  bodyMeasurementRecords?: PulledBodyMeasurementRecord[];
+  /** 未対応の旧Workerは返さないため省略可(Issue #113) */
+  habitMasterItems?: PulledHabitMasterItem[];
+  /** 未対応の旧Workerは返さないため省略可(Issue #113) */
+  habitRecords?: PulledHabitRecord[];
   /** 解釈できずスキップされた体重タブの行数(見出し行とみなす1行目を除く) */
   skippedWeightRows: number;
   /** 解釈できずスキップされた食事タブの行数(見出し行とみなす1行目を除く) */
@@ -135,6 +187,14 @@ export interface SyncPullResult {
   skippedFoodMasterRows?: number;
   /** 解釈できずスキップされた種目マスタタブの行数(見出し行とみなす1行目を除く。タブ自体が無い・旧Workerの場合は0扱い) */
   skippedExerciseMasterRows?: number;
+  /** 解釈できずスキップされた血圧記録タブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedBloodPressureRows?: number;
+  /** 解釈できずスキップされた周囲径記録タブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedBodyMeasurementRows?: number;
+  /** 解釈できずスキップされた習慣マスタタブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedHabitMasterRows?: number;
+  /** 解釈できずスキップされた習慣記録タブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedHabitRecordRows?: number;
 }
 
 /** スプレッドシートからの取り込み(復元・過去データ移行)を担うインターフェース(Issue #54) */

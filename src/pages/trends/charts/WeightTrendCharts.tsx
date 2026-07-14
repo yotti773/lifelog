@@ -1,7 +1,9 @@
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
+import BloodPressureChart from "./BloodPressureChart";
 import BodyFatChart from "./BodyFatChart";
+import BodyMeasurementChart from "./BodyMeasurementChart";
 import CalorieChart from "./CalorieChart";
 import SegmentedControl from "@/components/SegmentedControl";
 import SleepChart from "./SleepChart";
@@ -12,7 +14,7 @@ import { fontRounded, tokens } from "@/theme";
 import type { DailyActivityTotal } from "@/db/activityRecords";
 import type { DailyCalorieTotal } from "@/db/mealRecords";
 import type { DailyWaterTotal } from "@/db/waterRecords";
-import type { WeightRecord } from "@/types";
+import type { BloodPressureRecord, BodyMeasurementRecord, WeightRecord } from "@/types";
 
 export type Period = "week" | "month" | "all";
 
@@ -30,6 +32,10 @@ interface WeightTrendChartsProps {
   waterDailyTotals: DailyWaterTotal[];
   /** 日別の歩数・睡眠(Garmin由来。Issue #82)。活動記録が1件も無い(未連携)場合はnullでカードごと非表示 */
   activityDailyTotals: DailyActivityTotal[] | null;
+  /** 血圧記録(期間内。Issue #117)。1件も無ければカードごと非表示 */
+  bloodPressureChartRecords: BloodPressureRecord[];
+  /** 周囲径記録(期間内。Issue #118)。1件も無ければカードごと非表示 */
+  bodyMeasurementChartRecords: BodyMeasurementRecord[];
   goalWeightKg: number;
   dailyCalorieTarget: number;
   dailyWaterTargetMl: number | null;
@@ -42,6 +48,8 @@ export default function WeightTrendCharts({
   calorieDailyTotals,
   waterDailyTotals,
   activityDailyTotals,
+  bloodPressureChartRecords,
+  bodyMeasurementChartRecords,
   goalWeightKg,
   dailyCalorieTarget,
   dailyWaterTargetMl,
@@ -122,6 +130,37 @@ export default function WeightTrendCharts({
             <SleepChart data={activityDailyTotals} />
           </Card>
         </>
+      )}
+
+      {/* 血圧(Issue #117)。記録が1件も無ければカードごと非表示 */}
+      {bloodPressureChartRecords.length > 0 && (
+        <Card sx={{ p: "16px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px" }}>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>血圧</Typography>
+            <Box sx={{ display: "flex", gap: "10px" }}>
+              <Typography sx={{ display: "flex", alignItems: "center", gap: "4px", fontSize: 10, fontWeight: 500, color: "text.secondary" }}>
+                <Box component="span" sx={{ width: 10, height: "2px", bgcolor: "#FF6B4A", display: "inline-block" }} />
+                最高
+              </Typography>
+              <Typography sx={{ display: "flex", alignItems: "center", gap: "4px", fontSize: 10, fontWeight: 500, color: "text.secondary" }}>
+                <Box component="span" sx={{ width: 10, height: "2px", bgcolor: "#2EC4B6", display: "inline-block" }} />
+                最低
+              </Typography>
+            </Box>
+          </Box>
+          <BloodPressureChart records={bloodPressureChartRecords} />
+        </Card>
+      )}
+
+      {/* 周囲径(腹囲。Issue #118)。記録が1件も無ければカードごと非表示 */}
+      {bodyMeasurementChartRecords.length > 0 && (
+        <Card sx={{ p: "16px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px" }}>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 14 }}>腹囲</Typography>
+            <Typography sx={{ fontSize: 10, fontWeight: 500, color: "text.secondary" }}>cm</Typography>
+          </Box>
+          <BodyMeasurementChart records={bodyMeasurementChartRecords} />
+        </Card>
       )}
     </>
   );

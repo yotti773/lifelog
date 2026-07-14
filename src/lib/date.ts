@@ -70,6 +70,42 @@ export function weekStartOf(date: string): string {
   return addDaysToDateString(date, -offset);
 }
 
+/**
+ * 週(月曜起点)が属する月(YYYY-MM)を返す。月次レビュー(Issue #114)の月の定義は
+ * 「その月に週の終わり(日曜)が含まれる週の集合」— 暦月は月曜始まりの週と端が揃わないため、
+ * 週を分割せず日曜の属する月へ丸ごと割り当てる。これにより全ての週がちょうど1つの月に属する。
+ */
+export function monthKeyOfWeek(weekStart: string): string {
+  return addDaysToDateString(weekStart, 6).slice(0, 7);
+}
+
+/**
+ * 月(YYYY-MM)に属する週の開始日(月曜)の一覧を昇順で返す(4〜5週)。
+ * 月初の日を含む週の日曜は必ずその月の1〜7日に落ちるため、先頭は常にweekStartOf(月初)。
+ */
+export function weekStartsOfMonth(monthKey: string): string[] {
+  const weekStarts: string[] = [];
+  let weekStart = weekStartOf(`${monthKey}-01`);
+  while (monthKeyOfWeek(weekStart) === monthKey) {
+    weekStarts.push(weekStart);
+    weekStart = addDaysToDateString(weekStart, 7);
+  }
+  return weekStarts;
+}
+
+/** YYYY-MMにmonthsか月を加えた月(YYYY-MM)を返す(負数で過去方向) */
+export function addMonthsToMonthKey(monthKey: string, months: number): string {
+  const [year, month] = monthKey.split("-").map(Number);
+  const d = new Date(year, month - 1 + months, 1);
+  return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, "0")}`;
+}
+
+/** YYYY-MM形式の月文字列を「YYYY年M月」に変換する(月次レビューの見出し表示用) */
+export function formatMonthKey(monthKey: string): string {
+  const [year, month] = monthKey.split("-");
+  return `${year}年${Number(month)}月`;
+}
+
 /** YYYY-MM-DD形式の日付文字列をM/D形式(例: 7/1)に変換する。グラフのX軸ラベルや履歴一覧の日付表示で共通利用する */
 export function formatMonthDay(date: string): string {
   const [, month, day] = date.split("-");

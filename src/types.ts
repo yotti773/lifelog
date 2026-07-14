@@ -286,6 +286,58 @@ export interface WeeklyDigest {
   };
 }
 
+/**
+ * 月次レビューのAI入力契約かつ画面の表示データ(Issue #114。画面とAIが同じ事実を見る)。
+ * 月の定義は「その月に日曜が含まれる月曜始まりの週の集合」(src/lib/date.tsのweekStartsOfMonth)。
+ * 週次レビューの全セクションは持ち込まず、月次ならではの俯瞰(週平均体重の推移・月間TDEE・
+ * 月窓クロス分析・目標マイルストーン)に絞る。生成はsrc/lib/monthlyDigest.tsの純関数で行う。
+ */
+export interface MonthlyDigest {
+  month: string; // YYYY-MM
+  period: { start: string; end: string }; // 最初の週の月曜〜最後の週の日曜
+  goal: {
+    targetWeightKg: number;
+    targetDate: string; // YYYY-MM-DD
+    remainingDays: number; // 今日から目標日までの残り日数(過ぎていれば0)
+  };
+  /** 月内の週平均体重・平均摂取の系列(週の昇順、4〜5点)。ペースの加速・減速を見せる折れ線の元データ */
+  weeks: {
+    weekStart: string; // YYYY-MM-DD(月曜)
+    weekAvgKg: number | null; // 週平均体重(記録が無い週はnull)
+    avgIntakeKcal: number | null; // 食事記録がある日の平均摂取(無い週はnull)
+  }[];
+  weight: {
+    startWeekAvgKg: number | null; // 月内で最初に体重記録がある週の週平均
+    endWeekAvgKg: number | null; // 月内で最後に体重記録がある週の週平均
+    monthlyChangeKg: number | null; // endWeekAvgKg - startWeekAvgKg(記録のある週が2週未満ならnull)
+    avgWeeklyPaceKg: number | null; // 月間の平均ペース(kg/週)。変化量を週数差で割った値
+    requiredWeeklyPaceKg: number; // 必要ペース(kg/週)。週次と同じ計算(減量が必要なら負)
+    /** 今月のペースを維持した場合の目標日時点の見込み体重(マイルストーン)。ペースが計算できなければnull */
+    projectedAtGoalDateKg: number | null;
+    weeksWithData: number; // 体重記録がある週の数(0〜5)
+  };
+  calories: {
+    avgIntakeKcal: number | null; // 月内の食事記録がある日の平均
+    targetKcal: number;
+    daysOnTarget: number; // 目標以内に収まった日数
+    recordedDays: number; // 食事記録がある日数
+    /** 月窓の実測TDEE(月内の有効週の週次逆算値の平均)。週単位よりブレが少ない安定値(Issue #44・#114) */
+    monthlyTdeeKcal: number | null;
+    tdeeValidWeeks: number; // 逆算に使えた有効週の数(0〜5)
+    tdeeMinKcal: number | null; // 有効週の週次逆算値の最小(ブレ幅の表示用)
+    tdeeMaxKcal: number | null; // 同・最大
+    bmrKcal: number | null; // 基礎代謝(身体プロフィール未設定ならnull)
+  };
+  recording: {
+    recordedDays: number; // 「記録した日」(食事1件以上または体重記録あり)の数
+    totalDays: number; // 期間の総日数(28または35)
+  };
+  /** 週次と同じフラグ語彙を月窓の閾値で判定する(判定はsrc/lib/monthlyDigest.tsの純関数) */
+  flags: DigestFlag[];
+  /** 月窓のクロス集計(Issue #112の集計を月幅で再実行。週次より標本数が多い) */
+  crossAnalysis?: WeeklyDigest["crossAnalysis"];
+}
+
 /** AIの出力契約(AIコンサルティング設計書4章)。Workerのstructured outputで強制する */
 export interface WeeklyAdvice {
   verdict: "on_track" | "slightly_behind" | "behind" | "needs_attention";
@@ -303,5 +355,18 @@ export interface AdviceRecord {
   weekStart: string; // YYYY-MM-DD(月曜)
   createdAt: string; // ISO8601
   digest: WeeklyDigest;
+  advice: WeeklyAdvice;
+}
+
+/**
+ * 月次AIコーチコメントのキャッシュ(Issue #114)。週次のAdviceRecordと同じ仕組みを月キーで流用する:
+ * 月(YYYY-MM)を主キーとし、1月1件・再生成で上書き(後勝ち)。スプレッドシート同期の対象外(ローカルのみ)。
+ * 出力契約(verdict/summary/wins/actions)は週次と共通で、winsは「今月の良かった変化」、
+ * actionsは「来月の重点」の意味で使う。
+ */
+export interface MonthlyAdviceRecord {
+  month: string; // YYYY-MM
+  createdAt: string; // ISO8601
+  digest: MonthlyDigest;
   advice: WeeklyAdvice;
 }

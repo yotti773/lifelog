@@ -6,6 +6,7 @@ import type {
   ExerciseMasterItem,
   FoodMasterItem,
   MealRecord,
+  MonthlyAdviceRecord,
   Settings,
   SyncDeletion,
   WaterRecord,
@@ -27,6 +28,7 @@ export const db = new Dexie("lifelog") as Dexie & {
   exerciseMasterItems: EntityTable<ExerciseMasterItem, "id">;
   adviceRecords: EntityTable<AdviceRecord, "weekStart">;
   activityRecords: EntityTable<ActivityRecord, "date">;
+  monthlyAdviceRecords: EntityTable<MonthlyAdviceRecord, "month">;
 };
 
 // weightRecords: dateを主キーにすることで、同じ日付のput()が自動的に上書き(後勝ち)になる
@@ -73,3 +75,9 @@ db.version(7)
     await tx.table("foodMasterItems").toCollection().modify({ synced: false });
     await tx.table("exerciseMasterItems").toCollection().modify({ synced: false });
   });
+
+// 月次AIコーチコメントのキャッシュ(Issue #114)。
+// 月(YYYY-MM)を主キーにして「1月1件、再生成で上書き(後勝ち)」を成立させる(週次のadviceRecordsと同じ仕組み)
+db.version(8).stores({
+  monthlyAdviceRecords: "month",
+});

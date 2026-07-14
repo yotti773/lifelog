@@ -7,6 +7,7 @@ import {
   type MealJudgmentResult,
 } from "./mealJudgment";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
+import { handleMonthlyAdvice } from "./monthlyAdvice";
 import { handleImportSheets } from "./sheetsImport";
 import { handleSyncSheets } from "./sheetsSync";
 import { handleWeeklyAdvice } from "./weeklyAdvice";
@@ -111,6 +112,10 @@ export default {
 
     if (url.pathname === "/api/weekly-advice" && request.method === "POST") {
       return handleWeeklyAdvice(request, env);
+    }
+
+    if (url.pathname === "/api/monthly-advice" && request.method === "POST") {
+      return handleMonthlyAdvice(request, env);
     }
 
     if (url.pathname === "/api/judge-meal" && request.method === "POST") {

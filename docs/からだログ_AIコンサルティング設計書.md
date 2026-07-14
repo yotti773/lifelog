@@ -1,8 +1,8 @@
 # からだログ AIコンサルティング設計書
 
 作成日: 2026-07-06
-関連ドキュメント: からだログ_要件定義書.md(4.7章)、からだログ_画面設計書.md(8.2章)、からだログ_意思決定ログ.md
-対応Issue: #12(AIコーチング)。前提となる土台: #43(身体プロフィール・目標カロリー)、#44(実測TDEE)、#45(週次レビュー)、#46(記録率)、#47(PFC目標)
+関連ドキュメント: からだログ_要件定義書.md(4.7章)、からだログ_画面設計書.md(8.2章・8.3章)、からだログ_意思決定ログ.md
+対応Issue: #12(AIコーチング)。前提となる土台: #43(身体プロフィール・目標カロリー)、#44(実測TDEE)、#45(週次レビュー)、#46(記録率)、#47(PFC目標)。拡張: #114(月次レビュー・月次AIコメント。10章)
 
 ## 1. 目的・位置づけ
 
@@ -190,3 +190,22 @@ interface WeeklyAdvice {
 2. **AI統合(#12)**: 本設計書の3〜8章を実装する。`WeeklyDigest` は段階1で実装済みのものをそのまま入力契約として使う
 
 ※実装状況: 両段階とも実装済み(2026-07-10)。主な実装場所: ダイジェスト生成 `src/lib/weeklyDigest.ts` + `src/db/weeklyReview.ts`、実測TDEE `src/lib/tdee.ts` + `src/db/weeklyNutrition.ts`、Workerエンドポイント `worker/weeklyAdvice.ts`(フィクスチャは `worker/__tests__/weeklyAdviceFixtures.ts`)、キャッシュ `src/db/adviceRecords.ts`、画面 `src/pages/trends/WeeklyReview.tsx`(AIコメントカードは同 `WeeklyAdviceCard.tsx`)。日記本文を読ませるオプトイン(7章)は2026-07-12に実装済み(Issue #103でIssue #12を決着)。
+
+## 10. データ契約(3): MonthlyDigest(月次レビューの入力。Issue #114)
+
+月次レビュー(画面設計書8.3章)は、週次と同じ「計算はコード・言語化はAI」の分業(2章)をそのまま高度を上げて再利用する。週次の全項目を月幅にするのではなく、月次ならではの俯瞰に絞った独自の入力契約 `MonthlyDigest` を持つ。
+
+- **月の定義**: 「その月に日曜が含まれる月曜始まりの週の集合」(4〜5週。画面設計書8.3章・意思決定ログ)。`period` は最初の週の月曜〜最後の週の日曜
+- **主な項目**(型定義は `src/types.ts` の `MonthlyDigest` が正):
+  - `weeks`: 月内各週の週平均体重・週平均摂取の系列(4〜5点)。ペースの加速・減速を読み取る材料
+  - `weight`: 記録がある最初/最後の週の週平均・月間変化・平均ペース(kg/週)・必要ペース・**今月のペースを維持した場合の目標日時点の見込み体重**(マイルストーン)
+  - `calories`: 月内平均摂取・目標・目標以内の日数・**月窓の実測TDEE**(月内の全有効週の週次逆算値の平均。週単位よりブレが少ない安定値)とその有効週数・最小/最大・基礎代謝
+  - `recording`: 記録した日数 / 月の総日数
+  - `flags`: 週次と同じ `DigestFlag` 語彙を月窓の閾値で判定(記録率は総日数の7割未満、データ不足は7日未満)
+  - `crossAnalysis`: #112の集計を月窓で再実行(週次と同じ構造。標本数が多い)
+- **出力契約**: 週次と共通の `WeeklyAdvice`(4章)を流用する。`wins` を「今月の良かった変化」、`actions` を「来月の重点」の意味で使う
+- **プロンプト**: 週次(5章)の月次版。「今月何が変わったか・翌月どこに重点を置くか」の俯瞰で書かせ、`weeks` の系列からペースの加速・減速を読ませる。制約(digestに無い数値を出さない・flagsに無い問題を指摘しない・医療免責)・`verdict` の機械的判定規則は週次と同じ。本文は `worker/monthlyAdvice.ts`(`MONTHLY_ADVICE_SYSTEM_PROMPT`)
+- **実行フロー**: 週次(8章)と同一。`POST /api/monthly-advice` → Workerでstructured output生成 → クライアントで検証(週次と共通の `isWeeklyAdvice`)後 `MonthlyAdviceRecord`(`month` を主キー、1月1件・後勝ち)としてキャッシュ。自動生成はせずユーザーの明示操作でのみ生成する
+- **プライバシー**: 月次digestは体重・食事・活動・気分/飲酒の集計値のみで、日記本文は含めない(週次のオプトインは月次には設けていない)
+
+※実装状況: 実装済み(Issue #114。2026-07-14)。主な実装場所: ダイジェスト生成 `src/lib/monthlyDigest.ts` + `src/db/monthlyReview.ts`(月の切り出しは `src/lib/date.ts` の `weekStartsOfMonth`)、Workerエンドポイント `worker/monthlyAdvice.ts`、キャッシュ `src/db/adviceRecords.ts`(`saveMonthlyAdviceRecord`/`getMonthlyAdviceRecord`)、画面 `src/pages/trends/MonthlyReview.tsx`(AIコメントカードは同 `MonthlyAdviceCard.tsx`、クロス分析カードは週次と共有の `CrossAnalysisCard.tsx`)。

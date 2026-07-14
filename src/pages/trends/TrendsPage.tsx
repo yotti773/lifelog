@@ -12,6 +12,7 @@ import BodyMeasurementHistoryList from "./BodyMeasurementHistoryList";
 import DiaryHistoryList from "./DiaryHistoryList";
 import GoalBar from "./GoalBar";
 import MealHistoryList from "./MealHistoryList";
+import ScrollableChips from "@/components/ScrollableChips";
 import SegmentedControl from "@/components/SegmentedControl";
 import MonthlyReview from "./MonthlyReview";
 import WaterHistoryList, { groupWaterHistoryDays } from "./WaterHistoryList";
@@ -393,7 +394,13 @@ export default function TrendsPage() {
         </>
       ) : (
         <>
-          <SegmentedControl options={HISTORY_KIND_OPTIONS} value={historyKind} onChange={setHistoryKind} />
+          {/* 種別は8個と多いため等幅の分割ではなく横スクロールのチップ列にする(潰れ防止) */}
+          <ScrollableChips
+            options={HISTORY_KIND_OPTIONS}
+            value={historyKind}
+            onChange={setHistoryKind}
+            ariaLabel="履歴の種別"
+          />
           {/* From/Toは横並びだとスマホ幅で日付が切れるため縦に積む(Issue #75) */}
           <Box sx={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <Box sx={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px" }}>

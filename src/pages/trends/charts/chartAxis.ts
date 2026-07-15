@@ -38,13 +38,15 @@ export interface XAxisTick {
 
 /**
  * 横軸ラベルを両端だけでなく途中にも等間隔で置くための位置を返す(Issue #128)。
- * intervals本の区間に区切り、両端は端寄せ・中間は中央寄せのアンカーを付ける。
- * データ点が少ない場合は区間数を points-1 に丸めて重複ラベルを防ぐ。
+ * 両端は端寄せ・中間は中央寄せのアンカーを付ける。
+ * 点が少ない(週表示など `denseUpTo` 以下)ときは全点にラベルを出し、
+ * 多いときは maxIntervals 本の区間に間引いて詰まりを防ぐ(月・全期間表示)。
  */
-export function xAxisTicks(pointCount: number, intervals = 4): XAxisTick[] {
-  const n = Math.min(Math.floor(intervals), Math.floor(pointCount) - 1);
+export function xAxisTicks(pointCount: number, maxIntervals = 4, denseUpTo = 7): XAxisTick[] {
+  const points = Math.floor(pointCount);
   // 点が1つ以下(区間が作れない)なら中央に1本だけ返す
-  if (!Number.isFinite(n) || n < 1) return [{ fraction: 0.5, anchor: "middle" }];
+  if (!Number.isFinite(points) || points <= 1) return [{ fraction: 0.5, anchor: "middle" }];
+  const n = points <= denseUpTo ? points - 1 : maxIntervals;
   const ticks: XAxisTick[] = [];
   for (let i = 0; i <= n; i++) {
     ticks.push({ fraction: i / n, anchor: i === 0 ? "start" : i === n ? "end" : "middle" });

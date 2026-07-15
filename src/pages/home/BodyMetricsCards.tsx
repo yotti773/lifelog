@@ -23,7 +23,7 @@ function DiffChip({ diff, unit }: { diff: number; unit: string }) {
       }}
     >
       <IconArrow up={diff > 0} />
-      <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 12 }}>
+      <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 12, whiteSpace: "nowrap" }}>
         前回比 {Math.abs(diff).toFixed(1)}
         {unit}
       </Typography>
@@ -49,7 +49,7 @@ export default function BodyMetricsCards({ weight, previousWeight, onOpen }: Bod
       : null;
 
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: "14px", mb: "22px" }}>
+    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", mb: "22px" }}>
       {/* 2枚のカードはグリッド行いっぱいに伸ばし、記録の有無で縦幅が揃わなくなるのを防ぐ(Issue #74) */}
       <ButtonBase onClick={onOpen} sx={{ display: "block", textAlign: "left", borderRadius: "22px" }}>
         <Card sx={{ p: "18px", width: "100%", height: "100%" }}>

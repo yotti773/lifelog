@@ -28,17 +28,17 @@ export function axisTicks(min: number, max: number, targetCount = 3): AxisTick[]
   return ticks;
 }
 
-/** 横軸(時間軸)の目盛り1本分。fraction=0〜1の位置と、はみ出さないためのテキストアンカー */
+/** 横軸(時間軸)の目盛り1本分。fraction=0〜1の位置と、テキストアンカー */
 export interface XAxisTick {
   /** プロット領域内での位置(0=左端, 1=右端) */
   fraction: number;
-  /** 端の目盛りはラベルがプロット外へはみ出さないよう端寄せにする */
-  anchor: "start" | "middle" | "end";
+  /** ラベルは対応する点・棒の中央に載せる。端の点・棒もビューボックス端に余白があるため中央寄せで問題ない */
+  anchor: "middle";
 }
 
 /**
  * 横軸ラベルを両端だけでなく途中にも等間隔で置くための位置を返す(Issue #128)。
- * 両端は端寄せ・中間は中央寄せのアンカーを付ける。
+ * ラベルは対応する点・棒の中央に載せる(全て中央寄せ)。
  * 点が少ない(週表示など `denseUpTo` 以下)ときは全点にラベルを出し、
  * 多いときは maxIntervals 本の区間に間引いて詰まりを防ぐ(月・全期間表示)。
  */
@@ -49,7 +49,7 @@ export function xAxisTicks(pointCount: number, maxIntervals = 4, denseUpTo = 7):
   const n = points <= denseUpTo ? points - 1 : maxIntervals;
   const ticks: XAxisTick[] = [];
   for (let i = 0; i <= n; i++) {
-    ticks.push({ fraction: i / n, anchor: i === 0 ? "start" : i === n ? "end" : "middle" });
+    ticks.push({ fraction: i / n, anchor: "middle" });
   }
   return ticks;
 }

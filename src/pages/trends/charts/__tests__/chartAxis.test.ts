@@ -35,10 +35,10 @@ describe("axisTicks", () => {
 });
 
 describe("xAxisTicks", () => {
-  it("点が十分あれば両端+中間の等間隔ラベル位置を返し、端はプロット外へはみ出さないアンカーになる", () => {
+  it("点が十分あれば両端+中間の等間隔ラベル位置を返し、全て中央寄せアンカーになる", () => {
     const ticks = xAxisTicks(20, 4);
     expect(ticks.map((t) => t.fraction)).toEqual([0, 0.25, 0.5, 0.75, 1]);
-    expect(ticks.map((t) => t.anchor)).toEqual(["start", "middle", "middle", "middle", "end"]);
+    expect(ticks.map((t) => t.anchor)).toEqual(["middle", "middle", "middle", "middle", "middle"]);
   });
 
   it("点が少ないときは区間数を点数-1に丸めて重複ラベルを防ぐ", () => {

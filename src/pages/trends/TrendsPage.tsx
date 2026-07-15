@@ -454,7 +454,7 @@ export default function TrendsPage() {
           ) : historyKind === "meal" ? (
             <MealHistoryList
               records={filteredMealHistory}
-              onSelect={(id) => navigate(`/record/meal?id=${id}`)}
+              onSelect={(date, mealType) => navigate(`/record/meal?type=${mealType}&date=${date}`)}
             />
           ) : historyKind === "water" ? (
             <WaterHistoryList

@@ -3,22 +3,18 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import { IconChevronRight } from "@/components/icons";
-import { formatDate, formatTime } from "@/lib/date";
+import { MEAL_TYPE_META, MEAL_TYPE_ORDER } from "@/components/mealTypeMeta";
+import { formatDate } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 import type { MealRecord, MealType } from "@/types";
 
 const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
-const MEAL_TYPE_LABELS: Record<MealType, string> = {
-  breakfast: "朝食",
-  lunch: "昼食",
-  dinner: "夕食",
-  snack: "間食",
-};
 
 interface MealHistoryListProps {
-  /** 新しい順(タイムスタンプ降順)で渡す。内部でローカル日付ごとにグループ化する */
+  /** 新しい順(タイムスタンプ降順)で渡す。内部でローカル日付ごと→区分ごとにグループ化する */
   records: MealRecord[];
-  onSelect: (id: string) => void;
+  /** 区分行タップで、その日のその区分の記録画面を開く(Issue #126) */
+  onSelect: (date: string, mealType: MealType) => void;
 }
 
 export default function MealHistoryList({ records, onSelect }: MealHistoryListProps) {
@@ -42,12 +38,22 @@ export default function MealHistoryList({ records, onSelect }: MealHistoryListPr
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      {[...groups.entries()].map(([date, items]) => {
-        // 日付内は朝→夜の順で並べる(タイムスタンプ昇順)
-        const sorted = [...items].sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
+      {[...groups.entries()].map(([date, dayRecords]) => {
         const [, month, day] = date.split("-");
         const weekday = WEEKDAY_LABELS[new Date(`${date}T00:00:00`).getDay()];
-        const totalKcal = sorted.reduce((sum, item) => sum + item.confirmedKcal, 0);
+        const totalKcal = dayRecords.reduce((sum, item) => sum + item.confirmedKcal, 0);
+
+        // 区分ごとに集約し、朝→夜の順(未記録の区分は出さない)
+        const byType = new Map<MealType, MealRecord[]>();
+        for (const record of dayRecords) {
+          const list = byType.get(record.mealType) ?? [];
+          list.push(record);
+          byType.set(record.mealType, list);
+        }
+        const typeRows = MEAL_TYPE_ORDER.filter((type) => byType.has(type)).map((type) => {
+          const items = [...byType.get(type)!].sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
+          return { type, items };
+        });
 
         return (
           <Box key={date}>
@@ -63,69 +69,71 @@ export default function MealHistoryList({ records, onSelect }: MealHistoryListPr
               </Typography>
             </Box>
             <Card sx={{ overflow: "hidden" }}>
-              {sorted.map((item, index) => (
-                <ButtonBase
-                  key={item.id}
-                  onClick={() => onSelect(item.id)}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    width: "100%",
-                    p: "13px 15px",
-                    textAlign: "left",
-                    borderBottom: index < sorted.length - 1 ? `1px solid ${tokens.divider}` : "none",
-                  }}
-                >
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: "7px", mb: "2px" }}>
-                      <Typography sx={{ fontSize: 11, color: tokens.faint }}>{formatTime(item.timestamp)}</Typography>
-                      <Typography
-                        sx={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: "secondary.main",
-                          bgcolor: tokens.secondarySoft,
-                          px: "6px",
-                          py: "1px",
-                          borderRadius: "6px",
-                        }}
-                      >
-                        {MEAL_TYPE_LABELS[item.mealType]}
-                      </Typography>
-                      {!item.synced && (
-                        <Typography
-                          sx={{
-                            fontSize: 9,
-                            fontWeight: 500,
-                            color: tokens.warnText,
-                            bgcolor: tokens.warnBg,
-                            px: "6px",
-                            py: "1px",
-                            borderRadius: "6px",
-                          }}
-                        >
-                          未同期
-                        </Typography>
-                      )}
+              {typeRows.map(({ type, items }, index) => {
+                const { label, Icon, iconBg, iconColor } = MEAL_TYPE_META[type];
+                const kcal = items.reduce((sum, item) => sum + item.confirmedKcal, 0);
+                const names = items.map((item) => item.confirmedName).join("、");
+                const hasUnsynced = items.some((item) => !item.synced);
+                return (
+                  <ButtonBase
+                    key={type}
+                    onClick={() => onSelect(date, type)}
+                    aria-label={`${Number(month)}月${Number(day)}日の${label}を開く`}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      width: "100%",
+                      p: "12px 14px",
+                      textAlign: "left",
+                      borderBottom: index < typeRows.length - 1 ? `1px solid ${tokens.divider}` : "none",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "12px",
+                        bgcolor: iconBg,
+                        color: iconColor,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon size={21} />
                     </Box>
-                    <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.confirmedName}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: "right", flexShrink: 0 }}>
-                    <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 15 }}>
-                      {item.confirmedKcal}
-                    </Typography>
-                    <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 10, color: "text.secondary", ml: "2px" }}>
-                      kcal
-                    </Typography>
-                  </Box>
-                  <Box sx={{ color: "#D0C3AF", display: "flex", flexShrink: 0 }}>
-                    <IconChevronRight />
-                  </Box>
-                </ButtonBase>
-              ))}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: "7px", mb: "2px" }}>
+                        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13.5 }}>{label}</Typography>
+                        <Typography sx={{ fontSize: 10, fontWeight: 700, color: "primary.main", bgcolor: tokens.primarySoft, px: "7px", borderRadius: "7px" }}>
+                          {items.length}品
+                        </Typography>
+                        {hasUnsynced && (
+                          <Typography sx={{ fontSize: 9, fontWeight: 500, color: tokens.warnText, bgcolor: tokens.warnBg, px: "6px", py: "1px", borderRadius: "6px" }}>
+                            未同期
+                          </Typography>
+                        )}
+                      </Box>
+                      <Typography sx={{ fontSize: 11.5, color: "text.secondary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {names}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: "right", flexShrink: 0 }}>
+                      <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 15 }}>
+                        {kcal.toLocaleString()}
+                      </Typography>
+                      <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 10, color: "text.secondary", ml: "2px" }}>
+                        kcal
+                      </Typography>
+                    </Box>
+                    <Box sx={{ color: "#D0C3AF", display: "flex", flexShrink: 0 }}>
+                      <IconChevronRight />
+                    </Box>
+                  </ButtonBase>
+                );
+              })}
             </Card>
           </Box>
         );

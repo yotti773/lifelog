@@ -7,13 +7,17 @@ import {
   getAllMealRecordsDesc,
   getDailyCalorieTotals,
   getMealRecordsByDateRange,
+  getMealRecordsForDateAndType,
   getUnsyncedMealRecords,
   markMealRecordsSynced,
+  replaceMealRecordsForDateAndType,
   updateMealRecord,
 } from "@/db/mealRecords";
+import { getPendingDeletionIds } from "@/db/syncDeletions";
 
 beforeEach(async () => {
   await db.mealRecords.clear();
+  await db.syncDeletions.clear();
 });
 
 describe("mealRecords", () => {
@@ -277,5 +281,107 @@ describe("mealRecords", () => {
 
     const totals = await getDailyCalorieTotals("2026-07-05", "2026-07-05");
     expect(totals).toEqual([{ date: "2026-07-05", kcal: 400 }]);
+  });
+
+  describe("区分単位の置き換え保存(Issue #126)", () => {
+    const item = (confirmedName: string, confirmedKcal: number) => ({
+      confirmedName,
+      confirmedKcal,
+      confirmedProteinG: 0,
+      confirmedFatG: 0,
+      confirmedCarbsG: 0,
+    });
+
+    it("保存した品目を区分・日付で読み戻せる(時刻昇順)", async () => {
+      const ts = new Date("2026-07-01T08:10:00").toISOString();
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [
+        item("トースト", 200),
+        item("ゆで卵", 80),
+      ]);
+
+      const records = await getMealRecordsForDateAndType("2026-07-01", "breakfast");
+      expect(records.map((r) => r.confirmedName)).toEqual(["トースト", "ゆで卵"]);
+      expect(records.every((r) => r.mealType === "breakfast")).toBe(true);
+      expect(records.every((r) => !r.synced)).toBe(true);
+    });
+
+    it("同じ日・同じ区分は追記でなく丸ごと置き換わる", async () => {
+      const ts = new Date("2026-07-01T08:00:00").toISOString();
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [item("トースト", 200)]);
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [
+        item("おにぎり", 180),
+        item("味噌汁", 40),
+      ]);
+
+      const records = await getMealRecordsForDateAndType("2026-07-01", "breakfast");
+      expect(records.map((r) => r.confirmedName)).toEqual(["おにぎり", "味噌汁"]);
+    });
+
+    it("同じ日の別区分は置き換えの影響を受けない", async () => {
+      const ts = new Date("2026-07-01T12:00:00").toISOString();
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", new Date("2026-07-01T08:00:00").toISOString(), [
+        item("トースト", 200),
+      ]);
+      await replaceMealRecordsForDateAndType("2026-07-01", "lunch", ts, [item("唐揚げ弁当", 820)]);
+      // 昼食を上書きしても朝食は残る
+      await replaceMealRecordsForDateAndType("2026-07-01", "lunch", ts, [item("パスタ", 600)]);
+
+      expect((await getMealRecordsForDateAndType("2026-07-01", "breakfast")).map((r) => r.confirmedName)).toEqual([
+        "トースト",
+      ]);
+      expect((await getMealRecordsForDateAndType("2026-07-01", "lunch")).map((r) => r.confirmedName)).toEqual([
+        "パスタ",
+      ]);
+    });
+
+    it("別の日の同じ区分は置き換えの影響を受けない", async () => {
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", new Date("2026-07-01T08:00:00").toISOString(), [
+        item("トースト", 200),
+      ]);
+      await replaceMealRecordsForDateAndType("2026-07-02", "breakfast", new Date("2026-07-02T08:00:00").toISOString(), []);
+
+      expect(await getMealRecordsForDateAndType("2026-07-01", "breakfast")).toHaveLength(1);
+      expect(await getMealRecordsForDateAndType("2026-07-02", "breakfast")).toHaveLength(0);
+    });
+
+    it("空リストで保存するとその区分の当日分が削除される", async () => {
+      const ts = new Date("2026-07-01T08:00:00").toISOString();
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [item("トースト", 200)]);
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, []);
+
+      expect(await getMealRecordsForDateAndType("2026-07-01", "breakfast")).toHaveLength(0);
+    });
+
+    it("置き換え前の各レコードIDを削除トゥームストーンとして残す(新IDは新規追加)", async () => {
+      const ts = new Date("2026-07-01T08:00:00").toISOString();
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [item("トースト", 200), item("卵", 80)]);
+      expect(await getPendingDeletionIds("meal")).toEqual([]);
+
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [item("トースト", 200)]);
+      // 置き換え前の2件分のIDがトゥームストーンとして残る
+      expect(await getPendingDeletionIds("meal")).toHaveLength(2);
+    });
+
+    it("初回保存では削除トゥームストーンを残さない(置き換え対象が無いため)", async () => {
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", new Date("2026-07-01T08:00:00").toISOString(), [
+        item("トースト", 200),
+      ]);
+      expect(await getPendingDeletionIds("meal")).toEqual([]);
+    });
+
+    it("AI推定値を保持したまま保存できる", async () => {
+      const ts = new Date("2026-07-01T08:00:00").toISOString();
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [
+        {
+          ...item("サラダ", 120),
+          aiEstimatedName: "グリーンサラダ",
+          aiEstimatedKcal: 118,
+        },
+      ]);
+
+      const [record] = await getMealRecordsForDateAndType("2026-07-01", "breakfast");
+      expect(record.aiEstimatedName).toBe("グリーンサラダ");
+      expect(record.aiEstimatedKcal).toBe(118);
+    });
   });
 });

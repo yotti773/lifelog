@@ -1,5 +1,5 @@
-import { axisTicks } from "./chartAxis";
-import { formatMonthDay } from "@/lib/date";
+import { axisTicks, xAxisTicks } from "./chartAxis";
+import { formatDate, formatMonthDay } from "@/lib/date";
 import type { WeightRecord } from "@/types";
 
 interface BodyFatChartProps {
@@ -7,11 +7,12 @@ interface BodyFatChartProps {
 }
 
 const WIDTH = 320;
-const HEIGHT = 160;
-// leftは縦軸の数値ラベル(Issue #60)の分を確保している
-const PADDING = { top: 22, right: 12, bottom: 20, left: 34 };
+const HEIGHT = 180;
+// bottomはX軸日付ラベル、leftは縦軸の数値ラベル(Issue #60)の分
+const PADDING = { top: 18, right: 12, bottom: 24, left: 34 };
 const COLORS = {
   line: "#FF6B4A",
+  area: "#FF6B4A",
   point: "#FF6B4A",
   pointBorder: "#FFF8F0",
   label: "#8C8C8C",
@@ -27,7 +28,7 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
       <div
         style={{
           display: "flex",
-          height: 160,
+          height: HEIGHT,
           alignItems: "center",
           justifyContent: "center",
           borderRadius: 16,
@@ -55,6 +56,7 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
 
   const plotWidth = WIDTH - PADDING.left - PADDING.right;
   const plotHeight = HEIGHT - PADDING.top - PADDING.bottom;
+  const baseY = PADDING.top + plotHeight;
 
   const xScale = (time: number) => PADDING.left + ((time - minTime) / timeSpan) * plotWidth;
   const yScale = (value: number) =>
@@ -78,9 +80,18 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
   if (current.length > 0) segments.push(current);
 
   const ticks = axisTicks(minValue - yPad, maxValue + yPad);
+  const allPoints = segments.flat();
+  const last = allPoints[allPoints.length - 1];
 
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: "100%", display: "block" }} role="img" aria-label="体脂肪率推移グラフ">
+      <defs>
+        <linearGradient id="bodyFatAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={COLORS.area} stopOpacity={0.18} />
+          <stop offset="100%" stopColor={COLORS.area} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+
       {ticks.map((tick) => (
         <g key={tick.value}>
           <line
@@ -97,6 +108,18 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
         </g>
       ))}
 
+      {/* 区間ごとに面塗り→線の順で描く。2点以上の区間のみ面を塗る(単点は線が無いため) */}
+      {segments.map((segment, i) =>
+        segment.length > 1 ? (
+          <path
+            key={`area-${i}`}
+            d={`${segment.map((p, j) => `${j === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} L${segment[segment.length - 1].x.toFixed(1)},${baseY} L${segment[0].x.toFixed(1)},${baseY} Z`}
+            fill="url(#bodyFatAreaGrad)"
+            stroke="none"
+          />
+        ) : null,
+      )}
+
       {segments.map((segment, i) => (
         <path
           key={i}
@@ -109,24 +132,27 @@ export default function BodyFatChart({ records }: BodyFatChartProps) {
         />
       ))}
 
-      {segments.flat().map((p) => (
-        <circle
-          key={p.record.id}
-          cx={p.x}
-          cy={p.y}
-          r={3.5}
-          fill={COLORS.point}
-          stroke={COLORS.pointBorder}
-          strokeWidth={1.5}
-        />
+      {allPoints.slice(0, -1).map((p) => (
+        <circle key={p.record.id} cx={p.x} cy={p.y} r={3} fill={COLORS.point} stroke={COLORS.pointBorder} strokeWidth={1.5} />
       ))}
 
-      <text x={PADDING.left} y={HEIGHT - 4} fontSize={9} fill={COLORS.label}>
-        {formatMonthDay(sorted[0].date)}
-      </text>
-      <text x={WIDTH - PADDING.right} y={HEIGHT - 4} textAnchor="end" fontSize={9} fill={COLORS.label}>
-        {formatMonthDay(sorted[sorted.length - 1].date)}
-      </text>
+      {/* 最新の点を強調(Issue #128) */}
+      <circle cx={last.x} cy={last.y} r={6.5} fill={COLORS.point} opacity={0.18} />
+      <circle cx={last.x} cy={last.y} r={4.5} fill={COLORS.point} stroke={COLORS.pointBorder} strokeWidth={2} />
+
+      {/* X軸: 両端+途中の日付目盛り。ラベルはX位置(時間軸)に対応する日付にする(Issue #128) */}
+      {xAxisTicks(sorted.length).map((tick) => (
+        <text
+          key={tick.fraction}
+          x={PADDING.left + tick.fraction * plotWidth}
+          y={HEIGHT - 5}
+          textAnchor={tick.anchor}
+          fontSize={9}
+          fill={COLORS.label}
+        >
+          {formatMonthDay(formatDate(new Date(minTime + tick.fraction * timeSpan)))}
+        </text>
+      ))}
     </svg>
   );
 }

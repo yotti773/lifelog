@@ -154,11 +154,13 @@ export default function DailyBarChart({
         </text>
       )}
 
-      {/* X軸: 両端+途中の日付目盛り。末尾は「今日」を強調色で示す(Issue #128) */}
+      {/* X軸: 両端+途中の日付目盛り。末尾は「今日」を強調色で示す(Issue #128)。
+          棒はインデックス等間隔(各棒がスロット中央)に並ぶため、ラベルは時間比率ではなく
+          対応する棒スロットの中央に合わせる(時間比率で置くと最大半スロットずれる) */}
       {xAxisTicks(data.length).map((tick) => {
-        const x = PADDING.left + tick.fraction * plotWidth;
-        const isLast = tick.fraction === 1;
         const index = Math.round(tick.fraction * lastIndex);
+        const isLast = index === lastIndex;
+        const x = PADDING.left + (index + 0.5) * slotWidth;
         return (
           <text
             key={tick.fraction}

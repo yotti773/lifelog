@@ -46,6 +46,14 @@ describe("xAxisTicks", () => {
     expect(xAxisTicks(2, 4).map((t) => t.fraction)).toEqual([0, 1]);
   });
 
+  it("週表示など点が少ない(denseUpTo以下)ときは全点にラベルを出す", () => {
+    // 週=7点なら7ラベルすべて出す
+    expect(xAxisTicks(7)).toHaveLength(7);
+    // 8点以上は maxIntervals(既定4本=5ラベル)に間引く
+    expect(xAxisTicks(8)).toHaveLength(5);
+    expect(xAxisTicks(30)).toHaveLength(5);
+  });
+
   it("点が1つ以下なら中央に1つだけ返す", () => {
     expect(xAxisTicks(1)).toEqual([{ fraction: 0.5, anchor: "middle" }]);
     expect(xAxisTicks(0)).toEqual([{ fraction: 0.5, anchor: "middle" }]);

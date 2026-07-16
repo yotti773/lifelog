@@ -1,7 +1,7 @@
 import { db } from "@/db/db";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { notConfiguredTransport } from "./notConfiguredTransport";
-import type { SyncPullTransport } from "./types";
+import type { SyncPullActivityTransport, SyncPullTransport } from "./types";
 
 export type ImportOutcome =
   | {
@@ -304,6 +304,51 @@ export async function runImport({
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "取り込みに失敗しました";
+    return { status: "error", message };
+  }
+}
+
+export type ActivityImportOutcome =
+  | { status: "success"; importedActivityCount: number; skippedRowCount: number }
+  | { status: "skipped-offline" }
+  | { status: "error"; message: string };
+
+export interface RunActivityImportOptions {
+  transport?: SyncPullActivityTransport;
+  isOnline?: () => boolean;
+}
+
+/**
+ * 活動記録タブ(Garmin由来)だけを取り込む(Issue #133)。自動同期のたびに呼ばれる軽量版で、
+ * 全記録を取り込むrunImportと違い活動記録タブしか読まない。
+ * 活動記録はアプリ内に編集・削除が無くGarminが真実の情報源のため、runImportと同じく
+ * 「追加のみ・ローカル優先」にはせず既存日付も常にシート側で上書きする(Issue #81)。
+ * 取り込んだレコードはシート由来のため`synced: true`で保存し、再送信の対象にしない。
+ */
+export async function runActivityImport({
+  transport = notConfiguredTransport,
+  isOnline = () => navigator.onLine,
+}: RunActivityImportOptions = {}): Promise<ActivityImportOutcome> {
+  if (!isOnline()) {
+    return { status: "skipped-offline" };
+  }
+
+  try {
+    const pulled = await transport.pullActivity();
+
+    await db.transaction("rw", db.activityRecords, async () => {
+      for (const record of pulled.activityRecords) {
+        await db.activityRecords.put({ ...record, synced: true });
+      }
+    });
+
+    return {
+      status: "success",
+      importedActivityCount: pulled.activityRecords.length,
+      skippedRowCount: pulled.skippedActivityRows,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "活動記録の取り込みに失敗しました";
     return { status: "error", message };
   }
 }

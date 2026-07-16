@@ -111,7 +111,7 @@ UIはMUIで、`src/theme.ts` がデザインガイドのパレットをMUIテー
 
 ### デプロイ
 
-Cloudflare Workers(クラシックな別サービスの「Pages」ではなく、Git連携版)上で https://lifelog.tatu1228.workers.dev/ にホストされており、`main` へのpushで自動デプロイされる。ビルドコマンドは `npm run build`、デプロイコマンドは `npx wrangler deploy` で、`wrangler.toml` の `[assets]` ブロック(`directory = "dist"`、SPAルーティング用に `not_found_handling = "single-page-application"`)で駆動されている。
+Cloudflare Workers(クラシックな別サービスの「Pages」ではなく、Git連携版)上で https://lifelog.n1lab.workers.dev/ にホストされており、`main` へのpushで自動デプロイされる。ビルドコマンドは `npm run build`、デプロイコマンドは `npx wrangler deploy` で、`wrangler.toml` の `[assets]` ブロック(`directory = "dist"`、SPAルーティング用に `not_found_handling = "single-page-application"`)で駆動されている。
 
 **`public/_redirects` ファイルを追加しないこと** — `not_found_handling = "single-page-application"` と組み合わせると、CloudflareはSPAフォールバックの処理をどちらも試みるものとみなし、無限リダイレクトループとしてデプロイを拒否する。`[assets]` の設定だけで十分であり、現在デプロイされているのもこの構成。
 

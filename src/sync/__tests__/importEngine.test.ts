@@ -5,9 +5,14 @@ import { addExerciseMasterItem, deleteExerciseMasterItem, getAllExerciseMasterIt
 import { addFoodMasterItem, deleteFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
 import { addMealRecord, deleteMealRecord, getMealRecord } from "@/db/mealRecords";
 import { deleteWeightRecord, getWeightRecord, saveWeightRecord } from "@/db/weightRecords";
-import { runImport } from "@/sync/importEngine";
+import { runActivityImport, runImport } from "@/sync/importEngine";
 import { SyncNotConfiguredError } from "@/sync/notConfiguredTransport";
-import type { SyncPullResult, SyncPullTransport } from "@/sync/types";
+import type {
+  SyncPullActivityResult,
+  SyncPullActivityTransport,
+  SyncPullResult,
+  SyncPullTransport,
+} from "@/sync/types";
 
 beforeEach(async () => {
   await db.weightRecords.clear();
@@ -293,6 +298,72 @@ describe("runImport", () => {
 
   it("defaults to the not-configured transport, surfacing a clear message", async () => {
     const outcome = await runImport({ isOnline: () => true });
+
+    expect(outcome.status).toBe("error");
+    if (outcome.status === "error") {
+      expect(outcome.message).toBe(new SyncNotConfiguredError().message);
+    }
+  });
+});
+
+function fakeActivityTransport(result: SyncPullActivityResult): SyncPullActivityTransport {
+  return { pullActivity: vi.fn(async () => result) };
+}
+
+describe("runActivityImport", () => {
+  it("skips without touching data when offline", async () => {
+    const transport = fakeActivityTransport({ activityRecords: [], skippedActivityRows: 0 });
+
+    const outcome = await runActivityImport({ transport, isOnline: () => false });
+
+    expect(outcome).toEqual({ status: "skipped-offline" });
+    expect(transport.pullActivity).not.toHaveBeenCalled();
+  });
+
+  it("活動記録をsynced: trueで取り込み、既存日付は常にシート側で上書きする(Garminのバックフィル反映)", async () => {
+    await db.activityRecords.put({ date: "2026-07-01", steps: 100, synced: true });
+    const transport = fakeActivityTransport({
+      activityRecords: [pulledActivity, { date: "2026-07-02", steps: 6000 }],
+      skippedActivityRows: 1,
+    });
+
+    const outcome = await runActivityImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "success", importedActivityCount: 2, skippedRowCount: 1 });
+    // 既存の2026-07-01(steps: 100)がシート側の値で上書きされている
+    expect(await db.activityRecords.get("2026-07-01")).toEqual({ ...pulledActivity, synced: true });
+    expect(await db.activityRecords.count()).toBe(2);
+  });
+
+  it("活動記録以外のテーブルには触れない", async () => {
+    await saveWeightRecord({ date: "2026-07-01", weightKg: 70, timestamp: "2026-07-01T00:00:00.000Z" });
+    const transport = fakeActivityTransport({
+      activityRecords: [pulledActivity],
+      skippedActivityRows: 0,
+    });
+
+    await runActivityImport({ transport, isOnline: () => true });
+
+    // 体重記録は未同期のまま(runActivityImportはpushもマスタ取り込みもしない)
+    expect(await getWeightRecord("2026-07-01")).toMatchObject({ synced: false });
+    expect(await db.mealRecords.count()).toBe(0);
+  });
+
+  it("トランスポートが失敗したら何も取り込まずエラーを返す", async () => {
+    const transport: SyncPullActivityTransport = {
+      pullActivity: vi.fn(async () => {
+        throw new Error("network down");
+      }),
+    };
+
+    const outcome = await runActivityImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "error", message: "network down" });
+    expect(await db.activityRecords.count()).toBe(0);
+  });
+
+  it("defaults to the not-configured transport, surfacing a clear message", async () => {
+    const outcome = await runActivityImport({ isOnline: () => true });
 
     expect(outcome.status).toBe("error");
     if (outcome.status === "error") {

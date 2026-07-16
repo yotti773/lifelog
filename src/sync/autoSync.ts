@@ -1,3 +1,4 @@
+import { runActivityImport } from "./importEngine";
 import { runSync, type SyncOutcome } from "./syncEngine";
 import { workerSheetsTransport } from "./workerSheetsTransport";
 
@@ -9,6 +10,18 @@ import { workerSheetsTransport } from "./workerSheetsTransport";
  * - 再入抑止: 同期の実行中に重ねてトリガーされても2本目を走らせない
  * 失敗の扱いは従来どおり(未同期フラグが維持され次回再試行される)なので、結果は握りつぶしてよい。
  */
+
+/**
+ * 自動同期の既定動作(Issue #133)。未同期分のpush(runSync)に加えて、活動記録タブ(Garmin由来)を
+ * シートから取り込む。活動記録はローカルで編集・削除しないため、pushする未同期分の有無に関わらず
+ * 毎回取り込む。取り込みはベストエフォートで、その成否は同期結果(SyncOutcome)には反映しない
+ * (runActivityImportは失敗してもthrowせずエラーを返すだけなのでpushの成功を打ち消さない)。
+ */
+async function runAutoSync(): Promise<SyncOutcome> {
+  const outcome = await runSync({ transport: workerSheetsTransport });
+  await runActivityImport({ transport: workerSheetsTransport });
+  return outcome;
+}
 
 /** 自動トリガーの最小間隔。手動同期(設定画面のボタン)はこの制限を受けない */
 export const AUTO_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
@@ -33,7 +46,7 @@ export interface CreateAutoSyncRunnerOptions {
 }
 
 export function createAutoSyncRunner({
-  run = () => runSync({ transport: workerSheetsTransport }),
+  run = runAutoSync,
   minIntervalMs = AUTO_SYNC_MIN_INTERVAL_MS,
   now = () => Date.now(),
 }: CreateAutoSyncRunnerOptions = {}): AutoSyncRunner {

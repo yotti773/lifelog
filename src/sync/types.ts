@@ -201,3 +201,18 @@ export interface SyncPullResult {
 export interface SyncPullTransport {
   pull(): Promise<SyncPullResult>;
 }
+
+/** 活動記録タブだけを取り込んだ結果(Issue #133)。全タブを読むSyncPullResultの活動記録部分だけを持つ軽量版 */
+export interface SyncPullActivityResult {
+  activityRecords: PulledActivityRecord[];
+  /** 解釈できずスキップされた活動記録タブの行数(見出し行を除く。タブ自体が無い場合は0) */
+  skippedActivityRows: number;
+}
+
+/**
+ * 活動記録タブ(Garmin由来)だけをスプレッドシートから取り込むインターフェース(Issue #133)。
+ * 自動同期のたびに叩くため、全タブを読むSyncPullTransport.pull()と分けた軽量経路。
+ */
+export interface SyncPullActivityTransport {
+  pullActivity(): Promise<SyncPullActivityResult>;
+}

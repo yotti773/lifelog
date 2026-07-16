@@ -136,6 +136,11 @@ export interface ImportedHabitRecordOutput {
   timestamp: string;
 }
 
+interface ActivityImportResultOutput {
+  activityRecords: ImportedActivityRecordOutput[];
+  skippedActivityRows: number;
+}
+
 interface SheetsImportResultOutput {
   weightRecords: ImportedWeightRecordOutput[];
   mealRecords: ImportedMealRecordOutput[];
@@ -1102,6 +1107,37 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       skippedHabitMasterRows: habitMasterPlan.skippedRowCount,
       skippedHabitRecordRows: habitRecordPlan.skippedRowCount,
     } satisfies SheetsImportResultOutput);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "スプレッドシートの読み取りに失敗しました";
+    return Response.json({ error: message }, { status: 502 });
+  }
+}
+
+/**
+ * 活動記録タブ(Garmin由来)だけを読み取ってレコードとして返す(Issue #133)。
+ * 自動同期のたびに叩かれるため、全12タブを読むhandleImportSheetsと分けた軽量版。
+ * 活動記録は日付が主キーでID列・書き戻しが無いため、読み取り→パースだけで完結する。
+ */
+export async function handleImportActivity(env: Env): Promise<Response> {
+  if (!env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || !env.GOOGLE_SHEETS_SPREADSHEET_ID) {
+    return Response.json({ error: "Google Sheets連携が未設定です(環境変数を確認してください)" }, { status: 500 });
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await getGoogleAccessToken(env);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Google認証に失敗しました";
+    return Response.json({ error: message }, { status: 502 });
+  }
+
+  try {
+    const activityRows = await readActivityRowsIfPresent(accessToken, env.GOOGLE_SHEETS_SPREADSHEET_ID);
+    const activityPlan = planActivityImport(activityRows);
+    return Response.json({
+      activityRecords: activityPlan.records,
+      skippedActivityRows: activityPlan.skippedRowCount,
+    } satisfies ActivityImportResultOutput);
   } catch (error) {
     const message = error instanceof Error ? error.message : "スプレッドシートの読み取りに失敗しました";
     return Response.json({ error: message }, { status: 502 });

@@ -477,6 +477,10 @@ export default function TrendsPage() {
               ? `${historyCount}件・新しい順(Garminから自動取得・編集不可)`
               : `${historyCount}件・新しい順(タップで編集)`}
           </Typography>
+          {historyKind !== "activity" && (
+            // 全期間表示でリストが長くなりやすいため、スクロールせず常に押せる位置(リスト上部)に置く(種別切替時はkeyで開きかけのフォームをリセット)
+            <AddHistoryEntryButton key={historyKind} requireMealType={historyKind === "meal"} onAdd={handleAddHistoryEntry} />
+          )}
           {historyKind === "weight" ? (
             <WeightHistoryList
               records={filteredHistory}
@@ -515,10 +519,6 @@ export default function TrendsPage() {
               records={filteredBodyMeasurementHistory}
               onSelect={(date) => navigate(`/record/measurement?date=${date}`)}
             />
-          )}
-          {historyKind !== "activity" && (
-            // 種別タブを切り替えたら開きかけの追加フォーム(日付・区分の入力途中)を持ち越さない
-            <AddHistoryEntryButton key={historyKind} requireMealType={historyKind === "meal"} onAdd={handleAddHistoryEntry} />
           )}
         </>
       )}

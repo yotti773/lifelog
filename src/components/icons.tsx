@@ -84,6 +84,16 @@ export function IconFork(props: IconProps) {
   );
 }
 
+/** 食べなかった(禁止記号) */
+export function IconNoMeal(props: IconProps) {
+  return (
+    <svg {...base(props, "0 0 24 24")}>
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M6.7 6.7l10.6 10.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** 朝食(日の出) */
 export function IconBreakfast(props: IconProps) {
   return (

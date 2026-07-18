@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Typography from "@mui/material/Typography";
 import { IconChevronRight } from "@/components/icons";
-import { MEAL_TYPE_META, MEAL_TYPE_ORDER } from "@/components/mealTypeMeta";
+import { MEAL_TYPE_META, MEAL_TYPE_ORDER, isSkippedMealGroup } from "@/components/mealTypeMeta";
 import { fontRounded, tokens } from "@/theme";
 import type { MealRecord, MealType } from "@/types";
 
@@ -82,6 +82,7 @@ export default function TodayMealList({ meals, totalKcal }: TodayMealListProps) 
             );
           }
 
+          const isSkipped = isSkippedMealGroup(items);
           const kcal = items.reduce((sum, item) => sum + item.confirmedKcal, 0);
           const names = items.map((item) => item.confirmedName).join("、");
           const hasUnsynced = items.some((item) => !item.synced);
@@ -120,27 +121,37 @@ export default function TodayMealList({ meals, totalKcal }: TodayMealListProps) 
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: "7px", mb: "2px" }}>
                   <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>{label}</Typography>
-                  <Typography sx={{ fontSize: 10, fontWeight: 700, color: "primary.main", bgcolor: tokens.primarySoft, px: "7px", borderRadius: "7px" }}>
-                    {items.length}品
-                  </Typography>
+                  {isSkipped ? (
+                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: "text.secondary", bgcolor: tokens.beigeSoft, px: "7px", borderRadius: "7px" }}>
+                      食べなかった
+                    </Typography>
+                  ) : (
+                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: "primary.main", bgcolor: tokens.primarySoft, px: "7px", borderRadius: "7px" }}>
+                      {items.length}品
+                    </Typography>
+                  )}
                   {hasUnsynced && (
                     <Typography sx={{ fontSize: 9, fontWeight: 500, color: tokens.warnText, bgcolor: tokens.warnBg, px: "6px", py: "2px", borderRadius: "6px" }}>
                       未同期
                     </Typography>
                   )}
                 </Box>
-                <Typography sx={{ fontSize: 12, color: "text.secondary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {names}
-                </Typography>
+                {!isSkipped && (
+                  <Typography sx={{ fontSize: 12, color: "text.secondary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {names}
+                  </Typography>
+                )}
               </Box>
-              <Box sx={{ textAlign: "right", flexShrink: 0 }}>
-                <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>
-                  {kcal.toLocaleString()}
-                </Typography>
-                <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 10, color: "text.secondary", ml: "2px" }}>
-                  kcal
-                </Typography>
-              </Box>
+              {!isSkipped && (
+                <Box sx={{ textAlign: "right", flexShrink: 0 }}>
+                  <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>
+                    {kcal.toLocaleString()}
+                  </Typography>
+                  <Typography component="span" sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 10, color: "text.secondary", ml: "2px" }}>
+                    kcal
+                  </Typography>
+                </Box>
+              )}
               <Box sx={{ color: "text.primary", opacity: 0.35, display: "flex", flexShrink: 0 }}>
                 <IconChevronRight size={13} />
               </Box>

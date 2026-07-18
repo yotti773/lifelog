@@ -352,6 +352,31 @@ describe("mealRecords", () => {
       expect(await getMealRecordsForDateAndType("2026-07-01", "breakfast")).toHaveLength(0);
     });
 
+    it("skipped:trueの1件で「食べなかった」を保存でき、未記録(0件)とは区別される(Issue #143)", async () => {
+      const ts = new Date("2026-07-01T08:00:00").toISOString();
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [
+        { ...item("食べなかった", 0), skipped: true },
+      ]);
+
+      const records = await getMealRecordsForDateAndType("2026-07-01", "breakfast");
+      expect(records).toHaveLength(1);
+      expect(records[0].skipped).toBe(true);
+      // 未記録の区分(別日)はそもそも0件のまま
+      expect(await getMealRecordsForDateAndType("2026-07-02", "breakfast")).toHaveLength(0);
+    });
+
+    it("「食べなかった」を通常の品目入力で上書きするとskippedは消える", async () => {
+      const ts = new Date("2026-07-01T08:00:00").toISOString();
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [
+        { ...item("食べなかった", 0), skipped: true },
+      ]);
+      await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [item("トースト", 200)]);
+
+      const records = await getMealRecordsForDateAndType("2026-07-01", "breakfast");
+      expect(records.map((r) => r.confirmedName)).toEqual(["トースト"]);
+      expect(records[0].skipped).toBeUndefined();
+    });
+
     it("置き換え前の各レコードIDを削除トゥームストーンとして残す(新IDは新規追加)", async () => {
       const ts = new Date("2026-07-01T08:00:00").toISOString();
       await replaceMealRecordsForDateAndType("2026-07-01", "breakfast", ts, [item("トースト", 200), item("卵", 80)]);

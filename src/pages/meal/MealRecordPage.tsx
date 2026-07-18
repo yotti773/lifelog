@@ -9,8 +9,8 @@ import TextField from "@mui/material/TextField";
 import { judgeMealPhoto, MAX_MEAL_PHOTOS } from "@/api/judgeMeal";
 import RecordHeader from "@/components/RecordHeader";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
-import { IconPlus, IconSparkle } from "@/components/icons";
-import { MEAL_TYPE_META, isMealType } from "@/components/mealTypeMeta";
+import { IconNoMeal, IconPlus, IconSparkle } from "@/components/icons";
+import { MEAL_TYPE_META, isMealType, isSkippedMealGroup } from "@/components/mealTypeMeta";
 import { addFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
 import {
   getMealRecordsForDateAndType,
@@ -53,6 +53,8 @@ export default function MealRecordPage() {
   const [isLoading, setLoading] = useState(true);
   const [dateTime, setDateTime] = useState("");
   const [items, setItems] = useState<MealItemDraft[]>([]);
+  // この区分を「食べなかった」として記録するモード(Issue #143)。品目入力とは排他的
+  const [skipped, setSkipped] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 写真AIによる解析(選択→備考→解析の流れ。Issue #71)
@@ -70,7 +72,12 @@ export default function MealRecordPage() {
     let cancelled = false;
     void getMealRecordsForDateAndType(date, mealType).then((records) => {
       if (cancelled) return;
-      if (records.length > 0) {
+      if (isSkippedMealGroup(records)) {
+        setSkipped(true);
+        setItems([]);
+        setDateTime(toDatetimeLocalValue(records[0].timestamp));
+      } else if (records.length > 0) {
+        setSkipped(false);
         setItems(
           records.map((record) => ({
             name: record.confirmedName,
@@ -93,6 +100,7 @@ export default function MealRecordPage() {
         );
         setDateTime(toDatetimeLocalValue(records[0].timestamp));
       } else {
+        setSkipped(false);
         setItems([emptyMealItem()]);
         // 新規時の日時: 当日は現在時刻、過去日はその日の12:00を初期値にする
         setDateTime(isToday ? toDatetimeLocalValue(new Date().toISOString()) : `${date}T12:00`);
@@ -190,7 +198,38 @@ export default function MealRecordPage() {
 
   const filledCount = items.filter((item) => item.name.trim() !== "").length;
 
+  // 「食べなかった」トグル(Issue #143)。品目入力とは排他的なので、ONへ切り替えたら品目をクリアし、
+  // OFFへ戻したときに品目が0件なら空カードを1枚戻す(通常の新規入力と同じ状態に揃える)
+  const toggleSkipped = () => {
+    setError(null);
+    setSkipped((prev) => {
+      const next = !prev;
+      if (next) {
+        setItems([]);
+      } else if (items.length === 0) {
+        setItems([emptyMealItem()]);
+      }
+      return next;
+    });
+  };
+
   const handleSave = async () => {
+    // 保存先の日付は入り口で確定した date に固定し、日時フィールドからは時刻だけを採る。
+    // これにより「置き換える対象(date・区分)」と「保存するレコードの日付」が必ず一致し、
+    // 日付部分を変えても別日へ取り違えて重複・取り残しが起きないようにする。
+    const picked = new Date(dateTime);
+    const [year, month, day] = date.split("-").map(Number);
+    picked.setFullYear(year, month - 1, day);
+    const timestamp = picked.toISOString();
+
+    if (skipped) {
+      await replaceMealRecordsForDateAndType(date, mealType, timestamp, [
+        { confirmedName: "食べなかった", confirmedKcal: 0, confirmedProteinG: 0, confirmedFatG: 0, confirmedCarbsG: 0, skipped: true },
+      ]);
+      backTo();
+      return;
+    }
+
     // 完全に空のカードは除外して当区分の当日分を置き換える(画面設計書4章)
     const cleaned = items
       .map((item) => ({ ...item, name: item.name.trim() }))
@@ -213,13 +252,6 @@ export default function MealRecordPage() {
       aiEstimatedFatG: item.ai?.fatG,
       aiEstimatedCarbsG: item.ai?.carbsG,
     }));
-    // 保存先の日付は入り口で確定した date に固定し、日時フィールドからは時刻だけを採る。
-    // これにより「置き換える対象(date・区分)」と「保存するレコードの日付」が必ず一致し、
-    // 日付部分を変えても別日へ取り違えて重複・取り残しが起きないようにする。
-    const picked = new Date(dateTime);
-    const [year, month, day] = date.split("-").map(Number);
-    picked.setFullYear(year, month - 1, day);
-    const timestamp = picked.toISOString();
     await replaceMealRecordsForDateAndType(date, mealType, timestamp, inputs);
     for (const item of cleaned.filter((item) => item.registerToMaster)) {
       await addFoodMasterItem({
@@ -253,90 +285,128 @@ export default function MealRecordPage() {
         sx={{ mb: "16px" }}
       />
 
-      {/* 入力手段は「画像解析→マスタ選択→品目カード」(画面設計書4章) */}
-      <PhotoJudgeCard
-        isJudging={isJudging}
-        photos={photos}
-        note={note}
-        onNoteChange={setNote}
-        onPhotosSelected={handlePhotosSelected}
-        onRemovePhoto={(index) => setPhotos((prev) => prev.filter((_, i) => i !== index))}
-        onJudge={handleJudge}
-        judgeError={judgeError}
-        showUncertainWarning={judgeInfo?.uncertain === true}
-      />
-
-      {judgeInfo && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: "8px", bgcolor: tokens.secondarySoft, borderRadius: "12px", p: "10px 13px", mb: "14px" }}>
-          <Box sx={{ color: tokens.secondaryDeep, display: "flex" }}>
-            <IconSparkle />
-          </Box>
-          <Typography sx={{ fontSize: 12, fontWeight: 500, color: tokens.secondaryDeep }}>
-            写真AIが{judgeInfo.count}件を品目に反映しました。内容を確認して修正できます
-          </Typography>
-        </Box>
-      )}
-
-      <Card sx={{ p: "15px", mb: "16px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
-        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "12px" }}>
-          よく食べるものから選ぶ
-        </Typography>
-        <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
-      </Card>
-
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "10px", px: "2px" }}>
-        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>品目</Typography>
-        <Typography sx={{ fontSize: 11, fontWeight: 500, color: "text.secondary" }}>カロリー・PFC</Typography>
-      </Box>
-
-      <Box sx={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {items.map((item, index) => (
-          <MealItemCard
-            key={index}
-            index={index}
-            item={item}
-            onChange={(patch) => updateItem(index, patch)}
-            onRemove={() => removeItem(index)}
-          />
-        ))}
-      </Box>
-
+      {/* 「食べなかった」トグル(Issue #143)。品目の入力手段(写真AI・マスタ選択・品目カード)と排他的 */}
       <ButtonBase
-        onClick={() => setItems((prev) => [...prev, emptyMealItem()])}
-        sx={{ width: "100%", height: 48, mt: "12px", border: "1.5px dashed #E0B7A8", borderRadius: "14px", gap: "7px", color: "primary.main" }}
+        onClick={toggleSkipped}
+        aria-label="この区分は食べなかった"
+        aria-pressed={skipped}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          width: "100%",
+          px: "14px",
+          py: "10px",
+          mb: "16px",
+          borderRadius: "14px",
+          bgcolor: skipped ? tokens.moodSelectedBg : "background.paper",
+          border: `2px solid ${skipped ? tokens.moodBorder : tokens.border}`,
+          color: tokens.moodLabel,
+        }}
       >
-        <IconPlus size={16} />
-        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, color: "primary.main" }}>
-          品目を追加
+        <IconNoMeal size={18} />
+        <Typography sx={{ fontSize: 12, fontWeight: 600, color: tokens.moodLabel }}>
+          この{meta.label}は食べなかった
         </Typography>
       </ButtonBase>
 
-      {filledCount > 0 && (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: "16px", bgcolor: tokens.primarySoft, borderRadius: "16px", p: "13px 16px" }}>
-          <Box>
-            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, color: "primary.dark" }}>
-              {meta.label}の合計
-            </Typography>
-            <Box sx={{ display: "flex", gap: "12px", mt: "3px" }}>
-              {SUMMARY_MACROS.map(({ key, label, color }) => (
-                <Typography key={key} sx={{ fontSize: 11, fontWeight: 700, color }}>
-                  {label} {Math.round(totals[key])}g
-                </Typography>
-              ))}
-            </Box>
-          </Box>
-          <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22, color: "primary.dark" }}>
-            {Math.round(totals.kcal).toLocaleString()}
-            <Box component="span" sx={{ fontSize: 11, fontWeight: 700, ml: "2px" }}>
-              kcal
-            </Box>
+      {skipped ? (
+        <Card sx={{ p: "16px", mb: "16px" }}>
+          <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
+            「食べなかった」として記録します。品目の入力は不要です。
           </Typography>
-        </Box>
+        </Card>
+      ) : (
+        <>
+          {/* 入力手段は「画像解析→マスタ選択→品目カード」(画面設計書4章) */}
+          <PhotoJudgeCard
+            isJudging={isJudging}
+            photos={photos}
+            note={note}
+            onNoteChange={setNote}
+            onPhotosSelected={handlePhotosSelected}
+            onRemovePhoto={(index) => setPhotos((prev) => prev.filter((_, i) => i !== index))}
+            onJudge={handleJudge}
+            judgeError={judgeError}
+            showUncertainWarning={judgeInfo?.uncertain === true}
+          />
+
+          {judgeInfo && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: "8px", bgcolor: tokens.secondarySoft, borderRadius: "12px", p: "10px 13px", mb: "14px" }}>
+              <Box sx={{ color: tokens.secondaryDeep, display: "flex" }}>
+                <IconSparkle />
+              </Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 500, color: tokens.secondaryDeep }}>
+                写真AIが{judgeInfo.count}件を品目に反映しました。内容を確認して修正できます
+              </Typography>
+            </Box>
+          )}
+
+          <Card sx={{ p: "15px", mb: "16px", borderRadius: "18px", boxShadow: tokens.rowCardShadow }}>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "12px" }}>
+              よく食べるものから選ぶ
+            </Typography>
+            <FoodMasterPicker items={foodMasterItems ?? []} onSelect={handleSelectMaster} />
+          </Card>
+
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "10px", px: "2px" }}>
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>品目</Typography>
+            <Typography sx={{ fontSize: 11, fontWeight: 500, color: "text.secondary" }}>カロリー・PFC</Typography>
+          </Box>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {items.map((item, index) => (
+              <MealItemCard
+                key={index}
+                index={index}
+                item={item}
+                onChange={(patch) => updateItem(index, patch)}
+                onRemove={() => removeItem(index)}
+              />
+            ))}
+          </Box>
+
+          <ButtonBase
+            onClick={() => setItems((prev) => [...prev, emptyMealItem()])}
+            sx={{ width: "100%", height: 48, mt: "12px", border: "1.5px dashed #E0B7A8", borderRadius: "14px", gap: "7px", color: "primary.main" }}
+          >
+            <IconPlus size={16} />
+            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, color: "primary.main" }}>
+              品目を追加
+            </Typography>
+          </ButtonBase>
+
+          {filledCount > 0 && (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: "16px", bgcolor: tokens.primarySoft, borderRadius: "16px", p: "13px 16px" }}>
+              <Box>
+                <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, color: "primary.dark" }}>
+                  {meta.label}の合計
+                </Typography>
+                <Box sx={{ display: "flex", gap: "12px", mt: "3px" }}>
+                  {SUMMARY_MACROS.map(({ key, label, color }) => (
+                    <Typography key={key} sx={{ fontSize: 11, fontWeight: 700, color }}>
+                      {label} {Math.round(totals[key])}g
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+              <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22, color: "primary.dark" }}>
+                {Math.round(totals.kcal).toLocaleString()}
+                <Box component="span" sx={{ fontSize: 11, fontWeight: 700, ml: "2px" }}>
+                  kcal
+                </Box>
+              </Typography>
+            </Box>
+          )}
+        </>
       )}
 
       {error && <Typography sx={{ mt: "12px", fontSize: 13, color: "primary.main" }}>{error}</Typography>}
 
-      <RecordSaveFooter onClick={handleSave} label={filledCount > 0 ? `保存する(${filledCount}品)` : "保存する"} />
+      <RecordSaveFooter
+        onClick={handleSave}
+        label={skipped ? "食べなかったと記録する" : filledCount > 0 ? `保存する(${filledCount}品)` : "保存する"}
+      />
     </Box>
   );
 }

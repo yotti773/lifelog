@@ -71,12 +71,15 @@ export interface MealItemInput {
   aiEstimatedProteinG?: number;
   aiEstimatedFatG?: number;
   aiEstimatedCarbsG?: number;
+  /** この区分を「食べなかった」として保存する場合にtrue(Issue #143)。MealRecord.skippedへそのまま渡す */
+  skipped?: boolean;
 }
 
 /**
  * 指定日・区分の食事記録を丸ごと置き換える(筋トレの replaceWorkoutRecordsForDate と同じ考え方)。
  * 区分ごとの記録画面は「その日のその区分の全品目」を1画面で編集するため、保存=「既存の当日・当区分分を消して登録し直す」。
- * itemsを空にして保存すればその区分の当日分の削除になる。
+ * itemsを空にして保存すればその区分の当日分の削除になる。「食べなかった」の記録(Issue #143)は
+ * skipped:trueの1件だけを含むitemsを渡すことで表現する(未記録=0件、と区別するため)。
  * 置き換えのたびに各品目へ新しいIDを振り直すため、置き換え前の全レコードIDを削除トゥームストーンとして残し、
  * スプレッドシート側の古い行を次回同期で消す(Issue #30の削除反映の仕組みを流用)。
  * timestampは区分内の全品目で共有する(筋トレが当日の全セットで保存時刻を共有するのと同じ)が、
@@ -104,6 +107,7 @@ export async function replaceMealRecordsForDateAndType(
     confirmedProteinG: item.confirmedProteinG,
     confirmedFatG: item.confirmedFatG,
     confirmedCarbsG: item.confirmedCarbsG,
+    skipped: item.skipped,
     synced: false,
   }));
   await db.transaction("rw", db.mealRecords, db.syncDeletions, async () => {

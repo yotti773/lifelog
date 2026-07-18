@@ -86,6 +86,12 @@ export interface MealRecord {
   confirmedProteinG: number;
   confirmedFatG: number;
   confirmedCarbsG: number;
+  /**
+   * この区分は食べなかった、という明示的な記録(Issue #143)。trueの場合、その日・その区分の
+   * MealRecordはこの1件のみを持つ(replaceMealRecordsForDateAndTypeが丸ごと置き換えるため)。
+   * 「未記録」(MealRecordが0件)と区別するためのフラグで、kcal/PFCは0で保存する。
+   */
+  skipped?: boolean;
   synced: boolean; // スプレッドシートへの同期済みフラグ
 }
 

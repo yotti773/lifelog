@@ -1,6 +1,6 @@
 import { IconBreakfast, IconDinner, IconLunch, IconSnack } from "@/components/icons";
 import { tokens } from "@/theme";
-import type { MealType } from "@/types";
+import type { MealRecord, MealType } from "@/types";
 
 /** 区分ごとのラベル・アイコン・アイコンチップ配色。ホーム・履歴・記録画面で共有する(Issue #126) */
 export const MEAL_TYPE_META: Record<
@@ -19,4 +19,13 @@ export const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "sna
 const MEAL_TYPES = new Set<string>(MEAL_TYPE_ORDER);
 export function isMealType(value: string | null | undefined): value is MealType {
   return value != null && MEAL_TYPES.has(value);
+}
+
+/**
+ * ある日・ある区分のMealRecord群が「食べなかった」の記録かどうか(Issue #143)。
+ * skipped:trueの1件だけを持つ、という不変条件をここに1箇所にまとめる
+ * (ホーム・履歴・記録画面の3箇所で同じ判定をそれぞれ書かないようにする)。
+ */
+export function isSkippedMealGroup(records: MealRecord[]): boolean {
+  return records.length === 1 && records[0].skipped === true;
 }

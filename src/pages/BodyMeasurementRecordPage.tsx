@@ -12,7 +12,7 @@ import {
   getBodyMeasurementRecord,
   saveBodyMeasurementRecord,
 } from "@/db/bodyMeasurementRecords";
-import { toDatetimeLocalValue, todayDateString } from "@/lib/date";
+import { formatMonthDay, toDatetimeLocalValue, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 
 type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
@@ -82,6 +82,8 @@ export default function BodyMeasurementRecordPage() {
   const [searchParams] = useSearchParams();
   const editDate = searchParams.get("date");
   const isTodayParam = editDate === todayDateString();
+  // 履歴確認画面の「記録を追加」から、入れ忘れた過去日を明示的に新規追加する場合に付く(Issue #141)
+  const createParam = searchParams.get("create") === "1";
   const [loadStatus, setLoadStatus] = useState<LoadStatus>(editDate ? "loading" : "idle");
   const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [waistCm, setWaistCm] = useState("");
@@ -100,7 +102,15 @@ export default function BodyMeasurementRecordPage() {
     void getBodyMeasurementRecord(editDate).then((record) => {
       if (cancelled) return;
       if (!record) {
-        setLoadStatus(isTodayParam ? "idle" : "not-found");
+        if (!isTodayParam && !createParam) {
+          setLoadStatus("not-found");
+          return;
+        }
+        // 過去日への新規追加は時刻が分からないため正午固定にする(当日は現在時刻のまま)
+        if (!isTodayParam) {
+          setDateTime(toDatetimeLocalValue(new Date(`${editDate}T12:00:00`).toISOString()));
+        }
+        setLoadStatus("idle");
         return;
       }
       setDateTime(toDatetimeLocalValue(record.timestamp));
@@ -184,7 +194,10 @@ export default function BodyMeasurementRecordPage() {
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "110px" }}>
-      <RecordHeader title={isEditing ? "サイズを編集" : "サイズを記録"} onBack={() => navigate(-1)} />
+      <RecordHeader
+        title={isEditing ? "サイズを編集" : !isTodayParam && editDate ? `${formatMonthDay(selectedDate)}のサイズを記録` : "サイズを記録"}
+        onBack={() => navigate(-1)}
+      />
 
       <Box component="form" onSubmit={handleSubmit}>
         <FieldLabel>日時</FieldLabel>

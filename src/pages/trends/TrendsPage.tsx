@@ -7,6 +7,7 @@ import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import ActivityHistoryList from "./ActivityHistoryList";
+import AddHistoryEntryButton from "./AddHistoryEntryButton";
 import BloodPressureHistoryList from "./BloodPressureHistoryList";
 import BodyMeasurementHistoryList from "./BodyMeasurementHistoryList";
 import DiaryHistoryList from "./DiaryHistoryList";
@@ -61,6 +62,7 @@ import type {
   BodyMeasurementRecord,
   DiaryRecord,
   MealRecord,
+  MealType,
   WaterRecord,
   WeightRecord,
   WorkoutRecord,
@@ -328,6 +330,36 @@ export default function TrendsPage() {
     bodyMeasurement: filteredBodyMeasurementHistory.length,
   }[historyKind];
 
+  // 履歴確認画面から、入れ忘れた過去日の記録を新規に追加する導線(Issue #141)。
+  // 体重・血圧・サイズは日付が主キー(1日1件)のため、未記録日でも新規入力画面として開けるよう
+  // create=1 を付けて明示的な新規追加であることを伝える(タップ後に削除された、というエッジケースの
+  // 「見つかりません」表示と区別するため)。水分・筋トレ・日記・食事は date だけで新規入力画面が開く。
+  const handleAddHistoryEntry = (date: string, mealType?: MealType) => {
+    switch (historyKind) {
+      case "weight":
+        navigate(`/record/weight?date=${date}&create=1`);
+        break;
+      case "meal":
+        navigate(`/record/meal?type=${mealType}&date=${date}`);
+        break;
+      case "water":
+        navigate(`/record/water?date=${date}`);
+        break;
+      case "strength":
+        navigate(`/record/strength?date=${date}`);
+        break;
+      case "diary":
+        navigate(`/record/diary?date=${date}`);
+        break;
+      case "bloodPressure":
+        navigate(`/record/blood-pressure?date=${date}&create=1`);
+        break;
+      case "bodyMeasurement":
+        navigate(`/record/measurement?date=${date}&create=1`);
+        break;
+    }
+  };
+
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, display: "flex", flexDirection: "column", gap: "14px", px: "20px", pt: "24px", pb: "130px" }}>
       <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22 }}>推移</Typography>
@@ -483,6 +515,10 @@ export default function TrendsPage() {
               records={filteredBodyMeasurementHistory}
               onSelect={(date) => navigate(`/record/measurement?date=${date}`)}
             />
+          )}
+          {historyKind !== "activity" && (
+            // 種別タブを切り替えたら開きかけの追加フォーム(日付・区分の入力途中)を持ち越さない
+            <AddHistoryEntryButton key={historyKind} requireMealType={historyKind === "meal"} onAdd={handleAddHistoryEntry} />
           )}
         </>
       )}

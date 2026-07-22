@@ -39,7 +39,7 @@
 | # | 仮タイトル | 素材 | 状態 |
 |---|---|---|---|
 | 1 | Claude Codeに実装を丸投げしたら、個人開発のボトルネックが「書く」から「決める」に変わった話 | CLAUDE.md、意思決定ログ、開発フロー | **公開済み**([zenn.dev/yotti073/articles/spec-driven-claude-code](https://zenn.dev/yotti073/articles/spec-driven-claude-code)、2026-07-16) |
-| 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | 未着手 |
+| 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | 下書きあり(`zenn02_dexie-uselivequery_下書き.md`。明日公開予定) |
 | 3 | Google Sheets を個人用DBにする — upsert・削除トゥームストーンの同期エンジン | CLAUDE.md同期エンジン、#30・#54・#96 | 未着手 |
 | 4 | 計算はコード、言語化はAI — WeeklyDigest という契約で軽量モデルにコーチをさせる | AIコンサルティング設計書、#43〜#47・#12 | 未着手 |
 | 5 | 非公式Garmin APIとの連携を「壊れる前提」で設計する | scripts/garmin/README.md、#11・#80〜#82 | 未着手 |

@@ -39,11 +39,23 @@
 | # | 仮タイトル | 素材 | 状態 |
 |---|---|---|---|
 | 1 | Claude Codeに実装を丸投げしたら、個人開発のボトルネックが「書く」から「決める」に変わった話 | CLAUDE.md、意思決定ログ、開発フロー | **公開済み**([zenn.dev/yotti073/articles/spec-driven-claude-code](https://zenn.dev/yotti073/articles/spec-driven-claude-code)、2026-07-16) |
-| 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | 未着手 |
+| 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | 公開稿を`zenn-content`のmainに反映済み(`dexie-uselivequery-pitfalls.md`、`published: false`)。Zenn側で公開トグル操作待ち。下書きは`zenn02_dexie-uselivequery_下書き.md` |
 | 3 | Google Sheets を個人用DBにする — upsert・削除トゥームストーンの同期エンジン | CLAUDE.md同期エンジン、#30・#54・#96 | 未着手 |
 | 4 | 計算はコード、言語化はAI — WeeklyDigest という契約で軽量モデルにコーチをさせる | AIコンサルティング設計書、#43〜#47・#12 | 未着手 |
 | 5 | 非公式Garmin APIとの連携を「壊れる前提」で設計する | scripts/garmin/README.md、#11・#80〜#82 | 未着手 |
 | 6 | (小ネタ)チャートライブラリを捨てて手書きSVGでグラフを描く | src/pages/trends/charts/、デザインガイド | 未着手 |
+
+### Zennストック記事の狙う検索クエリ(SEO設計)
+
+Zennの技術記事は、バズ(はてブ・トレンド)の一発より、**具体的な検索クエリからの長期流入**が本命の資産になる(2026-07-22の発信施策の整理より)。競合が少なく、ハマった人がピンポイントで検索する「ロングテール×高い検索意図」のクエリを各記事の軸に据える。以下は各記事を書くときにタイトル・見出し・本文に自然に含めるクエリ候補(1記事1〜2本を主クエリに、残りは見出しで拾う)。
+
+- **#2 Dexie + useLiveQuery の罠**: 主クエリ「Dexie useLiveQuery 罠」「useLiveQuery undefined ローディング 抜けない」。従クエリ「Dexie React 設計」「IndexedDB boolean インデックス できない」「Dexie 主キー 日付 後勝ち」。`useLiveQuery` が「ロード中」と「undefinedに解決」を区別できない罠(CLAUDE.md データ層節)は、まさに検索意図が明確で競合が薄い。ここを記事の核にする。
+- **#3 Google Sheets を個人用DBにする**: 主クエリ「Cloudflare Workers Google Sheets 同期」「Google Sheets API DB 代わり 個人開発」。従クエリ「サービスアカウント JWT Web Crypto crypto.subtle」「Google Sheets API 行 upsert 特定」「Google Sheets API deleteDimension 行削除」「オフライン 同期 トゥームストーン」。Workerで秘密鍵からJWTを`crypto.subtle`で署名する話(`worker/googleSheetsAuth.ts`)は、Node/ブラウザ用cryptoが使えない環境で詰まる人が多く、刺さりやすい。
+- **#4 計算はコード・言語化はAI(WeeklyDigest)**: 主クエリ「LLM 計算 させない 設計」「AIコーチング アプリ 設計」。従クエリ「決定論的 集計 LLM 分業」「Gemini プロンプト データ契約」「軽量モデル コスト プロンプト設計」。この記事は検索よりX・はてブ(設計思想として読まれる)寄り。タイトルで思想を立て、本文の見出しで上記クエリを拾う二段構えにする。
+- **#5 非公式Garmin APIとの連携**: 主クエリ「python-garminconnect 使い方」「Garmin Connect API 非公式 Python」。従クエリ「GitHub Actions cron Garmin 自動取得」「Garmin データ スプレッドシート 自動」「非公式API 壊れる前提 設計」。`python-garminconnect` は検索母数があり、cronで回す実運用例(トークンをActionsキャッシュで持ち回る等、`scripts/garmin/README.md`)は同じことをやりたい人に直接刺さる。
+- **#6 手書きSVGでグラフを描く**: 主クエリ「React SVG グラフ 自作 ライブラリなし」「手書き SVG 折れ線グラフ React」。従クエリ「Recharts 使わない グラフ」「SVG グラフ 実装 TypeScript」。小ネタだが「チャートライブラリのデフォルトと戦いたくない」層に一定の需要があり、短時間で書ける割に検索流入が見込める。
+
+**書く順番の目安**: CLAUDE.mdに理由まで書いてあり執筆コストが低く、かつ検索意図が明確な #2 → #5 → #3 を先行させ、思想寄りの #4 と小ネタの #6 は開発が一段落したタイミングで無理なく足す(「淡々と続ける」方針=週1定型を止めないことが最優先で、ストック記事は従)。
 
 ### note記事2(週次レポート)の定型フォーマット案
 

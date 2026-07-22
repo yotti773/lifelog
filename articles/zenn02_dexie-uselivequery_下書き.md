@@ -1,6 +1,8 @@
 # Zenn記事2(下書き)
 
-Zenn公開時は以下のfrontmatterを先頭に付ける(`published: false` のままデプロイして最終確認後にtrueへ)。公開用の正本は別リポジトリ `yotti773/zenn-content` の `articles/<slug>.md` に置く。スラッグ案: `dexie-uselivequery-pitfalls`(半角英数字+ハイフン、12〜50字)。
+**状態: 公開稿を `zenn-content` のmainに反映済み**(`articles/dexie-uselivequery-pitfalls.md`、`published: false`、2026-07-22)。Zennのプレビュー確認と公開トグル操作はZenn側のweb画面で実施する運用。以下はその元原稿。
+
+公開用の正本は別リポジトリ `yotti773/zenn-content` の `articles/<slug>.md` に置く。スラッグは `dexie-uselivequery-pitfalls`。frontmatterは以下(`published: false` のまま反映済み)。
 
 ```yaml
 ---

@@ -2,6 +2,8 @@
 
 **状態: 公開稿を `zenn-content` のmainに反映済み**(`articles/dexie-uselivequery-pitfalls.md`、`published: false`、2026-07-22)。Zennのプレビュー確認と公開トグル操作はZenn側のweb画面で実施する運用。以下はその元原稿。
 
+X投稿用の❌/✅コード対比画像は `zenn02_X画像_before-after.png`(本記事の核である永久ローディングの罠と`null`正規化の対処を並べた、`X投稿テンプレート.md` タイプBの添付画像)。
+
 公開用の正本は別リポジトリ `yotti773/zenn-content` の `articles/<slug>.md` に置く。スラッグは `dexie-uselivequery-pitfalls`。frontmatterは以下(`published: false` のまま反映済み)。
 
 ```yaml

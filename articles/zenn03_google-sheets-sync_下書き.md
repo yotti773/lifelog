@@ -2,6 +2,10 @@
 
 Zenn公開時は以下のfrontmatterを先頭に付ける(`published: false` のままデプロイして最終確認後にtrueへ)。公開用の正本は別リポジトリ `yotti773/zenn-content` の `articles/cloudflare-workers-google-sheets-sync.md` に置く。
 
+本文中の概念図は `zenn03_図1_upsert概念図.png`(「罠」節、upsertのビフォーアフター)。`zenn-content` 側は `images/cloudflare-workers-google-sheets-sync/upsert-diagram.png` に同じ画像を配置し、本文から `/images/cloudflare-workers-google-sheets-sync/upsert-diagram.png` で参照している。
+
+X投稿用の❌/✅図解は `zenn03_X画像_行削除順序.png`(`X投稿テンプレート.md` タイプBの添付画像)。本記事の核である「`deleteDimension`は降順で削除しないと行番号がズレて事故る」を、コードではなく行の視覚図で示した。
+
 ```yaml
 ---
 title: "Google Sheets を個人用DBにする — Cloudflare Workers + upsert・削除トゥームストーンで同期する"
@@ -87,7 +91,11 @@ export function normalizePemNewlines(raw: string): string {
 1. **編集すると行が重複する。** 同期済みレコードを編集すると、Dexie側は`synced: false`に戻って次回また送信されます。追記だけだと同じレコードの新しい状態が新しい行として増え、シートには古い値の行が残り続けます。
 2. **削除がシートに反映されない。** アプリ側で削除しても、追記オンリーの設計にはシートから行を消す手段がありません。
 
-対処は「ID列を主キー代わりに使い、既存行を見つけて上書き(upsert)、無ければ追記」という方式に切り替えることでした。各タブにID列を1つ割り当てています(体重=F列、食事=H列、水分=C列など)。
+対処は「ID列を主キー代わりに使い、既存行を見つけて上書き(upsert)、無ければ追記」という方式に切り替えることでした。
+
+![追記オンリーだと編集で行が重複するが、ID列でupsertすると同じ行を上書きできる](zenn03_図1_upsert概念図.png)
+
+各タブにID列を1つ割り当てています(体重=F列、食事=H列、水分=C列など)。
 
 ```ts
 // worker/sheetsSync.ts
@@ -246,6 +254,5 @@ Google Sheetsを個人用DBにする実装で、実際に効いた勘所です�
 <!-- 公開前の執筆メモ(公開時に削除):
 - 相互リンク: zenn01・zenn02への言及済み。zenn01への直接リンクも「まとめ」に足すか検討
 - コードは 2026-08-02 時点の worker/sheetsSync.ts / worker/googleSheetsAuth.ts / src/db/syncDeletions.ts / src/sync/syncEngine.ts から引用(一部、記事向けに枝葉を省略した簡略版)
-- 図: 「追記だけ→upsertへ」のビフォーアフター図、または「ID列で行を特定する」概念図を1枚入れると理解が早い(任意)
-- X投稿用の対比画像(zenn02_X画像_before-after.pngの型)を作るか検討。核になりそうなのは「削除は降順で消す」の図解
+- 図・X投稿用画像は作成済み(冒頭の説明を参照)
 -->

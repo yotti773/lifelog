@@ -4,7 +4,10 @@ Zenn公開時は以下のfrontmatterを先頭に付ける(`published: false` の
 
 本文中の概念図は `zenn03_図1_upsert概念図.png`(「罠」節、upsertのビフォーアフター)。`zenn-content` 側は `images/cloudflare-workers-google-sheets-sync/upsert-diagram.png` に同じ画像を配置し、本文から `/images/cloudflare-workers-google-sheets-sync/upsert-diagram.png` で参照している。
 
-X投稿用の❌/✅図解は `zenn03_X画像_行削除順序.png`(`X投稿テンプレート.md` タイプBの添付画像)。本記事の核である「`deleteDimension`は降順で削除しないと行番号がズレて事故る」を、コードではなく行の視覚図で示した。
+X投稿用の画像は2枚ある(`X投稿テンプレート.md` タイプBの添付画像。投稿文の記入例も同ファイルにある)。
+
+- **初回投稿用: `zenn03_X画像_upsert.png`** — 「個人開発のDB、スプレッドシートで十分だった/ただし追記だけで同期すると壊れる」を見出しに置き、追記オンリー ❌ とupsert ✅ を並べたもの。画像単体でフックが完結する形にしてある
+- **再放流用: `zenn03_X画像_行削除順序.png`** — 「`deleteDimension`は降順で削除しないと行番号がズレて事故る」を行の視覚図で示したもの。公開1〜2週間後に切り口を変えてもう一度投稿するとき用
 
 ```yaml
 ---

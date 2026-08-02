@@ -40,7 +40,7 @@
 |---|---|---|---|
 | 1 | Claude Codeに実装を丸投げしたら、個人開発のボトルネックが「書く」から「決める」に変わった話 | CLAUDE.md、意思決定ログ、開発フロー | **公開済み**([zenn.dev/yotti073/articles/spec-driven-claude-code](https://zenn.dev/yotti073/articles/spec-driven-claude-code)、2026-07-16) |
 | 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | 公開稿を`zenn-content`のmainに反映済み(`dexie-uselivequery-pitfalls.md`、`published: false`)。Zenn側で公開トグル操作待ち。下書きは`zenn02_dexie-uselivequery_下書き.md` |
-| 3 | Google Sheets を個人用DBにする — upsert・削除トゥームストーンの同期エンジン | CLAUDE.md同期エンジン、#30・#54・#96 | 未着手 |
+| 3 | Google Sheets を個人用DBにする — upsert・削除トゥームストーンの同期エンジン | CLAUDE.md同期エンジン、#30・#54・#96 | 初稿を作成し`zenn-content`のブランチに反映済み(`cloudflare-workers-google-sheets-sync.md`、`published: false`)。PRは未作成。下書きは`zenn03_google-sheets-sync_下書き.md` |
 | 4 | 計算はコード、言語化はAI — WeeklyDigest という契約で軽量モデルにコーチをさせる | AIコンサルティング設計書、#43〜#47・#12 | 未着手 |
 | 5 | 非公式Garmin APIとの連携を「壊れる前提」で設計する | scripts/garmin/README.md、#11・#80〜#82 | 未着手 |
 | 6 | (小ネタ)チャートライブラリを捨てて手書きSVGでグラフを描く | src/pages/trends/charts/、デザインガイド | 未着手 |
@@ -91,3 +91,4 @@ Zennの技術記事は、バズ(はてブ・トレンド)の一発より、**具
 - 2026-07-16: note01・zenn01を公開。GitHub(`yotti773`)・Zenn/note/X(`yotti073`)のハンドル統一、リポジトリpublic化、MITライセンス追加、`zenn-content`リポジトリ作成、X投稿文の準備までを実施
 - 2026-07-22: note02(週次実験レポート第1弾・7/13週)を公開。週次レビュー画面の実データ(週平均体重・実測TDEE・AIコーチのコメント)を転記し、サムネイル(`note02_サムネ.png`)を作成。週1定型レポートの運用を開始
 - 2026-07-30: note03(週次実験レポート・7/20週)の下書きを追加。体調不良で体重増加・筋トレ0回という今週は「遅れ気味」週で、開発トピックも無かった(該当コミット無し)ため省略。タイトルは「体調を崩した週、記録は止めなかった」で確定し、サムネイル(`note03_サムネ.png`)も見出し主導型の案Aで作成。見出しフォントはM PLUS Rounded 1c(丸ゴシック)だと「AI生成デザイン」感が出るとの指摘を受け、Zen Kaku Gothic New(極太角ゴシック)に変更した
+- 2026-08-02: zenn03(Google Sheetsを個人用DBにする — upsert・削除トゥームストーンの同期エンジン)の初稿を作成。サービスアカウントJWTの`crypto.subtle`署名、追記オンリー設計が編集・削除で壊れる問題とID列upsertでの解決、削除トゥームストーンパターン(降順での行削除が必須な理由込み)、複数タブの部分成功ハンドリングを軸に構成。スラッグは`cloudflare-workers-google-sheets-sync`で`zenn-content`に反映(`published: false`)

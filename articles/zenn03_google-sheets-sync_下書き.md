@@ -1,6 +1,6 @@
 # Zenn記事3(下書き)
 
-Zenn公開時は以下のfrontmatterを先頭に付ける(`published: false` のままデプロイして最終確認後にtrueへ)。公開用の正本は別リポジトリ `yotti773/zenn-content` の `articles/cloudflare-workers-google-sheets-sync.md` に置く。
+**状態: 公開済み**([zenn.dev/yotti073/articles/cloudflare-workers-google-sheets-sync](https://zenn.dev/yotti073/articles/cloudflare-workers-google-sheets-sync)、2026-08-03)。公開用の正本は別リポジトリ `yotti773/zenn-content` の `articles/cloudflare-workers-google-sheets-sync.md`。以下はその元原稿。
 
 本文中の概念図は `zenn03_図1_upsert概念図.png`(「罠」節、upsertのビフォーアフター)。`zenn-content` 側は `images/cloudflare-workers-google-sheets-sync/upsert-diagram.png` に同じ画像を配置し、本文から `/images/cloudflare-workers-google-sheets-sync/upsert-diagram.png` で参照している。
 

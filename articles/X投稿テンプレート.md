@@ -146,7 +146,7 @@ https://zenn.dev/yotti073/articles/dexie-uselivequery-pitfalls
 
 ```
 今週の数字とAIコーチのコメントはこちら👇
-{note記事URL}
+https://note.com/yotti073/n/ne4a3440999ef
 ```
 
 自己リプ②:

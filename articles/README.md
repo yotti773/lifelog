@@ -39,11 +39,19 @@
 | # | 仮タイトル | 素材 | 状態 |
 |---|---|---|---|
 | 1 | Claude Codeに実装を丸投げしたら、個人開発のボトルネックが「書く」から「決める」に変わった話 | CLAUDE.md、意思決定ログ、開発フロー | **公開済み**([zenn.dev/yotti073/articles/spec-driven-claude-code](https://zenn.dev/yotti073/articles/spec-driven-claude-code)、2026-07-16) |
-| 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | 公開稿を`zenn-content`のmainに反映済み(`dexie-uselivequery-pitfalls.md`、`published: false`)。Zenn側で公開トグル操作待ち。下書きは`zenn02_dexie-uselivequery_下書き.md` |
+| 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | **公開済み**([zenn.dev/yotti073/articles/dexie-uselivequery-pitfalls](https://zenn.dev/yotti073/articles/dexie-uselivequery-pitfalls))。`zenn-content`のフロントマターは既に`published: true`(2026-08-03、3記事まとめて`true`に修正するコミットで反映済み)。下書きは`zenn02_dexie-uselivequery_下書き.md` |
 | 3 | Google Sheets を個人用DBにする — upsert・削除トゥームストーンの同期エンジン | CLAUDE.md同期エンジン、#30・#54・#96 | **公開済み**([zenn.dev/yotti073/articles/cloudflare-workers-google-sheets-sync](https://zenn.dev/yotti073/articles/cloudflare-workers-google-sheets-sync)、2026-08-03)。下書きは`zenn03_google-sheets-sync_下書き.md` |
 | 4 | 計算はコード、言語化はAI — WeeklyDigest という契約で軽量モデルにコーチをさせる | AIコンサルティング設計書、#43〜#47・#12 | 未着手。**note目次案#3と役割分担を明確化(2026-08-03)**: note側は「計算はコード・言語化はAI」という設計思想の紹介までに留めた。本記事はそこから実装レベルまで踏み込む(実際のプロンプト文面、`WeeklyDigest`/`WeeklyAdvice`の型定義、`DigestFlag`の判定条件表と実装、structured outputのスキーマ検証、フィクスチャによる回帰確認)。note読了後に「もっと知りたい」層の受け皿にする位置づけで、note記事の再放送にならないようにする |
 | 5 | 非公式Garmin APIとの連携を「壊れる前提」で設計する | scripts/garmin/README.md、#11・#80〜#82 | 未着手 |
 | 6 | (小ネタ)チャートライブラリを捨てて手書きSVGでグラフを描く | src/pages/trends/charts/、デザインガイド | 未着手 |
+
+### Zenn(からだログ以外)
+
+からだログとは別の個人開発(技術スタック棚卸しアプリ「Tech Stack Log」、`yotti773/tech-stack-log`)の開発記録。上記の目次案(#1〜6)には含まれないが、`zenn-content`に実在し公開済みのため、管理漏れを避けるためにここに記載する。
+
+| タイトル | 素材 | 状態 |
+|---|---|---|
+| 間違えてもエラーが出ない機能があるから、AIに全部は任せなかった | tech-stack-log開発時のRLS・認証周りの詰まり | **公開済み**([zenn.dev/yotti073/articles/ai-boundary-rls-supabase](https://zenn.dev/yotti073/articles/ai-boundary-rls-supabase)) |
 
 ### Zennストック記事の狙う検索クエリ(SEO設計)
 
@@ -126,3 +134,4 @@ Zennの技術記事は、バズ(はてブ・トレンド)の一発より、**具
   **修正・不採用にした指摘**: (a) 「ビュー13→13→3 は開発トピックが消えたせい」という因果は取らない — note04は公開翌日で露出期間が2週間のnote02と揃っておらず、母数13はフォロワー実質0の段階のノイズが支配的。**今後もビュー数を構成変更の評価指標にしない**(変更の効き目を誤判定するため)。(b) 「開発トピックを記事の先頭に固定」はそのまま採らず、枠を「今週わかったこと」に広げた — アプリのコミットが無い週(7/20週・7/27週が実際にそうだった)に空欄になり型が破綻するため。(c) 「#ダイエット記録 #減量 を外す」も採らず後ろに残した。(d) 提案されたタイトル案のうち3本目案(43字)は、レビュー自身の「冒頭25字」指摘に反するため不採用。
   **方針**: note/Zennの切り分けは維持し、**noteの想定読者だけを一般読者から個人開発・AI活用クラスタに寄せる**(2026-08-04、本人決定)。技術的なhowはZennに書いて相互リンクする。
   **未着手**: 既公開のnote02〜04について、note.com側でのタイトル・カテゴリ・ハッシュタグの実物確認(下書きの確定タイトルは接頭辞「週次実験レポート(日付)」を外してあるが、公開画面では付いている可能性がある)と、アプリ・GitHubへのリンク導線の追記。note.com側を直した時点で下書きファイルにも反映する。
+- 2026-08-05: これまでの公開記事のフィードバックを実施し、目次案の2点のズレを修正。(1) zenn02(Dexie + useLiveQueryの罠)は`zenn-content`のフロントマターが既に`published: true`(2026-08-03、3記事まとめてtrueにするコミットで反映済み)にもかかわらず、本READMEは「Zenn側で公開トグル操作待ち」のまま古い状態表記が残っていたため、公開済みとして更新した(zenn.devの実ページはネットワーク制限で直接確認できていないため、リポジトリの状態を根拠にしている。実際の見え方は本人側で確認推奨)。(2) 別プロジェクト(Tech Stack Log)のZenn記事「間違えてもエラーが出ない機能があるから、AIに全部は任せなかった」(`ai-boundary-rls-supabase`、公開済み)が目次案のどこにも載っておらず管理漏れになっていたため、「Zenn(からだログ以外)」節を新設して記載した

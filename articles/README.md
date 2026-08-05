@@ -39,11 +39,19 @@
 | # | 仮タイトル | 素材 | 状態 |
 |---|---|---|---|
 | 1 | Claude Codeに実装を丸投げしたら、個人開発のボトルネックが「書く」から「決める」に変わった話 | CLAUDE.md、意思決定ログ、開発フロー | **公開済み**([zenn.dev/yotti073/articles/spec-driven-claude-code](https://zenn.dev/yotti073/articles/spec-driven-claude-code)、2026-07-16) |
-| 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | 公開稿を`zenn-content`のmainに反映済み(`dexie-uselivequery-pitfalls.md`、`published: false`)。Zenn側で公開トグル操作待ち。下書きは`zenn02_dexie-uselivequery_下書き.md` |
+| 2 | ローカルファーストPWA実践 — Dexie + useLiveQuery の設計と罠 | CLAUDE.mdデータ層、#27 | **公開済み**([zenn.dev/yotti073/articles/dexie-uselivequery-pitfalls](https://zenn.dev/yotti073/articles/dexie-uselivequery-pitfalls))。`zenn-content`のフロントマターは既に`published: true`(2026-08-03、3記事まとめて`true`に修正するコミットで反映済み)。下書きは`zenn02_dexie-uselivequery_下書き.md` |
 | 3 | Google Sheets を個人用DBにする — upsert・削除トゥームストーンの同期エンジン | CLAUDE.md同期エンジン、#30・#54・#96 | **公開済み**([zenn.dev/yotti073/articles/cloudflare-workers-google-sheets-sync](https://zenn.dev/yotti073/articles/cloudflare-workers-google-sheets-sync)、2026-08-03)。下書きは`zenn03_google-sheets-sync_下書き.md` |
 | 4 | 計算はコード、言語化はAI — WeeklyDigest という契約で軽量モデルにコーチをさせる | AIコンサルティング設計書、#43〜#47・#12 | 未着手 |
 | 5 | 非公式Garmin APIとの連携を「壊れる前提」で設計する | scripts/garmin/README.md、#11・#80〜#82 | 未着手 |
 | 6 | (小ネタ)チャートライブラリを捨てて手書きSVGでグラフを描く | src/pages/trends/charts/、デザインガイド | 未着手 |
+
+### Zenn(からだログ以外)
+
+からだログとは別の個人開発(技術スタック棚卸しアプリ「Tech Stack Log」、`yotti773/tech-stack-log`)の開発記録。上記の目次案(#1〜6)には含まれないが、`zenn-content`に実在し公開済みのため、管理漏れを避けるためにここに記載する。
+
+| タイトル | 素材 | 状態 |
+|---|---|---|
+| 間違えてもエラーが出ない機能があるから、AIに全部は任せなかった | tech-stack-log開発時のRLS・認証周りの詰まり | **公開済み**([zenn.dev/yotti073/articles/ai-boundary-rls-supabase](https://zenn.dev/yotti073/articles/ai-boundary-rls-supabase)) |
 
 ### Zennストック記事の狙う検索クエリ(SEO設計)
 
@@ -107,3 +115,4 @@ Zennの技術記事は、バズ(はてブ・トレンド)の一発より、**具
 - 2026-08-03: note04(週次実験レポート・7/27週)の下書きを追加。前週の体調不良から体重は71.0kgまで−0.41kg減少し持ち直したが、目標ペース(−0.55kg/週)には届かず、現在ペースでの着地予測68.0kgは目標64.0kgに届かない見込みとAIコーチが注意喚起(ステータス「やや遅れ」)。開発トピックは該当期間に`src/`・`worker/`へのcommitが無かったため省略。タイトルは本人選択で「体重は減ったのに、まだ届かない」に確定。サムネイル(`note04_サムネ.png`)を既定フォーマット(M PLUS Rounded 1c)で作成 — Google Fontsのサブセットwoff2をbase64埋め込みし、Playwrightでスクリーンショット。あわせてnote03(7/20週分)がnote.com公開済み([note.com/yotti073/n/n66e3b3692745](https://note.com/yotti073/n/n66e3b3692745))であることを本人に確認できたため、README・note03・note04の状態表記とリンクを更新した
 - 2026-08-03: note04のX投稿文を確定し、`X投稿テンプレート.md` に週次レポート回の記入例として追加。X用画像(`note04_X画像.png`、1200×670)はnoteサムネの流用ではなく専用に作成した — noteサムネは4行の数値カードが主役でタイムライン上では小さく読めないため、見出し2行+数値カード3枚(必要ペース/今週の実績/着地予測)に絞って文字を大きくし、「必要ペース−0.55 vs 実績−0.41」を並べることで画像だけで「届いていない」が伝わる構成にした。本人提案でXのプロフィールアイコンを画像に入れることにし、右下に「丸型アイコン+@yotti073」の署名として配置した(背景を抜いたキャラを見出しの横に大きく置く案を先に試したが「浮いて見える」ため却下)。アイコン素材は `プロフィールアイコン.png` として今後使い回せる形で保存。noteのサムネイルには入れない方針も同時に決めた
 - 2026-08-03: note04(週次実験レポート・7/27週)を公開([note.com/yotti073/n/ne4a3440999ef](https://note.com/yotti073/n/ne4a3440999ef))。前週分のnote03に続けて公開し、週1定型の運用を維持している
+- 2026-08-05: これまでの公開記事のフィードバックを実施し、目次案の2点のズレを修正。(1) zenn02(Dexie + useLiveQueryの罠)は`zenn-content`のフロントマターが既に`published: true`(2026-08-03、3記事まとめてtrueにするコミットで反映済み)にもかかわらず、本READMEは「Zenn側で公開トグル操作待ち」のまま古い状態表記が残っていたため、公開済みとして更新した(zenn.devの実ページはネットワーク制限で直接確認できていないため、リポジトリの状態を根拠にしている。実際の見え方は本人側で確認推奨)。(2) 別プロジェクト(Tech Stack Log)のZenn記事「間違えてもエラーが出ない機能があるから、AIに全部は任せなかった」(`ai-boundary-rls-supabase`、公開済み)が目次案のどこにも載っておらず管理漏れになっていたため、「Zenn(からだログ以外)」節を新設して記載した

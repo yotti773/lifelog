@@ -76,6 +76,13 @@ NotebookLMのときは意識していなかった線を、アプリに引っ越�
 
 この記事では「計算はコード・言語化はAI」という設計の考え方までを紹介しました。実際にコードとAIの間でどんなデータ(型)をやり取りしているか、フラグの判定条件、プロンプトの実物、構造化出力の検証まわりは、また別のZenn記事で実装レベルまで深掘りする予定です。noteの方は引き続き、週次の実験レポートを淡々と続けていきます。
 
+## リンク
+
+- アプリ(からだログ): https://lifelog.n1lab.workers.dev/
+- ソースコード: https://github.com/yotti773/lifelog
+- 前回の週次レポート: [体重は減ったのに、まだ届かない](https://note.com/yotti073/n/ne4a3440999ef)
+- 開発の進め方(Zenn): [Claude Codeに実装を丸投げしたら、個人開発のボトルネックが「書く」から「決める」に変わった話](https://zenn.dev/yotti073/articles/spec-driven-claude-code)
+
 ---
 
 ## TODO(公開前に確認)

@@ -279,6 +279,13 @@ export const VERDICT_FROM_LABEL: Record<string, string> = Object.fromEntries(
 
 export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
+/** Sheets APIレスポンスの失敗を共通形式のエラーにして投げる(sheetsImport.tsとも共用) */
+export async function ensureSheetsOk(res: Response): Promise<void> {
+  if (!res.ok) {
+    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
+  }
+}
+
 const JST_TIME_ZONE = "Asia/Tokyo";
 
 // Cloudflare WorkersはUTCで動くため、Dateのgetters(getHours()等)をそのまま使うと9時間ズレる。
@@ -530,9 +537,7 @@ async function readIdRows(
   if (res.status === 400 && allowMissing) {
     return null;
   }
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
-  }
+  await ensureSheetsOk(res);
   const data = (await res.json()) as { values?: (string | undefined)[][] };
   const map = new Map<string, number[]>();
   (data.values ?? []).forEach((cells, index) => {
@@ -562,9 +567,7 @@ async function batchUpdateRows(
       data: updates.map((u) => ({ range: `${config.name}!A${u.rowNumber}`, values: [u.cells] })),
     }),
   });
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
-  }
+  await ensureSheetsOk(res);
 }
 
 /** 新規行を末尾に追記する(values.append) */
@@ -584,9 +587,7 @@ async function appendRows(
       body: JSON.stringify({ values: rows }),
     },
   );
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
-  }
+  await ensureSheetsOk(res);
 }
 
 /** タブ名から数値のsheetId(行削除のbatchUpdateで必要)を解決する */
@@ -594,9 +595,7 @@ async function resolveSheetId(accessToken: string, spreadsheetId: string, sheetN
   const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}?fields=sheets.properties(sheetId,title)`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
-  }
+  await ensureSheetsOk(res);
   const data = (await res.json()) as { sheets?: { properties?: { sheetId?: number; title?: string } }[] };
   const found = data.sheets?.find((s) => s.properties?.title === sheetName);
   if (!found?.properties || found.properties.sheetId === undefined) {
@@ -620,9 +619,7 @@ async function createSheetWithHeader(
     headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
     body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetName } } }] }),
   });
-  if (!addRes.ok) {
-    throw new Error(`Sheets APIエラー (${addRes.status}): ${await addRes.text()}`);
-  }
+  await ensureSheetsOk(addRes);
   const headerRes = await fetch(
     `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(`${sheetName}!A1`)}?valueInputOption=RAW`,
     {
@@ -631,9 +628,7 @@ async function createSheetWithHeader(
       body: JSON.stringify({ values: [header] }),
     },
   );
-  if (!headerRes.ok) {
-    throw new Error(`Sheets APIエラー (${headerRes.status}): ${await headerRes.text()}`);
-  }
+  await ensureSheetsOk(headerRes);
 }
 
 /** 指定行(降順・1始まり)を物理削除する(batchUpdate deleteDimension)。下の行から順に削除するため行番号ズレは起きない。 */
@@ -655,9 +650,7 @@ async function deleteRows(
       })),
     }),
   });
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
-  }
+  await ensureSheetsOk(res);
 }
 
 /**
@@ -878,167 +871,112 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     ),
   ]);
 
-  const syncedWeightDates = weightResult.status === "fulfilled" ? weightResult.value.syncedIds : [];
-  const deletedWeightIdsOut = weightResult.status === "fulfilled" ? weightResult.value.deletedIds : [];
-  const syncedMealIds = mealResult.status === "fulfilled" ? mealResult.value.syncedIds : [];
-  const deletedMealIdsOut = mealResult.status === "fulfilled" ? mealResult.value.deletedIds : [];
-  const syncedWaterIds = waterResult.status === "fulfilled" ? waterResult.value.syncedIds : [];
-  const deletedWaterIdsOut = waterResult.status === "fulfilled" ? waterResult.value.deletedIds : [];
-  const syncedWorkoutIds = workoutResult.status === "fulfilled" ? workoutResult.value.syncedIds : [];
-  const deletedWorkoutIdsOut = workoutResult.status === "fulfilled" ? workoutResult.value.deletedIds : [];
-  const syncedDiaryDates = diaryResult.status === "fulfilled" ? diaryResult.value.syncedIds : [];
-  const deletedDiaryIdsOut = diaryResult.status === "fulfilled" ? diaryResult.value.deletedIds : [];
-  const syncedFoodMasterIds = foodMasterResult.status === "fulfilled" ? foodMasterResult.value.syncedIds : [];
-  const deletedFoodMasterIdsOut = foodMasterResult.status === "fulfilled" ? foodMasterResult.value.deletedIds : [];
-  const syncedExerciseMasterIds =
-    exerciseMasterResult.status === "fulfilled" ? exerciseMasterResult.value.syncedIds : [];
-  const deletedExerciseMasterIdsOut =
-    exerciseMasterResult.status === "fulfilled" ? exerciseMasterResult.value.deletedIds : [];
-  const syncedBloodPressureDates =
-    bloodPressureResult.status === "fulfilled" ? bloodPressureResult.value.syncedIds : [];
-  const deletedBloodPressureIdsOut =
-    bloodPressureResult.status === "fulfilled" ? bloodPressureResult.value.deletedIds : [];
-  const syncedBodyMeasurementDates =
-    bodyMeasurementResult.status === "fulfilled" ? bodyMeasurementResult.value.syncedIds : [];
-  const deletedBodyMeasurementIdsOut =
-    bodyMeasurementResult.status === "fulfilled" ? bodyMeasurementResult.value.deletedIds : [];
-  const syncedHabitMasterIds = habitMasterResult.status === "fulfilled" ? habitMasterResult.value.syncedIds : [];
-  const deletedHabitMasterIdsOut =
-    habitMasterResult.status === "fulfilled" ? habitMasterResult.value.deletedIds : [];
-  const syncedHabitRecordIds = habitRecordResult.status === "fulfilled" ? habitRecordResult.value.syncedIds : [];
-  const deletedHabitRecordIdsOut =
-    habitRecordResult.status === "fulfilled" ? habitRecordResult.value.deletedIds : [];
+  // 失敗したタブは「何も確定しなかった」として空で返す(部分成功のハンドリングはクライアントのrunSyncが行う)
+  const ok = (result: PromiseSettledResult<{ syncedIds: string[]; deletedIds: string[] }>) =>
+    result.status === "fulfilled" ? result.value : { syncedIds: [], deletedIds: [] };
 
-  const syncedAdviceWeekStarts = adviceResult.status === "fulfilled" ? adviceResult.value.syncedIds : [];
-  // syncOneSheetはシート上のID(YYYY-MM-01)を返すので、クライアント契約の月キーへ戻す
-  const syncedMonthlyAdviceMonths =
-    monthlyAdviceResult.status === "fulfilled"
-      ? monthlyAdviceResult.value.syncedIds.map((id) => id.slice(0, 7))
-      : [];
+  const weight = ok(weightResult);
+  const meal = ok(mealResult);
+  const water = ok(waterResult);
+  const workout = ok(workoutResult);
+  const diary = ok(diaryResult);
+  const foodMaster = ok(foodMasterResult);
+  const exerciseMaster = ok(exerciseMasterResult);
+  const bloodPressure = ok(bloodPressureResult);
+  const bodyMeasurement = ok(bodyMeasurementResult);
+  const habitMaster = ok(habitMasterResult);
+  const habitRecord = ok(habitRecordResult);
+  const advice = ok(adviceResult);
+  const monthlyAdvice = ok(monthlyAdviceResult);
+  const settings = ok(settingsResult);
 
-  const syncedSettingsKeys = settingsResult.status === "fulfilled" ? settingsResult.value.syncedIds : [];
-
-  if (weightResult.status === "rejected") console.error("体重記録の同期に失敗:", weightResult.reason);
-  if (mealResult.status === "rejected") console.error("食事記録の同期に失敗:", mealResult.reason);
-  if (waterResult.status === "rejected") console.error("水分記録の同期に失敗:", waterResult.reason);
-  if (workoutResult.status === "rejected") console.error("筋トレ記録の同期に失敗:", workoutResult.reason);
-  if (diaryResult.status === "rejected") console.error("日記記録の同期に失敗:", diaryResult.reason);
-  if (foodMasterResult.status === "rejected") console.error("食事マスタの同期に失敗:", foodMasterResult.reason);
-  if (exerciseMasterResult.status === "rejected")
-    console.error("種目マスタの同期に失敗:", exerciseMasterResult.reason);
-  if (bloodPressureResult.status === "rejected") console.error("血圧記録の同期に失敗:", bloodPressureResult.reason);
-  if (bodyMeasurementResult.status === "rejected") console.error("周囲径記録の同期に失敗:", bodyMeasurementResult.reason);
-  if (habitMasterResult.status === "rejected") console.error("習慣マスタの同期に失敗:", habitMasterResult.reason);
-  if (habitRecordResult.status === "rejected") console.error("習慣記録の同期に失敗:", habitRecordResult.reason);
-  if (adviceResult.status === "rejected") console.error("週次AIコメントの同期に失敗:", adviceResult.reason);
-  if (monthlyAdviceResult.status === "rejected")
-    console.error("月次AIコメントの同期に失敗:", monthlyAdviceResult.reason);
-  if (settingsResult.status === "rejected") console.error("設定の同期に失敗:", settingsResult.reason);
-
-  const attempted =
-    weightRecords.length +
-      mealRecords.length +
-      waterRecords.length +
-      workoutRecords.length +
-      diaryRecords.length +
-      foodMasterItems.length +
-      exerciseMasterItems.length +
-      bloodPressureRecords.length +
-      bodyMeasurementRecords.length +
-      habitMasterItems.length +
-      habitRecords.length +
-      adviceRecords.length +
-      monthlyAdviceRecords.length +
-      settingsEntries.length +
-      deletedWeightIds.length +
-      deletedMealIds.length +
-      deletedWaterIds.length +
-      deletedWorkoutIds.length +
-      deletedDiaryIds.length +
-      deletedFoodMasterIds.length +
-      deletedExerciseMasterIds.length +
-      deletedBloodPressureIds.length +
-      deletedBodyMeasurementIds.length +
-      deletedHabitMasterIds.length +
-      deletedHabitRecordIds.length >
-    0;
-  const nothingSynced =
-    syncedWeightDates.length +
-      deletedWeightIdsOut.length +
-      syncedMealIds.length +
-      deletedMealIdsOut.length +
-      syncedWaterIds.length +
-      deletedWaterIdsOut.length +
-      syncedWorkoutIds.length +
-      deletedWorkoutIdsOut.length +
-      syncedDiaryDates.length +
-      deletedDiaryIdsOut.length +
-      syncedFoodMasterIds.length +
-      deletedFoodMasterIdsOut.length +
-      syncedExerciseMasterIds.length +
-      deletedExerciseMasterIdsOut.length +
-      syncedBloodPressureDates.length +
-      deletedBloodPressureIdsOut.length +
-      syncedBodyMeasurementDates.length +
-      deletedBodyMeasurementIdsOut.length +
-      syncedHabitMasterIds.length +
-      deletedHabitMasterIdsOut.length +
-      syncedHabitRecordIds.length +
-      deletedHabitRecordIdsOut.length +
-      syncedAdviceWeekStarts.length +
-      syncedMonthlyAdviceMonths.length +
-      syncedSettingsKeys.length ===
-    0;
-  const results = [
-    weightResult,
-    mealResult,
-    waterResult,
-    workoutResult,
-    diaryResult,
-    foodMasterResult,
-    exerciseMasterResult,
-    bloodPressureResult,
-    bodyMeasurementResult,
-    habitMasterResult,
-    habitRecordResult,
-    adviceResult,
-    monthlyAdviceResult,
-    settingsResult,
+  const labeledResults: [string, PromiseSettledResult<{ syncedIds: string[]; deletedIds: string[] }>][] = [
+    ["体重記録", weightResult],
+    ["食事記録", mealResult],
+    ["水分記録", waterResult],
+    ["筋トレ記録", workoutResult],
+    ["日記記録", diaryResult],
+    ["食事マスタ", foodMasterResult],
+    ["種目マスタ", exerciseMasterResult],
+    ["血圧記録", bloodPressureResult],
+    ["周囲径記録", bodyMeasurementResult],
+    ["習慣マスタ", habitMasterResult],
+    ["習慣記録", habitRecordResult],
+    ["週次AIコメント", adviceResult],
+    ["月次AIコメント", monthlyAdviceResult],
+    ["設定", settingsResult],
   ];
-  const anyFailure = results.some((r) => r.status === "rejected");
+  for (const [label, result] of labeledResults) {
+    if (result.status === "rejected") console.error(`${label}の同期に失敗:`, result.reason);
+  }
+
+  const attempted = [
+    weightRecords,
+    mealRecords,
+    waterRecords,
+    workoutRecords,
+    diaryRecords,
+    foodMasterItems,
+    exerciseMasterItems,
+    bloodPressureRecords,
+    bodyMeasurementRecords,
+    habitMasterItems,
+    habitRecords,
+    adviceRecords,
+    monthlyAdviceRecords,
+    settingsEntries,
+    deletedWeightIds,
+    deletedMealIds,
+    deletedWaterIds,
+    deletedWorkoutIds,
+    deletedDiaryIds,
+    deletedFoodMasterIds,
+    deletedExerciseMasterIds,
+    deletedBloodPressureIds,
+    deletedBodyMeasurementIds,
+    deletedHabitMasterIds,
+    deletedHabitRecordIds,
+  ].some((list) => list.length > 0);
+  const nothingSynced = labeledResults.every(([, result]) => {
+    const { syncedIds, deletedIds } = ok(result);
+    return syncedIds.length === 0 && deletedIds.length === 0;
+  });
+  const anyFailure = labeledResults.some(([, result]) => result.status === "rejected");
 
   if (attempted && nothingSynced && anyFailure) {
-    const messages = results
+    const messages = labeledResults
+      .map(([, result]) => result)
       .filter((r): r is PromiseRejectedResult => r.status === "rejected")
       .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
     return Response.json({ error: messages.join(" / ") }, { status: 502 });
   }
 
   return Response.json({
-    syncedWeightDates,
-    syncedMealIds,
-    syncedWaterIds,
-    syncedWorkoutIds,
-    syncedDiaryDates,
-    syncedFoodMasterIds,
-    syncedExerciseMasterIds,
-    syncedBloodPressureDates,
-    syncedBodyMeasurementDates,
-    syncedHabitMasterIds,
-    syncedHabitRecordIds,
-    syncedAdviceWeekStarts,
-    syncedMonthlyAdviceMonths,
-    syncedSettingsKeys,
-    deletedWeightIds: deletedWeightIdsOut,
-    deletedMealIds: deletedMealIdsOut,
-    deletedWaterIds: deletedWaterIdsOut,
-    deletedWorkoutIds: deletedWorkoutIdsOut,
-    deletedDiaryIds: deletedDiaryIdsOut,
-    deletedFoodMasterIds: deletedFoodMasterIdsOut,
-    deletedExerciseMasterIds: deletedExerciseMasterIdsOut,
-    deletedBloodPressureIds: deletedBloodPressureIdsOut,
-    deletedBodyMeasurementIds: deletedBodyMeasurementIdsOut,
-    deletedHabitMasterIds: deletedHabitMasterIdsOut,
-    deletedHabitRecordIds: deletedHabitRecordIdsOut,
+    syncedWeightDates: weight.syncedIds,
+    syncedMealIds: meal.syncedIds,
+    syncedWaterIds: water.syncedIds,
+    syncedWorkoutIds: workout.syncedIds,
+    syncedDiaryDates: diary.syncedIds,
+    syncedFoodMasterIds: foodMaster.syncedIds,
+    syncedExerciseMasterIds: exerciseMaster.syncedIds,
+    syncedBloodPressureDates: bloodPressure.syncedIds,
+    syncedBodyMeasurementDates: bodyMeasurement.syncedIds,
+    syncedHabitMasterIds: habitMaster.syncedIds,
+    syncedHabitRecordIds: habitRecord.syncedIds,
+    syncedAdviceWeekStarts: advice.syncedIds,
+    // syncOneSheetはシート上のID(YYYY-MM-01)を返すので、クライアント契約の月キーへ戻す
+    syncedMonthlyAdviceMonths: monthlyAdvice.syncedIds.map((id) => id.slice(0, 7)),
+    syncedSettingsKeys: settings.syncedIds,
+    deletedWeightIds: weight.deletedIds,
+    deletedMealIds: meal.deletedIds,
+    deletedWaterIds: water.deletedIds,
+    deletedWorkoutIds: workout.deletedIds,
+    deletedDiaryIds: diary.deletedIds,
+    deletedFoodMasterIds: foodMaster.deletedIds,
+    deletedExerciseMasterIds: exerciseMaster.deletedIds,
+    deletedBloodPressureIds: bloodPressure.deletedIds,
+    deletedBodyMeasurementIds: bodyMeasurement.deletedIds,
+    deletedHabitMasterIds: habitMaster.deletedIds,
+    deletedHabitRecordIds: habitRecord.deletedIds,
   } satisfies SyncPushResultOutput);
 }

@@ -17,6 +17,7 @@ import {
   MEAL_CONFIG,
   BOOLEAN_FALSE_LABEL,
   BOOLEAN_TRUE_LABEL,
+  ensureSheetsOk,
   MONTHLY_ADVICE_CONFIG,
   monthToSheetId,
   SETTINGS_CONFIG,
@@ -1073,46 +1074,46 @@ export function planHabitRecordImport(
 
 // ===== Google Sheets API 呼び出し =====
 
-/** 指定タブのA列〜最終列(ID列より後ろに列がある場合はlastColumnLetter)を全行読み取る */
-async function readSheetRows(
+/**
+ * 指定タブのA列〜endColumnLetterを全行読み取る。
+ * allowMissingTab時はタブ欠如を空として返す(範囲文字列は固定で正しいため、
+ * 400はタブ名を解決できない=タブ欠如とみなせる)。
+ */
+async function readRows(
   accessToken: string,
   spreadsheetId: string,
-  config: SheetConfig,
+  sheetName: string,
+  endColumnLetter: string,
+  allowMissingTab: boolean,
 ): Promise<CellValue[][]> {
-  const range = encodeURIComponent(`${config.name}!A:${config.lastColumnLetter ?? config.idColumnLetter}`);
+  const range = encodeURIComponent(`${sheetName}!A:${endColumnLetter}`);
   const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
+  if (res.status === 400 && allowMissingTab) {
+    return [];
   }
+  await ensureSheetsOk(res);
   const data = (await res.json()) as { values?: CellValue[][] };
   return data.values ?? [];
 }
 
+/** 指定タブのA列〜最終列(ID列より後ろに列がある場合はlastColumnLetter)を全行読み取る */
+function readSheetRows(accessToken: string, spreadsheetId: string, config: SheetConfig): Promise<CellValue[][]> {
+  return readRows(accessToken, spreadsheetId, config.name, config.lastColumnLetter ?? config.idColumnLetter, false);
+}
+
 /**
- * 指定タブのA列〜ID列を全行読み取る。タブ自体が無い場合は空を返す —
- * マスタ系タブは初回同期時にWorkerが自動作成するもので(sheetsSync.ts参照)、
+ * readSheetRowsと同じだが、タブ自体が無い場合は空を返す —
+ * マスタ系などの後付けタブは初回同期時にWorkerが自動作成するもので(sheetsSync.ts参照)、
  * まだ一度も同期していないシートには存在しないのが正常のため、欠如を取り込み全体の失敗にしない。
- * (範囲文字列は固定で正しいため、400はタブ名を解決できない=タブ欠如とみなせる)
  */
-async function readSheetRowsIfPresent(
+function readSheetRowsIfPresent(
   accessToken: string,
   spreadsheetId: string,
   config: SheetConfig,
 ): Promise<CellValue[][]> {
-  const range = encodeURIComponent(`${config.name}!A:${config.lastColumnLetter ?? config.idColumnLetter}`);
-  const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (res.status === 400) {
-    return [];
-  }
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
-  }
-  const data = (await res.json()) as { values?: CellValue[][] };
-  return data.values ?? [];
+  return readRows(accessToken, spreadsheetId, config.name, config.lastColumnLetter ?? config.idColumnLetter, true);
 }
 
 // 活動記録タブの読み取り範囲。列I(高強度運動時間)まで。ID列は無い(日付が主キー)ため
@@ -1124,24 +1125,9 @@ const ACTIVITY_END_COLUMN = "I";
  * 活動記録タブの全行を読み取る。タブ自体が無い場合は空を返す —
  * このタブはGarmin連携(scripts/garmin/)が初回実行時に作るもので、連携未セットアップの
  * ユーザーには存在しないのが正常のため、他タブと違い欠如を取り込み全体の失敗にしない。
- * (範囲文字列は固定で正しいため、400はタブ名を解決できない=タブ欠如とみなせる)
  */
-async function readActivityRowsIfPresent(
-  accessToken: string,
-  spreadsheetId: string,
-): Promise<CellValue[][]> {
-  const range = encodeURIComponent(`${ACTIVITY_SHEET_NAME}!A:${ACTIVITY_END_COLUMN}`);
-  const res = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (res.status === 400) {
-    return [];
-  }
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
-  }
-  const data = (await res.json()) as { values?: CellValue[][] };
-  return data.values ?? [];
+function readActivityRowsIfPresent(accessToken: string, spreadsheetId: string): Promise<CellValue[][]> {
+  return readRows(accessToken, spreadsheetId, ACTIVITY_SHEET_NAME, ACTIVITY_END_COLUMN, true);
 }
 
 /**
@@ -1167,9 +1153,7 @@ async function writeBackIds(
       })),
     }),
   });
-  if (!res.ok) {
-    throw new Error(`Sheets APIエラー (${res.status}): ${await res.text()}`);
-  }
+  await ensureSheetsOk(res);
 }
 
 /**

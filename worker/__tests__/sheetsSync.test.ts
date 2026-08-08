@@ -1,11 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  ensureSheetsOk,
   formatCalendarDate,
   formatJstDateTime,
   planRowDeletions,
   planUpserts,
   type RowWrite,
 } from "../sheetsSync";
+
+describe("ensureSheetsOk", () => {
+  it("成功レスポンスは何もせず解決する", async () => {
+    await expect(ensureSheetsOk(new Response("ok", { status: 200 }))).resolves.toBeUndefined();
+  });
+
+  it("失敗レスポンスはステータスと本文入りの共通形式エラーを投げる", async () => {
+    await expect(ensureSheetsOk(new Response("bad range", { status: 400 }))).rejects.toThrow(
+      "Sheets APIエラー (400): bad range",
+    );
+  });
+});
 
 describe("formatCalendarDate", () => {
   it("converts a YYYY-MM-DD key into yyyy年mm月dd日 without any timezone shift", () => {

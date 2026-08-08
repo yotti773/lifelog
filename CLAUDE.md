@@ -27,14 +27,22 @@
 ```
 npm run dev       # Vite開発サーバーを起動(localhost:5173)
 npm run build     # tsc -b && vite build(PWAのService Workerも生成される)
-npm run test      # vitest run(全テスト実行)
+npm run test      # vitest run(ユニットテスト全実行。e2e/は含まない)
 npx vitest run src/db/__tests__/weightRecords.test.ts   # 単一テストファイルの実行
+npm run e2e       # playwright test(E2Eスモーク。devサーバーは自動起動される)
+npx playwright test e2e/weight.spec.ts   # 単一E2Eファイルの実行
 npm run preview   # 本番ビルドをローカルで配信(実際のPWA/インストール動作の確認に必要)
 ```
 
 `npm run lint` は package.json に定義されているが、ESLintは実際にはインストール・設定されていない — 当てにしないこと。
 
-このリポジトリにはブラウザ用のテストランナーが組み込まれていない。UI変更を目視確認するには `npm run dev` を起動し、Playwright(スクラッチディレクトリで `npm install playwright` + `npx playwright install chromium`)で操作すること — リポジトリ内にヘルパースクリプトは無い。
+### テストの構成(Issue #198)
+
+- **ユニットテスト(vitest)** — `src/**/__tests__/`・`worker/__tests__/`。データ層は `fake-indexeddb` で実Dexieを動かし、ロジック・同期・行パースは純関数として検証する。ブラウザは使わない。
+- **E2Eスモーク(Playwright)** — `e2e/`。ユニットで見えない結線(ルーティング・`useLiveQuery`・フォーム→IndexedDB)を、クリティカルフロー(体重・食事・水分・日記・レビュー・完全バックアップの復元)に絞って確認する。**Worker必須の機能(シート同期・AI生成)はE2Eの対象外** — そこはユニットのfetchモックで担保済みで、E2Eに持ち込むと認証情報が要るため。
+- 初回は `npx playwright install chromium` が必要。標準の場所にChromiumが無い環境では `PLAYWRIGHT_CHROMIUM_PATH` にパスを渡す。
+- **E2Eは `npm run test` に含めない**(実行に数分かかるため)。デプロイパイプラインのテストゲートを設けない方針(Issue #18)は変更せず、PR前・リリース前にローカルで両方実行する運用でカバーする。
+- 個々のUI変更を目視で確認したい場合は、E2Eスイートとは別に `npm run dev` + Playwrightのアドホックなスクリプトで操作してよい(スクリーンショット確認など)。
 
 ## 開発フロー
 
@@ -97,7 +105,7 @@ GitHub Actionsのcron(毎日3:00 JST)が `python-garminconnect`(非公式API)で
 
 ### UI(`src/pages/`、`src/components/`)
 
-ファイル配置は画面単位: 特定の画面からしか使わないコンポーネントは、その画面のディレクトリ(`src/pages/home/`、`src/pages/trends/`、`src/pages/meal/`、`src/pages/settings/`)に置く。`src/components/` に置くのは複数画面で共有するもの(`icons.tsx`・`BottomNav`・`RecordHeader`・`RecordSaveFooter`・`SectionLabel`・`SegmentedControl`・`PaginationControls`・`MoodIcon`・食事のkcal/PFC入力グリッド `NutrientFieldsGrid`・食事マスタのPFCサマリ表示 `PfcSummary`)だけで、複数画面で共有するReactフック(検索+ページ分割の `usePagedFilter` など)は `src/hooks/` に置く。ルートコンポーネントは `〜Page` という命名(`HomePage.tsx` など)で、ルーティングは `App.tsx` にある。単一ファイルで完結する記録系ページ(体重・水分・日記・筋トレ)は `src/pages/` 直下のフラット配置のまま。
+ファイル配置は画面単位: 特定の画面からしか使わないコンポーネントは、その画面のディレクトリ(`src/pages/home/`、`src/pages/trends/`、`src/pages/meal/`、`src/pages/settings/`)に置く。`src/components/` に置くのは複数画面で共有するもの(`icons.tsx`・`BottomNav`・`RecordHeader`・`RecordSaveFooter`・`SectionLabel`・`SegmentedControl`・`PaginationControls`・`MoodIcon`・食事のkcal/PFC入力グリッド `NutrientFieldsGrid`・食事マスタのPFCサマリ表示 `PfcSummary`・記録フォームの項目ラベル `FieldLabel`・日付記録の「見つかりません」画面 `RecordNotFound`)だけで、複数画面で共有するReactフック(検索+ページ分割の `usePagedFilter`、日付キー記録画面の編集モード制御 `useDailyRecordEditor` など)は `src/hooks/` に置く。ルートコンポーネントは `〜Page` という命名(`HomePage.tsx` など)で、ルーティングは `App.tsx` にある。単一ファイルで完結する記録系ページ(体重・水分・日記・筋トレ)は `src/pages/` 直下のフラット配置のまま。
 
 クライアントの状態は、React state + 手動再取得ではなく `dexie-react-hooks` の `useLiveQuery` から得ている — IndexedDBのテーブルが変化すると、ページは自動的に再レンダリングされる。
 

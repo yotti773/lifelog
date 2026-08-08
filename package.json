@@ -11,7 +11,8 @@
     "test": "vitest run",
     "deploy": "npm run build && wrangler deploy",
     "typecheck:worker": "tsc -p worker/tsconfig.json",
-    "worker:dev": "wrangler dev"
+    "worker:dev": "wrangler dev",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260722.1",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

@@ -1,34 +1,21 @@
-import { useEffect, useState, type SubmitEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, type SubmitEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import FieldLabel from "@/components/FieldLabel";
 import RecordHeader from "@/components/RecordHeader";
+import RecordNotFound from "@/components/RecordNotFound";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import {
   deleteBloodPressureRecord,
   getBloodPressureRecord,
   saveBloodPressureRecord,
 } from "@/db/bloodPressureRecords";
-import { formatMonthDay, toDatetimeLocalValue, todayDateString } from "@/lib/date";
+import { useDailyRecordEditor } from "@/hooks/useDailyRecordEditor";
+import { formatMonthDay } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
-
-type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
-
-function FieldLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
-  return (
-    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", mb: "6px", mt: "4px" }}>
-      {children}
-      {optional && (
-        <Box component="span" sx={{ color: tokens.faint2, fontWeight: 400 }}>
-          (任意)
-        </Box>
-      )}
-    </Typography>
-  );
-}
 
 /**
  * 血圧記録画面(Issue #117)。体重記録画面と同じ単一ファイル構成。
@@ -37,54 +24,28 @@ function FieldLabel({ children, optional }: { children: React.ReactNode; optiona
  */
 export default function BloodPressureRecordPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const editDate = searchParams.get("date");
-  const isTodayParam = editDate === todayDateString();
-  // 履歴確認画面の「記録を追加」から、入れ忘れた過去日を明示的に新規追加する場合に付く(Issue #141)
-  const createParam = searchParams.get("create") === "1";
-  const [loadStatus, setLoadStatus] = useState<LoadStatus>(editDate ? "loading" : "idle");
-  const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [systolic, setSystolic] = useState("");
   const [diastolic, setDiastolic] = useState("");
   const [pulse, setPulse] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!editDate) {
-      setLoadStatus("idle");
-      return;
-    }
-    let cancelled = false;
-    setLoadStatus("loading");
-    void getBloodPressureRecord(editDate).then((record) => {
-      if (cancelled) return;
-      if (!record) {
-        if (!isTodayParam && !createParam) {
-          setLoadStatus("not-found");
-          return;
-        }
-        // 過去日への新規追加は時刻が分からないため正午固定にする(当日は現在時刻のまま)
-        if (!isTodayParam) {
-          setDateTime(toDatetimeLocalValue(new Date(`${editDate}T12:00:00`).toISOString()));
-        }
-        setLoadStatus("idle");
-        return;
-      }
-      setDateTime(toDatetimeLocalValue(record.timestamp));
-      setSystolic(String(record.systolic));
-      setDiastolic(String(record.diastolic));
-      setPulse(record.pulse !== undefined ? String(record.pulse) : "");
-      setNote(record.note ?? "");
-      setLoadStatus("loaded");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [editDate]);
-
-  const isEditing = loadStatus === "loaded";
-  const selectedDate = dateTime.slice(0, 10);
+  const {
+    editDate,
+    isTodayParam,
+    loadStatus,
+    dateTime,
+    setDateTime,
+    isEditing,
+    selectedDate,
+    navigateAfterSave,
+    navigateToHistory,
+  } = useDailyRecordEditor(getBloodPressureRecord, (record) => {
+    setSystolic(String(record.systolic));
+    setDiastolic(String(record.diastolic));
+    setPulse(record.pulse !== undefined ? String(record.pulse) : "");
+    setNote(record.note ?? "");
+  });
 
   const parsedSystolic = Number(systolic);
   const parsedDiastolic = Number(diastolic);
@@ -112,17 +73,13 @@ export default function BloodPressureRecordPage() {
       note: note.trim() || undefined,
       timestamp: new Date(dateTime).toISOString(),
     });
-    const cameFromHistory = editDate !== null && !isTodayParam;
-    navigate(
-      cameFromHistory ? "/trends" : "/",
-      cameFromHistory ? { state: { viewMode: "history", historyKind: "bloodPressure" } } : undefined,
-    );
+    navigateAfterSave("bloodPressure");
   };
 
   const handleDelete = async () => {
     if (!isEditing) return;
     await deleteBloodPressureRecord(selectedDate);
-    navigate("/trends", { state: { viewMode: "history", historyKind: "bloodPressure" } });
+    navigateToHistory("bloodPressure");
   };
 
   if (loadStatus === "loading") {
@@ -130,24 +87,7 @@ export default function BloodPressureRecordPage() {
   }
 
   if (loadStatus === "not-found") {
-    return (
-      <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "40px" }}>
-        <RecordHeader title="記録が見つかりません" onBack={() => navigate("/trends", { state: { viewMode: "history", historyKind: "bloodPressure" } })} />
-        <Card sx={{ p: "16px", mb: "16px" }}>
-          <Typography sx={{ fontSize: 14, color: "text.secondary" }}>
-            指定された日付の血圧記録は見つかりませんでした。別の端末で削除された可能性があります。
-          </Typography>
-        </Card>
-        <Button
-          fullWidth
-          variant="contained"
-          onClick={() => navigate("/trends", { state: { viewMode: "history", historyKind: "bloodPressure" } })}
-          sx={{ height: 50, borderRadius: "14px", boxShadow: tokens.primaryButtonShadow }}
-        >
-          履歴に戻る
-        </Button>
-      </Box>
-    );
+    return <RecordNotFound recordLabel="血圧記録" historyKind="bloodPressure" />;
   }
 
   return (

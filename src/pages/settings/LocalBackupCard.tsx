@@ -65,9 +65,11 @@ export default function LocalBackupCard() {
       anchor.href = url;
       anchor.download = `karadalog-backup-${data.exportedAt.slice(0, 10)}.json`;
       anchor.click();
-      // click() 直後に同期的にrevokeすると、ブラウザがblobを取りに行く前にURLが無効化され、
-      // ダウンロードが失敗しうる(UIは成功表示のままになるため気づけない)
-      setTimeout(() => URL.revokeObjectURL(url), 0);
+      // click() 直後にrevokeすると、ブラウザがblobを取りに行く前にURLが無効化されて
+      // ダウンロードが失敗しうる(UIは成功表示のままになるため気づけない)。
+      // ダウンロード完了を検知するAPIは無いため、十分長い猶予の後に解放する。
+      // 主対象のiOS Safari(PWA)はblobの取得開始が非同期で、0msでは競合の実績がある挙動
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
       setStatus({ kind: "exported", summary: summarize(countBackupRows(data)) });
     } catch (error) {
       setStatus({ kind: "error", message: error instanceof Error ? error.message : "書き出しに失敗しました" });

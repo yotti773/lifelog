@@ -116,8 +116,14 @@ interface BackupDataV1 {
 }
 
 export async function exportBackupData(): Promise<BackupData> {
-  const entries = await Promise.all(
-    BACKUP_TABLES.map(async (name) => [name, await db.table(name).toArray()] as const),
+  // 読み取りも1つのトランザクションで行う。自動同期・取り込みが並走したとき、
+  // テーブルごとに読むタイミングがズレると内部的に矛盾した断面を書き出してしまう
+  // (復元側が全テーブル1トランザクションなのと対で、書き出し側も断面を保証する)
+  const entries = await db.transaction(
+    "r",
+    BACKUP_TABLES.map((name) => db.table(name)),
+    async () =>
+      Promise.all(BACKUP_TABLES.map(async (name) => [name, await db.table(name).toArray()] as const)),
   );
   return {
     version: BACKUP_VERSION,

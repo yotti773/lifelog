@@ -213,7 +213,10 @@ export async function runSync({
       syncedMonthlyAdviceMonths.length > 0
         ? markMonthlyAdviceRecordsSynced(syncedMonthlyAdviceMonths)
         : Promise.resolve(),
-      syncedSettingsKeys.length > 0 ? markSettingsSynced() : Promise.resolve(),
+      // 送信中に入った設定変更を取りこぼさないよう、送信時のスナップショットを渡して比較させる
+      syncedSettingsKeys.length > 0 && unsyncedSettings !== null
+        ? markSettingsSynced(unsyncedSettings)
+        : Promise.resolve(),
       clearDeletions("weight", confirmedWeightDeletions),
       clearDeletions("meal", confirmedMealDeletions),
       clearDeletions("water", confirmedWaterDeletions),

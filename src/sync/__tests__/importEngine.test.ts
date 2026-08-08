@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/db";
+import { updateSettings } from "@/db/settings";
 import { getDiaryRecord, deleteDiaryRecord, saveDiaryRecord } from "@/db/diaryRecords";
 import { addExerciseMasterItem, deleteExerciseMasterItem, getAllExerciseMasterItems } from "@/db/exerciseMaster";
 import { addFoodMasterItem, deleteFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
@@ -384,9 +385,12 @@ describe("設定の取り込み(Issue #164)", () => {
     pull: async () => ({ ...emptyPull, settingsEntries: entries }),
   });
 
-  it("設定が未保存の新規端末では、既定値と同じキーもシートから復元する", async () => {
-    // 回帰: 「設定済み」の判定に getSettings() を使うと、行が無いとき DEFAULT_SETTINGS が
-    // 返るため goalWeightKg・goalDate・dailyCalorieTarget が復元されなかった
+  it("実フロー: APIトークンを入れた後の取り込みでも、既定値と同じキーをシートから復元する", async () => {
+    // 回帰: 取り込みには先にAPIトークンの入力が必須で、以前はその保存が既定値を実体化して
+    // いたため、goalWeightKg・goalDate・dailyCalorieTarget が「設定済み」に見えて復元されなかった。
+    // 「設定行がまったく無い端末」は現実には通らない状態なので、必ずこの順で検証する
+    await updateSettings({ apiToken: "secret" });
+
     const outcome = await runImport({
       transport: pullWith([
         { key: "goalWeightKg", value: 60 },
@@ -401,6 +405,8 @@ describe("設定の取り込み(Issue #164)", () => {
     expect(row?.goalWeightKg).toBe(60);
     expect(row?.goalDate).toBe("2026-12-31");
     expect(row?.dailyCalorieTarget).toBe(1600);
+    // 先に入れたAPIトークンは消えない
+    expect(row?.apiToken).toBe("secret");
   });
 
   it("ローカルで設定済みの項目はシート側で上書きしない(ローカル優先)", async () => {

@@ -208,3 +208,18 @@ describe("planSettingsImport", () => {
     expect(plan.skippedRowCount).toBe(1);
   });
 });
+
+describe("planSettingsImport: text型の候補検証(Issue #164)", () => {
+  it("性別に候補外の値が手書きされていたらスキップする", () => {
+    // シートは人が編集できる写し。「男性」等に直されるとSettings.sexのunion型に
+    // 任意文字列が入り、BMR計算の sex === "male" 比較が黙って女性側の式になる
+    const rows = [
+      SETTINGS_HEADER,
+      ["性別", "男性", "sex"],
+      ["性別", "female", "sex"],
+    ];
+    const plan = planSettingsImport(rows);
+    expect(plan.records).toEqual([{ key: "sex", value: "female" }]);
+    expect(plan.skippedRowCount).toBe(1);
+  });
+});

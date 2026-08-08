@@ -107,13 +107,13 @@ export interface ImportedExerciseMasterItemOutput {
   createdAt: string;
 }
 
-/** 週次AIコメント(Issue #164)。digestはシートに無いため復元されない */
 /** 設定の1項目(Issue #164)。値はキーごとの型に復元して返す */
 export interface ImportedSettingsEntryOutput {
   key: string;
   value: string | number | boolean;
 }
 
+/** 週次AIコメント(Issue #164)。digestはシートに無いため復元されない */
 export interface ImportedAdviceRecordOutput {
   weekStart: string;
   createdAt: string;
@@ -764,7 +764,8 @@ export function planSettingsImport(rows: CellValue[][]): SheetImportPlan<Importe
       if (raw === BOOLEAN_TRUE_LABEL) value = true;
       else if (raw === BOOLEAN_FALSE_LABEL) value = false;
     } else {
-      value = raw;
+      // 固定候補のあるtext型は候補外を弾く(シートは人が編集できる写しのため)
+      value = field.allowedValues === undefined || field.allowedValues.includes(raw) ? raw : null;
     }
     if (value === null) {
       skippedRowCount++;

@@ -1,5 +1,5 @@
 import { db } from "@/db/db";
-import { updateSettings } from "@/db/settings";
+import { getStoredSettings, updateSettings } from "@/db/settings";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { notConfiguredTransport } from "./notConfiguredTransport";
 import { fromSettingsEntries } from "./settingsSync";
@@ -227,14 +227,14 @@ export async function runImport({
         // 上書きすると、機種変更後に手で入れ直した値をシートの古い値が潰しうる
         const pulledSettings = fromSettingsEntries(pulled.settingsEntries ?? []);
         if (Object.keys(pulledSettings).length > 0) {
-          // **既定値とのマージ結果ではなく、保存されている行そのものを見る。**
-          // getSettings()は行が無いとDEFAULT_SETTINGSを返すため、それで判定すると
-          // 新規端末で goalWeightKg・goalDate・dailyCalorieTarget が「設定済み」に見えて
-          // 復元されない(最重要の3項目が戻らない)
-          const currentRow = await db.settings.get("default");
+          // **既定値とのマージ結果ではなく、明示的に保存された項目だけを見る。**
+          // getSettings()は既定値を被せて返すため、それで判定すると新規端末で
+          // goalWeightKg・goalDate・dailyCalorieTarget が「設定済み」に見えて復元されない。
+          // 保存行が既定値を実体化しないことは updateSettings 側が保証している(settings.ts参照)
+          const stored = await getStoredSettings();
           const patch: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(pulledSettings)) {
-            if (currentRow?.[key as keyof typeof currentRow] === undefined) {
+            if (stored[key as keyof typeof stored] === undefined) {
               patch[key] = value;
               importedSettingsCount++;
             } else {

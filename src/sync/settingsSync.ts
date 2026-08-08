@@ -48,7 +48,7 @@ export interface SettingsEntry {
  * 日付・真偽をそのまま書くと Sheets の USER_ENTERED が解釈し直すため、
  * 日付は漢字入り・真偽は「はい/いいえ」にして解釈させない。
  */
-export function toSettingsEntries(settings: Settings): SettingsEntry[] {
+export function toSettingsEntries(settings: Partial<Settings>): SettingsEntry[] {
   const entries: SettingsEntry[] = [];
   for (const field of SETTINGS_SYNC_FIELDS) {
     const value = settings[field.key];

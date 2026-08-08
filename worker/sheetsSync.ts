@@ -70,13 +70,13 @@ interface ExerciseMasterItemInput {
   createdAt: string;
 }
 
-/** 週次AIコメント(Issue #164)。シートに載せるのはadviceだけで、digestは送らない */
 /** 設定の1項目(Issue #164)。クライアント側で文字列化済みの値を受け取る */
 interface SettingsEntryInput {
   key: string;
   value: string;
 }
 
+/** 週次AIコメント(Issue #164)。シートに載せるのはadviceだけで、digestは送らない */
 interface AdviceRecordInput {
   weekStart: string;
   createdAt: string;
@@ -235,7 +235,13 @@ export const SETTINGS_HEADER = ["項目", "値", "ID"];
  * 値の書き方は Sheets の USER_ENTERED による解釈し直しを避ける形にそろえる:
  * 日付は「2026年10月31日」、真偽は「はい/いいえ」。数値はそのまま書いてよい。
  */
-export const SETTINGS_FIELDS: { key: string; label: string; type: "number" | "date" | "text" | "boolean" }[] = [
+export const SETTINGS_FIELDS: {
+  key: string;
+  label: string;
+  type: "number" | "date" | "text" | "boolean";
+  /** text型で値を固定候補に縛る場合に指定(シートの手編集で不正値が混ざるのを取り込み時に弾く) */
+  allowedValues?: string[];
+}[] = [
   { key: "goalWeightKg", label: "目標体重(kg)", type: "number" },
   { key: "goalDate", label: "目標日", type: "date" },
   { key: "baselineDate", label: "進捗バーの起点日", type: "date" },
@@ -246,7 +252,9 @@ export const SETTINGS_FIELDS: { key: string; label: string; type: "number" | "da
   { key: "dailyCarbsTargetG", label: "目標炭水化物(g)", type: "number" },
   { key: "heightCm", label: "身長(cm)", type: "number" },
   { key: "birthYear", label: "生年", type: "number" },
-  { key: "sex", label: "性別", type: "text" },
+  // 判定(verdict)と同じく、候補外の値は取り込み時にスキップする。「男性」等に手で書き換えられると
+  // Settings.sexのunion型に任意文字列が入り、BMR計算のsex === "male"比較が黙って女性側の式になるため
+  { key: "sex", label: "性別", type: "text", allowedValues: ["male", "female"] },
   { key: "activityLevel", label: "活動係数", type: "number" },
   { key: "sendDiaryTextToAi", label: "日記本文をAIに送る", type: "boolean" },
 ];

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// articles/X投稿ストック.md から articles/X予約投稿_貼り付け用.md を生成する。
+// articles/x/X投稿ストック.md から articles/x/X予約投稿_貼り付け用.md を生成する。
 //
 //   node scripts/x/generate_paste_list.mjs
 //
@@ -16,8 +16,8 @@ import { dirname, join } from "node:path";
 import { parsePosts, weightedLength } from "./check_post_length.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const STOCK = join(here, "..", "..", "articles", "X投稿ストック.md");
-const OUT = join(here, "..", "..", "articles", "X予約投稿_貼り付け用.md");
+const STOCK = join(here, "..", "..", "articles", "x", "X投稿ストック.md");
+const OUT = join(here, "..", "..", "articles", "x", "X予約投稿_貼り付け用.md");
 
 const md = readFileSync(STOCK, "utf8");
 
@@ -92,7 +92,7 @@ const out = `# X予約投稿 貼り付け用(${scheduled.length}本)
 2. 投稿ボックス → カレンダーアイコン → 日時を指定 → 予約
 3. 下の順に上から${scheduled.length}本。日付・時刻はそのまま入れる
 
-**画像を付けるもの**(予約時に添付する。ファイルは \`articles/\` 直下):
+**画像を付けるもの**(予約時に添付する。ファイルは \`articles/\` 配下の \`note/\`・\`zenn/\`・\`x/\`):
 
 | 投稿 | 画像 |
 |---|---|

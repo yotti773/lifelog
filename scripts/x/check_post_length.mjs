@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// articles/X投稿ストック.md の各投稿が X の文字数上限に収まっているか検査する。
+// articles/x/X投稿ストック.md の各投稿が X の文字数上限に収まっているか検査する。
 //
 //   node scripts/x/check_post_length.mjs          # 全件チェック(超過があれば exit 1)
 //   echo "本文" | node scripts/x/check_post_length.mjs -   # 標準入力の1本だけ測る
@@ -69,7 +69,7 @@ function main() {
   }
 
   const here = dirname(fileURLToPath(import.meta.url));
-  const path = join(here, "..", "..", "articles", "X投稿ストック.md");
+  const path = join(here, "..", "..", "articles", "x", "X投稿ストック.md");
   const posts = parsePosts(readFileSync(path, "utf8"));
 
   const failures = [];

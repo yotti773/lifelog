@@ -21,7 +21,7 @@ export const accent = {
   cardBg: "#FFFBF0",
 };
 
-/** ハンドオフモック(docs/handoff_lifelog_app)のデザイントークン */
+/** ハンドオフモック(docs/archive/handoff_lifelog_app)のデザイントークン */
 export const tokens = {
   /** テキスト(弱)。時刻・キャプションなど */
   faint: "#B7AE9F",

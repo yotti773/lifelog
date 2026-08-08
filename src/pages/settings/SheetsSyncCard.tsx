@@ -5,6 +5,8 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import { IconDownload, IconSync, IconWarning } from "@/components/icons";
+import { getUnsyncedAdviceRecords, getUnsyncedMonthlyAdviceRecords } from "@/db/adviceRecords";
+import { getUnsyncedSettings } from "@/db/settings";
 import { getUnsyncedBloodPressureRecords } from "@/db/bloodPressureRecords";
 import { getUnsyncedBodyMeasurementRecords } from "@/db/bodyMeasurementRecords";
 import { getUnsyncedDiaryRecords } from "@/db/diaryRecords";
@@ -19,6 +21,7 @@ import { getUnsyncedWeightRecords } from "@/db/weightRecords";
 import { getUnsyncedWorkoutRecords } from "@/db/workoutRecords";
 import { formatDateTime } from "@/lib/date";
 import { runImport, type ImportOutcome } from "@/sync/importEngine";
+import { toSettingsEntries } from "@/sync/settingsSync";
 import { runSync, type SyncOutcome } from "@/sync/syncEngine";
 import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
 import { fontRounded, tokens } from "@/theme";
@@ -52,6 +55,9 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedBodyMeasurementCount,
         importedHabitMasterCount,
         importedHabitRecordCount,
+        importedSettingsCount,
+        importedAdviceCount,
+        importedMonthlyAdviceCount,
         skippedExistingCount,
         skippedRowCount,
       } = outcome;
@@ -67,7 +73,10 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedBloodPressureCount +
         importedBodyMeasurementCount +
         importedHabitMasterCount +
-        importedHabitRecordCount;
+        importedHabitRecordCount +
+        importedSettingsCount +
+        importedAdviceCount +
+        importedMonthlyAdviceCount;
       let message: string;
       if (totalImported === 0) {
         message =
@@ -80,7 +89,9 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
           `筋トレ${importedWorkoutCount}件・日記${importedDiaryCount}件・活動${importedActivityCount}件・` +
           `食事マスタ${importedFoodMasterCount}件・種目マスタ${importedExerciseMasterCount}件・` +
           `血圧${importedBloodPressureCount}件・サイズ${importedBodyMeasurementCount}件・` +
-          `習慣マスタ${importedHabitMasterCount}件・習慣記録${importedHabitRecordCount}件を取り込みました`;
+          `習慣マスタ${importedHabitMasterCount}件・習慣記録${importedHabitRecordCount}件・` +
+          `AIコメント${importedAdviceCount + importedMonthlyAdviceCount}件・` +
+          `設定${importedSettingsCount}件を取り込みました`;
         if (skippedExistingCount > 0) {
           message += `(既にある${skippedExistingCount}件はスキップ)`;
         }
@@ -118,6 +129,9 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       bodyMeasurements,
       habitMasters,
       habitRecords,
+      advices,
+      monthlyAdvices,
+      unsyncedSettings,
       weightDeletions,
       mealDeletions,
       waterDeletions,
@@ -141,6 +155,9 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       getUnsyncedBodyMeasurementRecords(),
       getUnsyncedHabitMasterItems(),
       getUnsyncedHabitRecords(),
+      getUnsyncedAdviceRecords(),
+      getUnsyncedMonthlyAdviceRecords(),
+      getUnsyncedSettings(),
       getPendingDeletionIds("weight"),
       getPendingDeletionIds("meal"),
       getPendingDeletionIds("water"),
@@ -165,6 +182,10 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       bodyMeasurements.length +
       habitMasters.length +
       habitRecords.length +
+      advices.length +
+      monthlyAdvices.length +
+      // 設定は送信できる項目がある場合だけ数える(APIトークンだけの端末で1件のまま残らないように)
+      (unsyncedSettings && toSettingsEntries(unsyncedSettings).length > 0 ? 1 : 0) +
       weightDeletions.length +
       mealDeletions.length +
       waterDeletions.length +

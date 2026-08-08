@@ -11,7 +11,7 @@ import { getWorkoutRecordsByDateRange } from "./workoutRecords";
 import { addDaysToDateString, todayDateString } from "@/lib/date";
 import { calcBmr } from "@/lib/nutritionCalc";
 import { countRecordedDaysInRange, currentStreakDays } from "@/lib/recording";
-import { buildWeeklyDigest } from "@/lib/weeklyDigest";
+import { ACTIVITY_BASELINE_WEEKS, buildWeeklyDigest } from "@/lib/weeklyDigest";
 import { projectWeightAtDate } from "@/lib/weightProjection";
 import type { WeeklyDigest } from "@/types";
 
@@ -23,6 +23,9 @@ import type { WeeklyDigest } from "@/types";
 export async function getWeeklyDigest(weekStart: string, today: string = todayDateString()): Promise<WeeklyDigest> {
   const weekEnd = addDaysToDateString(weekStart, 6);
   const prevWeekStart = addDaysToDateString(weekStart, -7);
+  // 活動量低下の判定(Issue #174)に使う比較基準の期間。当該週の直前ACTIVITY_BASELINE_WEEKS週
+  const baselineStart = addDaysToDateString(weekStart, -7 * ACTIVITY_BASELINE_WEEKS);
+  const baselineEnd = addDaysToDateString(weekStart, -1);
 
   const settings = await getSettings();
   const [
@@ -39,6 +42,8 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     firstWeight,
     latestWeight,
     baselineWeight,
+    baselineActivityRecords,
+    baselineWorkoutRecords,
   ] = await Promise.all([
     getWeightRecordsByDateRange(weekStart, weekEnd),
     getWeightRecordsByDateRange(prevWeekStart, addDaysToDateString(weekStart, -1)),
@@ -53,7 +58,29 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
     db.weightRecords.orderBy("date").first(),
     db.weightRecords.orderBy("date").last(),
     settings.baselineDate ? getWeightRecord(settings.baselineDate) : Promise.resolve(undefined),
+    getActivityRecordsByDateRange(baselineStart, baselineEnd),
+    getWorkoutRecordsByDateRange(baselineStart, baselineEnd),
   ]);
+
+  // 直近4週を週単位(月曜起点)に畳んで比較基準にする(Issue #174)。
+  // **記録の無い週も落とさずそのまま渡す** — 筋トレ日数の平均はこの配列の長さを分母にするため、
+  // 「やらなかった週」を間引くと平均が実態より高く出て、通常の休養週でWORKOUT_STOPPEDが誤発火する。
+  // 歩数が無いだけの週は純関数側の品質ゲートで基準から外れる
+  const prevWeeksActivity = Array.from({ length: ACTIVITY_BASELINE_WEEKS }, (_, i) => {
+    const start = addDaysToDateString(weekStart, -7 * (ACTIVITY_BASELINE_WEEKS - i));
+    const end = addDaysToDateString(start, 6);
+    const inWeek = <T extends { date: string }>(rs: T[]) => rs.filter((r) => r.date >= start && r.date <= end);
+    // Garmin連携は歩数が取れなかった日も行を書くため、行数ではなく歩数の値がある日数で数える
+    const stepDays = inWeek(baselineActivityRecords)
+      .map((r) => r.steps)
+      .filter((s): s is number => s !== undefined);
+    return {
+      avgSteps:
+        stepDays.length > 0 ? Math.round(stepDays.reduce((s, v) => s + v, 0) / stepDays.length) : null,
+      stepsRecordedDays: stepDays.length,
+      workoutDays: new Set(inWeek(baselineWorkoutRecords).map((r) => r.date)).size,
+    };
+  });
 
   // 基礎代謝は身体プロフィール(Issue #43)と直近体重が揃っているときのみ計算できる
   const bmrKcal =
@@ -115,6 +142,7 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
       ...(r.totalKcal !== undefined && { totalKcal: r.totalKcal }),
       ...(r.sleepMinutes !== undefined && { sleepMinutes: r.sleepMinutes }),
     })),
+    prevWeeksActivity,
     workoutSets: workoutRecords.map((r) => ({ date: r.date, exerciseName: r.exerciseName })),
     waterDailyTotals,
     waterTargetMl: settings.dailyWaterTargetMl ?? null,

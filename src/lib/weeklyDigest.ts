@@ -19,6 +19,24 @@ export const HOME_BP_HIGH_DIASTOLIC = 85;
 /** INSUFFICIENT_DATA: 記録した日がこの日数未満の週は評価に適さないとみなす(利用開始直後など) */
 export const INSUFFICIENT_DATA_THRESHOLD_DAYS = 2;
 
+/**
+ * 活動量低下の検知(Issue #174)の閾値。実測TDEEが落ちたとき、原因が摂取ではなく消費側にあることを
+ * 事実として示すために使う。数字は運用しながら調整する前提の初期値。
+ */
+/**
+ * 歩数の比較対象にする週の条件: **歩数の値がある日**がこの日数以上ある週
+ * (LOW_RECORDING_THRESHOLD_DAYSと同じデータ品質の考え方)。
+ * Garmin連携のcronは歩数が取れなかった日も空欄の行を書くため、活動記録の「行数」ではなく
+ * 歩数が入っている日数で数えないとゲートが機能しない(scripts/garmin/garmin_to_sheet.py)
+ */
+export const ACTIVITY_MIN_RECORDED_DAYS = 5;
+/** 歩数・筋トレの比較基準に使う過去週の最大数(当該週は含まない) */
+export const ACTIVITY_BASELINE_WEEKS = 4;
+/** 比較基準が揃ったとみなす過去週の最小数。これ未満なら判定しない(利用開始直後の誤検知を防ぐ) */
+export const ACTIVITY_BASELINE_MIN_WEEKS = 2;
+/** ACTIVITY_DROP: 週平均歩数が基準をこの割合以上下回ったら低下とみなす */
+export const ACTIVITY_DROP_RATIO = 0.2;
+
 /** 食事の日別合計(食事記録がある日のみ)。src/db/weeklyNutrition.tsのMealDailyTotalと同形 */
 export interface DigestMealDailyTotal {
   date: string;
@@ -55,6 +73,15 @@ export interface WeeklyDigestSource {
   diaryDays: { date: string; mood?: DiaryMood; alcohol?: boolean }[];
   /** 週内のGarmin活動記録(Issue #82)。1日1件。項目ごとに欠測しうる。dateはクロス分析(Issue #112)用 */
   activityDays: { date: string; steps?: number; totalKcal?: number; sleepMinutes?: number }[];
+  /**
+   * 活動量低下の判定(Issue #174)に使う、当該週の直前ACTIVITY_BASELINE_WEEKS週の週次サマリー。
+   * 1要素=1週で、順序は問わない。当該週は含まない。アプリ利用開始前にあたる週は呼び出し側で除いてよい
+   */
+  prevWeeksActivity: {
+    avgSteps: number | null; // その週の平均歩数(歩数データがある日の平均。無ければnull)
+    stepsRecordedDays: number; // その週に歩数の値があった日数(データ品質ゲート用。行数ではない)
+    workoutDays: number; // その週に筋トレを記録した日数
+  }[];
   /** 週内の筋トレ記録(1セット=1件。Issue #103) */
   workoutSets: { date: string; exerciseName: string }[];
   /** 週内の日別水分合計(記録の無い日は0mlで埋まっていてよい。Issue #103) */
@@ -94,6 +121,65 @@ export function aggregateActivity(
     avgTotalKcal: avgOf((d) => d.totalKcal),
     avgSleepMinutes: avgOf((d) => d.sleepMinutes),
     recordedDays: activityDays.length,
+  };
+}
+
+/**
+ * 活動量の週次比較を組み立てる(Issue #174)。
+ *
+ * 摂取を減らしているのに減量が進まないとき、原因が消費側の低下にあることを示すための比較。
+ * 歩数は「その週の活動記録がACTIVITY_MIN_RECORDED_DAYS日以上」という品質ゲートを当該週・基準週の
+ * 双方に課す(時計を数日着けなかっただけの週を「活動量が落ちた週」と誤判定しないため)。
+ * 筋トレ日数はアプリ自身の記録で欠測の概念が無いため、ゲートを課さずそのまま平均する。
+ *
+ * 比較できる過去週がACTIVITY_BASELINE_MIN_WEEKS未満、または過去に歩数・筋トレの実績が
+ * どちらも無い場合はundefined(digestからactivityTrendを省く)
+ */
+export function aggregateActivityTrend(params: {
+  /** 当該週の平均歩数(歩数の値がある日の平均) */
+  weekAvgSteps: number | null;
+  /** 当該週に歩数の値があった日数(活動記録の行数ではない) */
+  weekStepsRecordedDays: number;
+  /** 当該週に筋トレを記録した日数 */
+  weekWorkoutDays: number;
+  prevWeeksActivity: WeeklyDigestSource["prevWeeksActivity"];
+}): WeeklyDigest["activityTrend"] | undefined {
+  const { weekAvgSteps, weekStepsRecordedDays, weekWorkoutDays, prevWeeksActivity } = params;
+  if (prevWeeksActivity.length < ACTIVITY_BASELINE_MIN_WEEKS) return undefined;
+
+  const baselineStepWeeks = prevWeeksActivity.filter(
+    (w): w is (typeof prevWeeksActivity)[number] & { avgSteps: number } =>
+      w.avgSteps !== null && w.stepsRecordedDays >= ACTIVITY_MIN_RECORDED_DAYS,
+  );
+  const prevWeeksAvgSteps =
+    baselineStepWeeks.length >= ACTIVITY_BASELINE_MIN_WEEKS
+      ? Math.round(baselineStepWeeks.reduce((s, w) => s + w.avgSteps, 0) / baselineStepWeeks.length)
+      : null;
+
+  // 筋トレは欠測の概念が無いため、渡された全週を分母にする(記録が無い週=やらなかった週)
+  const prevWeeksAvgWorkoutDays =
+    round1(prevWeeksActivity.reduce((s, w) => s + w.workoutDays, 0) / prevWeeksActivity.length);
+
+  // 当該週の歩数は、品質ゲートを満たすときだけ比較に載せる(欠測の多い週は比較そのものを出さない)
+  const comparableWeekSteps = weekStepsRecordedDays >= ACTIVITY_MIN_RECORDED_DAYS ? weekAvgSteps : null;
+  const stepsChangeRatio =
+    comparableWeekSteps !== null && prevWeeksAvgSteps !== null && prevWeeksAvgSteps > 0
+      ? round2((comparableWeekSteps - prevWeeksAvgSteps) / prevWeeksAvgSteps)
+      : null;
+
+  // 比較する実績が過去に何も無い(歩数の基準が立たず、筋トレも一度もしていない)週は比較を出さない
+  if (prevWeeksAvgSteps === null && prevWeeksAvgWorkoutDays === 0) return undefined;
+
+  return {
+    weekAvgSteps: comparableWeekSteps,
+    prevWeeksAvgSteps,
+    stepsChangeRatio,
+    // 歩数と筋トレで分母が違う(歩数は品質ゲートを通った週だけ)ため、基準の週数も別々に持つ。
+    // まとめると画面のラベル・AIへの説明が実際の基準を偽ることになる
+    stepsComparedWeeks: baselineStepWeeks.length,
+    weekWorkoutDays,
+    prevWeeksAvgWorkoutDays,
+    comparedWeeks: prevWeeksActivity.length,
   };
 }
 
@@ -293,6 +379,16 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   );
   const activity = aggregateActivity(src.activityDays);
   const workout = aggregateWorkout(src.workoutSets);
+  const weekWorkoutDays = new Set(src.workoutSets.map((s) => s.date)).size;
+  const activityTrend = aggregateActivityTrend({
+    weekAvgSteps: activity?.avgSteps ?? null,
+    weekStepsRecordedDays: src.activityDays.filter((d) => d.steps !== undefined).length,
+    weekWorkoutDays,
+    prevWeeksActivity: src.prevWeeksActivity,
+  });
+  // 進行中の週は「まだやっていない」だけの可能性があるため、活動量の判定には経過日数の下限を課す
+  // (歩数側は品質ゲートが同じ役割を果たすが、筋トレ日数には欠測の概念が無くゲートが効かない)
+  const weekElapsedDays = Math.min(7, Math.max(0, daysBetween(src.weekStart, src.today) + 1));
   const water = aggregateWater(src.waterDailyTotals, src.waterTargetMl);
   const bloodPressure = aggregateBloodPressure(src.bloodPressureDays, weekAvgKg);
   const crossAnalysis = buildCrossAnalysis({
@@ -328,6 +424,26 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   }
   if (src.recordedDays < INSUFFICIENT_DATA_THRESHOLD_DAYS) {
     flags.push("INSUFFICIENT_DATA");
+  }
+  // 活動量の低下(Issue #174)。実測TDEEの下落の要因を、摂取ではなく消費側として名指しするためのフラグ。
+  // 歩数と筋トレを別フラグにしているのは、取るべき行動(歩く / トレーニングを再開する)が別だから
+  if (
+    activityTrend !== undefined &&
+    activityTrend.stepsChangeRatio !== null &&
+    activityTrend.stepsChangeRatio <= -ACTIVITY_DROP_RATIO
+  ) {
+    flags.push("ACTIVITY_DROP");
+  }
+  // 「過去に筋トレの習慣があった」ことを条件に入れることで、元々やっていない人には出ないようにする。
+  // 週の途中(経過日数がACTIVITY_MIN_RECORDED_DAYS未満)は、まだやっていないだけなので判定しない
+  if (
+    activityTrend !== undefined &&
+    weekElapsedDays >= ACTIVITY_MIN_RECORDED_DAYS &&
+    activityTrend.prevWeeksAvgWorkoutDays !== null &&
+    activityTrend.prevWeeksAvgWorkoutDays >= 1 &&
+    activityTrend.weekWorkoutDays === 0
+  ) {
+    flags.push("WORKOUT_STOPPED");
   }
 
   return {
@@ -368,6 +484,7 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     flags,
     ...(mood !== undefined ? { mood } : {}),
     ...(activity !== undefined ? { activity } : {}),
+    ...(activityTrend !== undefined ? { activityTrend } : {}),
     ...(workout !== undefined ? { workout } : {}),
     ...(water !== undefined ? { water } : {}),
     ...(bloodPressure !== undefined ? { bloodPressure } : {}),

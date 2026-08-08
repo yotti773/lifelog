@@ -18,7 +18,14 @@ import type {
   WorkoutRecord,
 } from "@/types";
 
-export type SettingsRow = Settings & { id: "default" };
+/**
+ * `synced` は設定のシート同期用(Issue #164)。`Settings` 側には持たせない —
+ * 画面が読む設定値と、同期の内部状態を混ぜないため。
+ * **`Partial` なのは意図的**: 保存行には明示的に設定された項目だけを持たせ、既定値は
+ * `getSettings()` が読み取り時に被せる。既定値を保存してしまうと「未設定」と区別できなくなり、
+ * 新規端末の初回同期・取り込みが既定値を実値として扱う事故になる(`src/db/settings.ts` 参照)
+ */
+export type SettingsRow = Partial<Settings> & { id: "default"; synced?: boolean };
 
 export const db = new Dexie("lifelog") as Dexie & {
   weightRecords: EntityTable<WeightRecord, "date">;
@@ -106,3 +113,14 @@ db.version(11).stores({
   habitMasterItems: "id, name, archived, order",
   habitRecords: "id, date, habitId",
 });
+
+// 週次・月次AIコメントをスプレッドシート同期の対象に加える(Issue #164)。
+// インデックスは変えず、既存行に synced: false を付与して次回同期でまとめて送信させる
+// (食事マスタ・種目マスタを同期対象にしたversion 7と同じ手当て)
+db.version(12)
+  .stores({})
+  .upgrade(async (tx) => {
+    await tx.table("adviceRecords").toCollection().modify({ synced: false });
+    await tx.table("monthlyAdviceRecords").toCollection().modify({ synced: false });
+    await tx.table("settings").toCollection().modify({ synced: false });
+  });

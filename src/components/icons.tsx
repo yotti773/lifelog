@@ -1,7 +1,7 @@
 import type { SVGProps } from "react";
 
 /**
- * ハンドオフモック(docs/handoff_lifelog_app)の手描きSVGアイコン集。
+ * ハンドオフモック(docs/archive/handoff_lifelog_app)の手描きSVGアイコン集。
  * 絵文字は使わず、ストローク1.6〜1.9・丸みのあるlinecap/linejoinで統一する(モックのAssets節参照)。
  * 色は親要素のcolor(currentColor)を継承する。
  */
@@ -226,6 +226,16 @@ export function IconDownload(props: IconProps) {
   return (
     <svg {...base({ size: 18, ...props }, "0 0 20 20")}>
       <path d="M10 3v9M6.5 8.5 10 12l3.5-3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** ファイルへの書き出し(Issue #164)。IconDownloadの矢印を上向きにしたもの */
+export function IconUpload(props: IconProps) {
+  return (
+    <svg {...base({ size: 18, ...props }, "0 0 20 20")}>
+      <path d="M10 12V3M6.5 6.5 10 3l3.5 3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );

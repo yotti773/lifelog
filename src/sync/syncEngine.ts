@@ -99,6 +99,11 @@ export async function runSync({
     getPendingDeletionIds("habitRecord"),
   ]);
 
+  // 設定は「行が未同期か」ではなく「送信できる項目があるか」で判定する。
+  // APIトークンだけ入れた端末(移行直後にまさにこの状態)は送信対象が0件で、
+  // 行の未同期フラグだけを見ると永久に同期待ちのまま残ってしまう
+  const settingsEntries = unsyncedSettings ? toSettingsEntries(unsyncedSettings) : [];
+
   if (
     unsyncedWeightRecords.length === 0 &&
     unsyncedMealRecords.length === 0 &&
@@ -113,7 +118,7 @@ export async function runSync({
     unsyncedHabitRecords.length === 0 &&
     unsyncedAdviceRecords.length === 0 &&
     unsyncedMonthlyAdviceRecords.length === 0 &&
-    unsyncedSettings === null &&
+    settingsEntries.length === 0 &&
     deletedWeightIds.length === 0 &&
     deletedMealIds.length === 0 &&
     deletedWaterIds.length === 0 &&
@@ -143,7 +148,7 @@ export async function runSync({
       habitMasterItems: unsyncedHabitMasterItems,
       habitRecords: unsyncedHabitRecords,
       // digestはシートに載せない。日記本文の送信がONの週は digest に本文が入りうるため落としてから送る
-      settingsEntries: unsyncedSettings ? toSettingsEntries(unsyncedSettings) : [],
+      settingsEntries,
       adviceRecords: unsyncedAdviceRecords.map(({ digest: _digest, ...rest }) => rest),
       monthlyAdviceRecords: unsyncedMonthlyAdviceRecords.map(({ digest: _digest, ...rest }) => rest),
       deletedWeightIds,

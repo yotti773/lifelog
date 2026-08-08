@@ -21,6 +21,7 @@ import { getUnsyncedWeightRecords } from "@/db/weightRecords";
 import { getUnsyncedWorkoutRecords } from "@/db/workoutRecords";
 import { formatDateTime } from "@/lib/date";
 import { runImport, type ImportOutcome } from "@/sync/importEngine";
+import { toSettingsEntries } from "@/sync/settingsSync";
 import { runSync, type SyncOutcome } from "@/sync/syncEngine";
 import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
 import { fontRounded, tokens } from "@/theme";
@@ -183,7 +184,8 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       habitRecords.length +
       advices.length +
       monthlyAdvices.length +
-      (unsyncedSettings ? 1 : 0) +
+      // 設定は送信できる項目がある場合だけ数える(APIトークンだけの端末で1件のまま残らないように)
+      (unsyncedSettings && toSettingsEntries(unsyncedSettings).length > 0 ? 1 : 0) +
       weightDeletions.length +
       mealDeletions.length +
       waterDeletions.length +

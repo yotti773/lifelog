@@ -1,7 +1,7 @@
 import type { SVGProps } from "react";
 
 /**
- * ハンドオフモック(docs/handoff_lifelog_app)の手描きSVGアイコン集。
+ * ハンドオフモック(docs/archive/handoff_lifelog_app)の手描きSVGアイコン集。
  * 絵文字は使わず、ストローク1.6〜1.9・丸みのあるlinecap/linejoinで統一する(モックのAssets節参照)。
  * 色は親要素のcolor(currentColor)を継承する。
  */

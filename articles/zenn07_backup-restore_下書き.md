@@ -2,9 +2,42 @@
 
 - **想定スラッグ**: `indexeddb-origin-backup-restore`
 - **type**: tech
+- **emoji**: 💾(既存の🛡🔄🗂️📋と重複無し。バックアップが記事の主題であるため)
 - **topics**: `["indexeddb", "pwa", "個人開発", "claudecode", "dexie"]`
 - **主クエリ**: 「IndexedDB オリジン 単位」「PWA ドメイン変更 データ 移行」
 - **従クエリ**: 「IndexedDB サブドメイン 変更 消える」「Dexie バックアップ 復元」「workers.dev サブドメイン 変更」
+
+## X投稿(`X投稿テンプレート.md` タイプB)
+
+画像: `zenn07_X画像_オリジン制約.png`(サブドメイン変更前後のオリジン境界を❌/✅ならぬ変更前/変更後で対比。文字数はいずれも `scripts/x/check_post_length.mjs` の `weightedLength` で検証済み)
+
+本投稿(262 / 280):
+
+```
+Cloudflareのサブドメインを変えるだけの作業が、1週間仕事になった話。
+
+IndexedDBはオリジン単位。変更後は旧URLが開けず、残ったデータの救出手段も消えます。
+
+「容易に戻せる」バックアップは16テーブル中3つしか対応していませんでした。
+
+顛末をZennに書きました。
+#個人開発
+```
+
+自己リプ①(38 / 280):
+
+```
+記事はこちら👇
+https://zenn.dev/yotti073/articles/indexeddb-origin-backup-restore
+```
+
+自己リプ②(175 / 280、シリーズ導線):
+
+```
+このアプリ、10/31までに−8kgを目標に自分を実験台にしながら作っています。
+同じアプリの「保存」側の話(Dexie + useLiveQueryでローカルファースト)はこちら👇
+https://zenn.dev/yotti073/articles/dexie-uselivequery-pitfalls
+```
 
 ---
 

@@ -16,6 +16,8 @@ const payload: SyncPushPayload = {
   bodyMeasurementRecords: [],
   habitMasterItems: [],
   habitRecords: [],
+  adviceRecords: [],
+  monthlyAdviceRecords: [],
   deletedWeightIds: [],
   deletedMealIds: [],
   deletedWaterIds: [],

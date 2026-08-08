@@ -106,3 +106,13 @@ db.version(11).stores({
   habitMasterItems: "id, name, archived, order",
   habitRecords: "id, date, habitId",
 });
+
+// 週次・月次AIコメントをスプレッドシート同期の対象に加える(Issue #164)。
+// インデックスは変えず、既存行に synced: false を付与して次回同期でまとめて送信させる
+// (食事マスタ・種目マスタを同期対象にしたversion 7と同じ手当て)
+db.version(12)
+  .stores({})
+  .upgrade(async (tx) => {
+    await tx.table("adviceRecords").toCollection().modify({ synced: false });
+    await tx.table("monthlyAdviceRecords").toCollection().modify({ synced: false });
+  });

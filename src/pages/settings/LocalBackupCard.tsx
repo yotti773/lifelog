@@ -45,9 +45,9 @@ type Status =
 /**
  * 設定画面の「端末内データの書き出し・復元」カード(Issue #164)。
  *
- * シート同期では戻せないもの(週次・月次のAIコメント、設定、食事のAI推定値)まで含めて
- * まるごと退避・復元する。**復元は既存データを全て置き換える**ため、ファイルを読んだ時点では
- * 実行せず、中身の件数を見せて確認してから実行する。
+ * シート同期では戻せないもの(設定、食事のAI推定値と写真参照)まで含めてまるごと退避・復元する。
+ * **復元は既存データを全て置き換える**ため、ファイルを読んだ時点では実行せず、
+ * 中身の件数を見せて確認してから実行する。
  */
 export default function LocalBackupCard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +113,7 @@ export default function LocalBackupCard() {
         端末内データの書き出し・復元
       </Typography>
       <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.6, mb: "14px" }}>
-        シートに列を持たないデータ(週次・月次のAIコメント、設定、食事のAI推定値)は、シートからの取り込みでは戻りません。機種変更・ブラウザデータの削除・アプリのURL変更の前に書き出しておいてください
+        シートに列を持たないデータ(設定、食事のAI推定値と写真)は、シートからの取り込みでは戻りません。機種変更・ブラウザデータの削除・アプリのURL変更の前に書き出しておいてください
       </Typography>
       <Typography sx={{ fontSize: 11, color: tokens.warnText, lineHeight: 1.6, mb: "14px" }}>
         書き出したファイルにはAPIトークンがそのまま入ります。共有ストレージには置かないでください

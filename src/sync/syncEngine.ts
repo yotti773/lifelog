@@ -1,3 +1,9 @@
+import {
+  getUnsyncedAdviceRecords,
+  getUnsyncedMonthlyAdviceRecords,
+  markAdviceRecordsSynced,
+  markMonthlyAdviceRecordsSynced,
+} from "@/db/adviceRecords";
 import { getUnsyncedBloodPressureRecords, markBloodPressureRecordsSynced } from "@/db/bloodPressureRecords";
 import { getUnsyncedBodyMeasurementRecords, markBodyMeasurementRecordsSynced } from "@/db/bodyMeasurementRecords";
 import { getUnsyncedDiaryRecords, markDiaryRecordsSynced } from "@/db/diaryRecords";
@@ -6,12 +12,13 @@ import { getUnsyncedFoodMasterItems, markFoodMasterItemsSynced } from "@/db/food
 import { getUnsyncedHabitMasterItems, markHabitMasterItemsSynced } from "@/db/habitMaster";
 import { getUnsyncedHabitRecords, markHabitRecordsSynced } from "@/db/habitRecords";
 import { getUnsyncedMealRecords, markMealRecordsSynced } from "@/db/mealRecords";
-import { updateSettings } from "@/db/settings";
+import { getUnsyncedSettings, markSettingsSynced, updateSettings } from "@/db/settings";
 import { clearDeletions, getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWaterRecords, markWaterRecordsSynced } from "@/db/waterRecords";
 import { getUnsyncedWeightRecords, markWeightRecordsSynced } from "@/db/weightRecords";
 import { getUnsyncedWorkoutRecords, markWorkoutRecordsSynced } from "@/db/workoutRecords";
 import { notConfiguredTransport } from "./notConfiguredTransport";
+import { toSettingsEntries } from "./settingsSync";
 import type { SyncTransport } from "./types";
 
 export type SyncOutcome =
@@ -50,6 +57,9 @@ export async function runSync({
     unsyncedBodyMeasurementRecords,
     unsyncedHabitMasterItems,
     unsyncedHabitRecords,
+    unsyncedAdviceRecords,
+    unsyncedMonthlyAdviceRecords,
+    unsyncedSettings,
     deletedWeightIds,
     deletedMealIds,
     deletedWaterIds,
@@ -73,6 +83,9 @@ export async function runSync({
     getUnsyncedBodyMeasurementRecords(),
     getUnsyncedHabitMasterItems(),
     getUnsyncedHabitRecords(),
+    getUnsyncedAdviceRecords(),
+    getUnsyncedMonthlyAdviceRecords(),
+    getUnsyncedSettings(),
     getPendingDeletionIds("weight"),
     getPendingDeletionIds("meal"),
     getPendingDeletionIds("water"),
@@ -86,6 +99,11 @@ export async function runSync({
     getPendingDeletionIds("habitRecord"),
   ]);
 
+  // 設定は「行が未同期か」ではなく「送信できる項目があるか」で判定する。
+  // APIトークンだけ入れた端末(移行直後にまさにこの状態)は送信対象が0件で、
+  // 行の未同期フラグだけを見ると永久に同期待ちのまま残ってしまう
+  const settingsEntries = unsyncedSettings ? toSettingsEntries(unsyncedSettings) : [];
+
   if (
     unsyncedWeightRecords.length === 0 &&
     unsyncedMealRecords.length === 0 &&
@@ -98,6 +116,9 @@ export async function runSync({
     unsyncedBodyMeasurementRecords.length === 0 &&
     unsyncedHabitMasterItems.length === 0 &&
     unsyncedHabitRecords.length === 0 &&
+    unsyncedAdviceRecords.length === 0 &&
+    unsyncedMonthlyAdviceRecords.length === 0 &&
+    settingsEntries.length === 0 &&
     deletedWeightIds.length === 0 &&
     deletedMealIds.length === 0 &&
     deletedWaterIds.length === 0 &&
@@ -126,6 +147,10 @@ export async function runSync({
       bodyMeasurementRecords: unsyncedBodyMeasurementRecords,
       habitMasterItems: unsyncedHabitMasterItems,
       habitRecords: unsyncedHabitRecords,
+      // digestはシートに載せない。日記本文の送信がONの週は digest に本文が入りうるため落としてから送る
+      settingsEntries,
+      adviceRecords: unsyncedAdviceRecords.map(({ digest: _digest, ...rest }) => rest),
+      monthlyAdviceRecords: unsyncedMonthlyAdviceRecords.map(({ digest: _digest, ...rest }) => rest),
       deletedWeightIds,
       deletedMealIds,
       deletedWaterIds,
@@ -154,6 +179,10 @@ export async function runSync({
     const syncedBodyMeasurementDates = result.syncedBodyMeasurementDates ?? [];
     const syncedHabitMasterIds = result.syncedHabitMasterIds ?? [];
     const syncedHabitRecordIds = result.syncedHabitRecordIds ?? [];
+    // AIコメントも同様(Issue #164)
+    const syncedAdviceWeekStarts = result.syncedAdviceWeekStarts ?? [];
+    const syncedMonthlyAdviceMonths = result.syncedMonthlyAdviceMonths ?? [];
+    const syncedSettingsKeys = result.syncedSettingsKeys ?? [];
     const confirmedBloodPressureDeletions = result.deletedBloodPressureIds ?? [];
     const confirmedBodyMeasurementDeletions = result.deletedBodyMeasurementIds ?? [];
     const confirmedHabitMasterDeletions = result.deletedHabitMasterIds ?? [];
@@ -183,6 +212,16 @@ export async function runSync({
         : Promise.resolve(),
       syncedHabitMasterIds.length > 0 ? markHabitMasterItemsSynced(syncedHabitMasterIds) : Promise.resolve(),
       syncedHabitRecordIds.length > 0 ? markHabitRecordsSynced(syncedHabitRecordIds) : Promise.resolve(),
+      syncedAdviceWeekStarts.length > 0
+        ? markAdviceRecordsSynced(syncedAdviceWeekStarts)
+        : Promise.resolve(),
+      syncedMonthlyAdviceMonths.length > 0
+        ? markMonthlyAdviceRecordsSynced(syncedMonthlyAdviceMonths)
+        : Promise.resolve(),
+      // 送信中に入った設定変更を取りこぼさないよう、送信時のスナップショットを渡して比較させる
+      syncedSettingsKeys.length > 0 && unsyncedSettings !== null
+        ? markSettingsSynced(unsyncedSettings)
+        : Promise.resolve(),
       clearDeletions("weight", confirmedWeightDeletions),
       clearDeletions("meal", confirmedMealDeletions),
       clearDeletions("water", confirmedWaterDeletions),
@@ -211,6 +250,9 @@ export async function runSync({
         syncedBodyMeasurementDates.length +
         syncedHabitMasterIds.length +
         syncedHabitRecordIds.length +
+        syncedAdviceWeekStarts.length +
+        syncedMonthlyAdviceMonths.length +
+        syncedSettingsKeys.length +
         confirmedWeightDeletions.length +
         confirmedMealDeletions.length +
         confirmedWaterDeletions.length +

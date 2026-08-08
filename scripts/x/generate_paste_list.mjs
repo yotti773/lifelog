@@ -7,8 +7,9 @@
 // 必ずズレる(実際に2026-08-08、ストック側だけ17本書き直してズレた)ため、正はストック本体
 // のみとし、こちらは常に生成物として扱う。編集したくなったらストック本体を直して再生成する。
 //
-// 予約に流すのは「自己リプの無いA・Bのうち、要更新/要確認が付いていないもの」だけ。
+// 予約に流すのは「必須の自己リプが無いA・Bのうち、要更新/要確認が付いていないもの」だけ。
 // カテゴリCは自己リプで記事URLを出すスレッド型で、X公式の予約はスレッドを組めないため手動。
+// 自己リプが「(任意)」付きの場合は補足の後足しなので、本文だけ予約に含めてよい扱いにする。
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -39,6 +40,22 @@ function parseMeta(markdown) {
   return meta;
 }
 
+/** 投稿ごとに「(任意)」の付かない自己リプ(=本文と一緒でないと成立しない必須リプ)があるかを拾う */
+function parseMandatoryReply(markdown) {
+  const mandatory = new Map();
+  const sections = markdown.split(/^### ([A-C]-\d+)\s/m);
+  // split結果は [前置き, id1, 本文1, id2, 本文2, ...] という形になる
+  for (let i = 1; i < sections.length; i += 2) {
+    const id = sections[i];
+    const body = sections[i + 1] ?? "";
+    const hasMandatory = body
+      .split("\n")
+      .some((l) => /^自己リプ/.test(l) && !l.includes("任意"));
+    mandatory.set(id, hasMandatory);
+  }
+  return mandatory;
+}
+
 /** 投稿カレンダー(2列組みの表)から 通し番号・日付・投稿ID を拾う */
 function parseCalendar(markdown) {
   const rows = [];
@@ -63,6 +80,7 @@ function slotTime(id, weekday) {
 
 const posts = new Map(parsePosts(md).map((p) => [p.id, p]));
 const meta = parseMeta(md);
+const mandatoryReply = parseMandatoryReply(md);
 const calendar = parseCalendar(md);
 
 const scheduled = [];
@@ -71,12 +89,15 @@ for (const row of calendar) {
   const post = posts.get(row.id);
   const m = meta.get(row.id) ?? {};
   if (m.used) continue; // 消費済みは載せない
-  const hasReply = (post?.blocks.length ?? 0) > 1;
+  const hasReply = mandatoryReply.get(row.id) ?? false;
   const isC = row.id.startsWith("C");
-  if (isC || m.flagged) {
-    manual.push({ ...row, reason: isC && m.flagged ? "自己リプあり + 要確認" : isC ? "自己リプあり(スレッド)" : "要更新・要確認" });
+  if (isC || m.flagged || hasReply) {
+    const reasons = [];
+    if (hasReply) reasons.push("自己リプあり(スレッド)");
+    if (m.flagged) reasons.push("要更新・要確認");
+    manual.push({ ...row, reason: reasons.join(" + ") });
   } else {
-    scheduled.push({ ...row, post, image: m.image, hasReply });
+    scheduled.push({ ...row, post, image: m.image });
   }
 }
 

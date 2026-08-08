@@ -24,6 +24,7 @@ beforeEach(async () => {
   await db.foodMasterItems.clear();
   await db.exerciseMasterItems.clear();
   await db.syncDeletions.clear();
+  await db.settings.clear();
 });
 
 const emptyPull: SyncPullResult = {
@@ -375,5 +376,52 @@ describe("runActivityImport", () => {
     if (outcome.status === "error") {
       expect(outcome.message).toBe(new SyncNotConfiguredError().message);
     }
+  });
+});
+
+describe("設定の取り込み(Issue #164)", () => {
+  const pullWith = (entries: { key: string; value: string | number | boolean }[]): SyncPullTransport => ({
+    pull: async () => ({ ...emptyPull, settingsEntries: entries }),
+  });
+
+  it("設定が未保存の新規端末では、既定値と同じキーもシートから復元する", async () => {
+    // 回帰: 「設定済み」の判定に getSettings() を使うと、行が無いとき DEFAULT_SETTINGS が
+    // 返るため goalWeightKg・goalDate・dailyCalorieTarget が復元されなかった
+    const outcome = await runImport({
+      transport: pullWith([
+        { key: "goalWeightKg", value: 60 },
+        { key: "goalDate", value: "2026-12-31" },
+        { key: "dailyCalorieTarget", value: 1600 },
+      ]),
+      isOnline: () => true,
+    });
+
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 3 });
+    const row = await db.settings.get("default");
+    expect(row?.goalWeightKg).toBe(60);
+    expect(row?.goalDate).toBe("2026-12-31");
+    expect(row?.dailyCalorieTarget).toBe(1600);
+  });
+
+  it("ローカルで設定済みの項目はシート側で上書きしない(ローカル優先)", async () => {
+    await db.settings.put({ id: "default", goalWeightKg: 64, goalDate: "2026-10-31", dailyCalorieTarget: 1730 });
+
+    const outcome = await runImport({
+      transport: pullWith([
+        { key: "goalWeightKg", value: 60 },
+        { key: "heightCm", value: 172 },
+      ]),
+      isOnline: () => true,
+    });
+
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 1 });
+    const row = await db.settings.get("default");
+    expect(row?.goalWeightKg).toBe(64);
+    expect(row?.heightCm).toBe(172);
+  });
+
+  it("シートに設定が無くても壊れない", async () => {
+    const outcome = await runImport({ transport: pullWith([]), isOnline: () => true });
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 0 });
   });
 });

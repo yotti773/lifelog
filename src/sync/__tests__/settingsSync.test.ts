@@ -82,14 +82,3 @@ describe("往復", () => {
   });
 });
 
-describe("新規端末での復元(回帰)", () => {
-  it("既定値とのマージ結果ではなく保存行を見る、という前提を型で示す", () => {
-    // getSettings()は行が無いとDEFAULT_SETTINGSを返すため、それで「設定済み」を判定すると
-    // 新規端末で goalWeightKg・goalDate・dailyCalorieTarget が復元されない。
-    // importEngineは db.settings.get("default") の行そのものを見る実装にしてある
-    const defaults = ["goalWeightKg", "goalDate", "dailyCalorieTarget"];
-    for (const key of defaults) {
-      expect(SETTINGS_SYNC_FIELDS.map((f) => f.key as string)).toContain(key);
-    }
-  });
-});

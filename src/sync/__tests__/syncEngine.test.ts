@@ -7,7 +7,7 @@ import {
 } from "@/db/exerciseMaster";
 import { addFoodMasterItem, deleteFoodMasterItem, getUnsyncedFoodMasterItems } from "@/db/foodMaster";
 import { addMealRecord, getUnsyncedMealRecords } from "@/db/mealRecords";
-import { getSettings } from "@/db/settings";
+import { getSettings, getUnsyncedSettings, updateSettings } from "@/db/settings";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { addWaterRecord, deleteWaterRecord, getUnsyncedWaterRecords } from "@/db/waterRecords";
 import { deleteWeightRecord, getUnsyncedWeightRecords, saveWeightRecord } from "@/db/weightRecords";
@@ -61,6 +61,36 @@ describe("runSync", () => {
 
     expect(outcome).toEqual({ status: "skipped-nothing-to-sync" });
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("APIトークンだけ入れた端末は「同期するものが無い」として扱う", async () => {
+    // 移行直後の端末はまさにこの状態(トークンを入れただけ)。apiTokenはシートに載せないため
+    // 送信対象は0件だが、設定行だけは synced: false になる。行の未同期フラグで判定すると
+    // pushが空ペイロードで走り続け、未同期バッジも1件のまま永久に消えない
+    await updateSettings({ apiToken: "secret" });
+    expect(await getUnsyncedSettings()).not.toBeNull();
+    const push = vi.fn();
+
+    const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "skipped-nothing-to-sync" });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("送信できる設定が1件でもあれば同期する", async () => {
+    await updateSettings({ apiToken: "secret", goalWeightKg: 64 });
+
+    const push = vi.fn(async (payload: SyncPushPayload): Promise<SyncPushResult> => ({
+      ...emptyResult,
+      syncedSettingsKeys: (payload.settingsEntries ?? []).map((e) => e.key),
+    }));
+
+    const outcome = await runSync({ transport: fakeTransport(push), isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "success", syncedCount: 1 });
+    // 認証情報はシートに書かない
+    expect(push.mock.calls[0][0].settingsEntries?.map((e) => e.key)).toEqual(["goalWeightKg"]);
+    expect(await getUnsyncedSettings()).toBeNull();
   });
 
   it("marks records synced (体重・食事・水分)and updates lastSyncedAt on success", async () => {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/db";
+import { updateSettings } from "@/db/settings";
 import { getDiaryRecord, deleteDiaryRecord, saveDiaryRecord } from "@/db/diaryRecords";
 import { addExerciseMasterItem, deleteExerciseMasterItem, getAllExerciseMasterItems } from "@/db/exerciseMaster";
 import { addFoodMasterItem, deleteFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
@@ -24,6 +25,7 @@ beforeEach(async () => {
   await db.foodMasterItems.clear();
   await db.exerciseMasterItems.clear();
   await db.syncDeletions.clear();
+  await db.settings.clear();
 });
 
 const emptyPull: SyncPullResult = {
@@ -59,6 +61,9 @@ const successOutcome = (overrides: {
   importedBodyMeasurementCount?: number;
   importedHabitMasterCount?: number;
   importedHabitRecordCount?: number;
+  importedSettingsCount?: number;
+  importedAdviceCount?: number;
+  importedMonthlyAdviceCount?: number;
   skippedExistingCount?: number;
   skippedRowCount?: number;
 }) => ({
@@ -75,6 +80,9 @@ const successOutcome = (overrides: {
   importedBodyMeasurementCount: 0,
   importedHabitMasterCount: 0,
   importedHabitRecordCount: 0,
+  importedSettingsCount: 0,
+  importedAdviceCount: 0,
+  importedMonthlyAdviceCount: 0,
   skippedExistingCount: 0,
   skippedRowCount: 0,
   ...overrides,
@@ -369,5 +377,57 @@ describe("runActivityImport", () => {
     if (outcome.status === "error") {
       expect(outcome.message).toBe(new SyncNotConfiguredError().message);
     }
+  });
+});
+
+describe("設定の取り込み(Issue #164)", () => {
+  const pullWith = (entries: { key: string; value: string | number | boolean }[]): SyncPullTransport => ({
+    pull: async () => ({ ...emptyPull, settingsEntries: entries }),
+  });
+
+  it("実フロー: APIトークンを入れた後の取り込みでも、既定値と同じキーをシートから復元する", async () => {
+    // 回帰: 取り込みには先にAPIトークンの入力が必須で、以前はその保存が既定値を実体化して
+    // いたため、goalWeightKg・goalDate・dailyCalorieTarget が「設定済み」に見えて復元されなかった。
+    // 「設定行がまったく無い端末」は現実には通らない状態なので、必ずこの順で検証する
+    await updateSettings({ apiToken: "secret" });
+
+    const outcome = await runImport({
+      transport: pullWith([
+        { key: "goalWeightKg", value: 60 },
+        { key: "goalDate", value: "2026-12-31" },
+        { key: "dailyCalorieTarget", value: 1600 },
+      ]),
+      isOnline: () => true,
+    });
+
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 3 });
+    const row = await db.settings.get("default");
+    expect(row?.goalWeightKg).toBe(60);
+    expect(row?.goalDate).toBe("2026-12-31");
+    expect(row?.dailyCalorieTarget).toBe(1600);
+    // 先に入れたAPIトークンは消えない
+    expect(row?.apiToken).toBe("secret");
+  });
+
+  it("ローカルで設定済みの項目はシート側で上書きしない(ローカル優先)", async () => {
+    await db.settings.put({ id: "default", goalWeightKg: 64, goalDate: "2026-10-31", dailyCalorieTarget: 1730 });
+
+    const outcome = await runImport({
+      transport: pullWith([
+        { key: "goalWeightKg", value: 60 },
+        { key: "heightCm", value: 172 },
+      ]),
+      isOnline: () => true,
+    });
+
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 1 });
+    const row = await db.settings.get("default");
+    expect(row?.goalWeightKg).toBe(64);
+    expect(row?.heightCm).toBe(172);
+  });
+
+  it("シートに設定が無くても壊れない", async () => {
+    const outcome = await runImport({ transport: pullWith([]), isOnline: () => true });
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 0 });
   });
 });

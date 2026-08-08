@@ -231,6 +231,16 @@ export function IconDownload(props: IconProps) {
   );
 }
 
+/** ファイルへの書き出し(Issue #164)。IconDownloadの矢印を上向きにしたもの */
+export function IconUpload(props: IconProps) {
+  return (
+    <svg {...base({ size: 18, ...props }, "0 0 20 20")}>
+      <path d="M10 12V3M6.5 6.5 10 3l3.5 3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** カメラ(写真撮影) */
 export function IconCamera(props: IconProps) {
   return (

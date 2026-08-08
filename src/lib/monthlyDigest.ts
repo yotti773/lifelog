@@ -6,7 +6,7 @@ import {
   type DigestMealDailyTotal,
   type WeeklyDigestSource,
 } from "./weeklyDigest";
-import type { DigestFlag, MonthlyDigest } from "@/types";
+import type { MonthlyDigest, MonthlyDigestFlag } from "@/types";
 
 /**
  * MonthlyDigestの生成(Issue #114)。週次(src/lib/weeklyDigest.ts)と同じ方針で、
@@ -127,7 +127,7 @@ export function buildMonthlyDigest(src: MonthlyDigestSource): MonthlyDigest {
     : undefined;
 
   // フラグは週次と同じ語彙(DigestFlag)を月窓の閾値で判定する
-  const flags: DigestFlag[] = [];
+  const flags: MonthlyDigestFlag[] = [];
   if (
     avgWeeklyPaceKg !== null &&
     endWeekAvgKg !== null &&

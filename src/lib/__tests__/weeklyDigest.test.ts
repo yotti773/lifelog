@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateActivity,
+  aggregateActivityTrend,
   aggregateMoodCounts,
   aggregateWater,
   aggregateWorkout,
@@ -62,6 +63,13 @@ function goodWeekSource(): WeeklyDigestSource {
     ],
     waterTargetMl: 2000,
     bloodPressureDays: [],
+    // 活動量の比較基準(Issue #174)。当該週(平均9,000歩・筋トレ2日)と同水準で、フラグが立たない状態
+    prevWeeksActivity: [
+      { avgSteps: 9000, stepsRecordedDays: 7, workoutDays: 2 },
+      { avgSteps: 9200, stepsRecordedDays: 7, workoutDays: 2 },
+      { avgSteps: 8800, stepsRecordedDays: 7, workoutDays: 1 },
+      { avgSteps: 9000, stepsRecordedDays: 7, workoutDays: 3 },
+    ],
     diaryTexts: null, // オプトインOFF(デフォルト)
   };
 }
@@ -364,5 +372,212 @@ describe("aggregateMoodCounts", () => {
 
   it("日記が無い週はundefined(digestからmoodを省く)", () => {
     expect(aggregateMoodCounts([])).toBeUndefined();
+  });
+});
+
+/** 週内7日すべてに歩数がある週にする(2026-07-06〜07-12)。歩数の品質ゲートを満たすため比較の対象になる */
+function withFullActivityWeek(steps: number): WeeklyDigestSource {
+  const src = goodWeekSource();
+  src.activityDays = Array.from({ length: 7 }, (_, i) => ({
+    date: `2026-07-${String(6 + i).padStart(2, "0")}`,
+    steps,
+    totalKcal: 2400,
+    sleepMinutes: 420,
+  }));
+  return src;
+}
+
+describe("aggregateActivityTrend(Issue #174)", () => {
+  const baseline = (weeks: number, avgSteps: number | null, workoutDays: number, stepsRecordedDays = 7) =>
+    Array.from({ length: weeks }, () => ({ avgSteps, stepsRecordedDays, workoutDays }));
+
+  it("直近週の平均と変化率を算出する", () => {
+    const trend = aggregateActivityTrend({
+      weekAvgSteps: 8000,
+      weekStepsRecordedDays: 7,
+      weekWorkoutDays: 2,
+      prevWeeksActivity: baseline(4, 10000, 2),
+    });
+    expect(trend).toEqual({
+      weekAvgSteps: 8000,
+      prevWeeksAvgSteps: 10000,
+      stepsChangeRatio: -0.2,
+      stepsComparedWeeks: 4,
+      weekWorkoutDays: 2,
+      prevWeeksAvgWorkoutDays: 2,
+      comparedWeeks: 4,
+    });
+  });
+
+  it("比較できる過去週が2週未満なら判定しない(利用開始直後の誤検知を防ぐ)", () => {
+    expect(
+      aggregateActivityTrend({
+        weekAvgSteps: 8000,
+        weekStepsRecordedDays: 7,
+        weekWorkoutDays: 0,
+        prevWeeksActivity: baseline(1, 10000, 2),
+      }),
+    ).toBeUndefined();
+  });
+
+  it("歩数が5日未満の基準週は歩数の基準から外し、基準週数もその実数で返す", () => {
+    // 4週のうち2週だけが品質ゲートを満たす → その2週だけで基準を作る
+    const trend = aggregateActivityTrend({
+      weekAvgSteps: 8000,
+      weekStepsRecordedDays: 7,
+      weekWorkoutDays: 1,
+      prevWeeksActivity: [
+        ...baseline(2, 10000, 1),
+        ...baseline(2, 3000, 1, 2), // 歩数が2日だけの週(基準から除外)
+      ],
+    });
+    expect(trend?.prevWeeksAvgSteps).toBe(10000);
+    // 歩数の基準は2週、筋トレは欠測の概念が無いため4週すべて。ラベルが実際の基準を偽らないよう別々に持つ
+    expect(trend?.stepsComparedWeeks).toBe(2);
+    expect(trend?.comparedWeeks).toBe(4);
+  });
+
+  it("当該週の歩数が5日未満なら歩数の比較は行わない(筋トレの比較は残る)", () => {
+    const trend = aggregateActivityTrend({
+      weekAvgSteps: 3000,
+      weekStepsRecordedDays: 3,
+      weekWorkoutDays: 0,
+      prevWeeksActivity: baseline(4, 10000, 2),
+    });
+    expect(trend?.weekAvgSteps).toBeNull();
+    expect(trend?.stepsChangeRatio).toBeNull();
+    expect(trend?.prevWeeksAvgWorkoutDays).toBe(2);
+  });
+
+  it("筋トレの平均は記録の無い週も分母に含める(隔週トレーニングを毎週継続と誤らない)", () => {
+    const trend = aggregateActivityTrend({
+      weekAvgSteps: 9000,
+      weekStepsRecordedDays: 7,
+      weekWorkoutDays: 0,
+      prevWeeksActivity: [...baseline(2, 9000, 2), ...baseline(2, 9000, 0)],
+    });
+    expect(trend?.prevWeeksAvgWorkoutDays).toBe(1);
+  });
+
+  it("過去に歩数の基準も筋トレの実績も無ければ比較そのものを出さない", () => {
+    expect(
+      aggregateActivityTrend({
+        weekAvgSteps: 8000,
+        weekStepsRecordedDays: 7,
+        weekWorkoutDays: 0,
+        prevWeeksActivity: baseline(4, null, 0, 0),
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe("buildWeeklyDigest: 活動量低下のフラグ(Issue #174)", () => {
+  it("歩数が基準を20%以上下回るとACTIVITY_DROPが立つ", () => {
+    const src = withFullActivityWeek(8000);
+    src.prevWeeksActivity = Array.from({ length: 4 }, () => ({
+      avgSteps: 10000,
+      stepsRecordedDays: 7,
+      workoutDays: 2,
+    }));
+    const digest = buildWeeklyDigest(src);
+    expect(digest.flags).toContain("ACTIVITY_DROP");
+    expect(digest.activityTrend?.stepsChangeRatio).toBe(-0.2);
+  });
+
+  it("低下が閾値未満(19%減)ならフラグは立たない", () => {
+    const src = withFullActivityWeek(8100);
+    src.prevWeeksActivity = Array.from({ length: 4 }, () => ({
+      avgSteps: 10000,
+      stepsRecordedDays: 7,
+      workoutDays: 2,
+    }));
+    expect(buildWeeklyDigest(src).flags).not.toContain("ACTIVITY_DROP");
+  });
+
+  it("直近数週は継続していた筋トレが0日になるとWORKOUT_STOPPEDが立つ", () => {
+    const src = goodWeekSource();
+    src.workoutSets = [];
+    src.prevWeeksActivity = Array.from({ length: 4 }, () => ({
+      avgSteps: 9000,
+      stepsRecordedDays: 7,
+      workoutDays: 2,
+    }));
+    expect(buildWeeklyDigest(src).flags).toContain("WORKOUT_STOPPED");
+  });
+
+  it("もともと筋トレの習慣が無ければ0日でもWORKOUT_STOPPEDは立たない", () => {
+    const src = goodWeekSource();
+    src.workoutSets = [];
+    src.prevWeeksActivity = Array.from({ length: 4 }, () => ({
+      avgSteps: 9000,
+      stepsRecordedDays: 7,
+      workoutDays: 0,
+    }));
+    expect(buildWeeklyDigest(src).flags).not.toContain("WORKOUT_STOPPED");
+  });
+
+  it("摂取が基礎代謝を下回りつつ活動量も落ちた週は、両方のフラグが並んで立つ", () => {
+    // 実測TDEEの下落局面(Issue #174の背景)を再現する。摂取を削っても消費が落ちていて進まない状態
+    const src = withFullActivityWeek(7000);
+    src.mealDailyTotals = src.mealDailyTotals.map((d) => ({ ...d, kcal: 1500 }));
+    src.workoutSets = [];
+    src.prevWeeksActivity = Array.from({ length: 4 }, () => ({
+      avgSteps: 12000,
+      stepsRecordedDays: 7,
+      workoutDays: 2,
+    }));
+    const digest = buildWeeklyDigest(src);
+    expect(digest.flags).toContain("INTAKE_BELOW_BMR");
+    expect(digest.flags).toContain("ACTIVITY_DROP");
+    expect(digest.flags).toContain("WORKOUT_STOPPED");
+  });
+
+  it("比較基準が無い週はactivityTrendを省く(フラグも立たない)", () => {
+    const src = withFullActivityWeek(3000);
+    src.prevWeeksActivity = [];
+    const digest = buildWeeklyDigest(src);
+    expect(digest.activityTrend).toBeUndefined();
+    expect(digest.flags).not.toContain("ACTIVITY_DROP");
+    expect(digest.flags).not.toContain("WORKOUT_STOPPED");
+  });
+});
+
+describe("buildWeeklyDigest: 進行中の週での誤検知(Issue #174のレビュー指摘)", () => {
+  /** 直近4週は週2日の筋トレを継続していた基準 */
+  const trainedBaseline = () =>
+    Array.from({ length: 4 }, () => ({ avgSteps: 9000, stepsRecordedDays: 7, workoutDays: 2 }));
+
+  it("週の途中(月曜時点)はまだ筋トレしていないだけなのでWORKOUT_STOPPEDを立てない", () => {
+    const src = goodWeekSource();
+    src.today = "2026-07-06"; // 週初日(月曜)
+    src.workoutSets = [];
+    src.prevWeeksActivity = trainedBaseline();
+    expect(buildWeeklyDigest(src).flags).not.toContain("WORKOUT_STOPPED");
+  });
+
+  it("週の経過が5日に達すればWORKOUT_STOPPEDを立てる", () => {
+    const src = goodWeekSource();
+    src.today = "2026-07-10"; // 週の5日目(金曜)
+    src.workoutSets = [];
+    src.prevWeeksActivity = trainedBaseline();
+    expect(buildWeeklyDigest(src).flags).toContain("WORKOUT_STOPPED");
+  });
+
+  it("歩数が1日しか無い週は、その日が低くてもACTIVITY_DROPを立てない(Garminは欠測日も行を書く)", () => {
+    const src = goodWeekSource();
+    // 活動記録は7日分あるが、歩数の値があるのは1日だけ(時計を着けなかった週)
+    src.activityDays = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-07-${String(6 + i).padStart(2, "0")}`,
+      totalKcal: 2400,
+      ...(i === 0 ? { steps: 1000 } : {}),
+    }));
+    src.prevWeeksActivity = Array.from({ length: 4 }, () => ({
+      avgSteps: 12000,
+      stepsRecordedDays: 7,
+      workoutDays: 2,
+    }));
+    const digest = buildWeeklyDigest(src);
+    expect(digest.flags).not.toContain("ACTIVITY_DROP");
+    expect(digest.activityTrend?.weekAvgSteps).toBeNull();
   });
 });

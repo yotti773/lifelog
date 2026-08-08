@@ -63,6 +63,8 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 - **`getUnsyncedWeightRecords`/`getUnsyncedMealRecords` はDexieのインデックスではなくJS側の `.filter()` で絞り込んでいる** — IndexedDBはbooleanをインデックスのキーにできないことと、レコード件数がこの規模(単一ユーザー、1日あたり数件)では十分軽いため、これで問題ない。これをインデックス化して「最適化」しないこと。
 - `getDailyCalorieTotals(startDate, endDate)` は、食事記録が無い日でも範囲内の全日を `0kcal` で埋める — これにより、カロリー推移グラフが記録の空白を誤魔化して圧縮された線ではなく、隙間として表示される。
 
+**完全バックアップ(`src/db/backup.ts`、Issue #164):** スプレッドシート同期はバックアップの主線だが、**シートに列を持たないデータは復元できない** — 週次・月次のAIコメント(`adviceRecords`/`monthlyAdviceRecords`)・設定(`Settings`)・食事のAI推定値と写真参照。とくにAIコメントは生成が非決定的で再生成しても同じものが出ないため、失うと復旧手段が無い。これを埋めるのが設定画面の「完全バックアップ(ファイル)」で、`syncDeletions` を除く全テーブルを1つのJSONに書き出し、全削除+書き戻しで復元する。**`BACKUP_TABLES` に新しいテーブルを足し忘れると `backup.test.ts` が落ちる**(`db.tables` と突き合わせている) — フェーズ1時代の実装が3テーブルのまま腐っていた実績があるため、この番人を外さないこと。復元は必ず `parseBackupData()` の検証を通してから行う(旧実装は壊れたファイルでも `clear()` してしまう作りだった)。**IndexedDBはオリジン単位なので、配信URLを変えるときも退避が必要**(同じブラウザでもデータは引き継がれない)。
+
 テストは `fake-indexeddb/auto`(`src/db/__tests__/setup.ts` を参照。`vitest.config.ts` の `setupFiles` で組み込まれている)を使っており、データ層全体をブラウザ無しでNode上でテストしている。`beforeEach` で各テーブルを直接クリアする(`db.weightRecords.clear()` など)— 共通のテストDBリセットヘルパーは無く、各テストファイルが自分の使うテーブルをクリアする。
 
 ### 同期エンジン(`src/sync/`)

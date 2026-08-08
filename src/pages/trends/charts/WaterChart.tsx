@@ -13,8 +13,9 @@ export default function WaterChart({ data, targetMl }: WaterChartProps) {
     <DailyBarChart
       data={data.map(({ date, amountMl }) => ({ date, value: amountMl }))}
       target={targetMl}
-      targetLabel={targetMl !== null ? `目標 ${targetMl.toLocaleString()}ml` : ""}
       barColor={tokens.waterMain}
+      // 最新(今日)の棒は同系の濃色で強調する(Issue #128)
+      todayColor={tokens.waterDeep}
       targetColor={tokens.waterMain}
       ariaLabel="水分摂取量推移グラフ"
     />

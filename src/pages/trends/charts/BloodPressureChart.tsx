@@ -1,5 +1,5 @@
-import { axisTicks } from "./chartAxis";
-import { formatMonthDay } from "@/lib/date";
+import { axisTicks, xAxisTicks } from "./chartAxis";
+import { formatDate, formatMonthDay } from "@/lib/date";
 import type { BloodPressureRecord } from "@/types";
 
 interface BloodPressureChartProps {
@@ -7,24 +7,25 @@ interface BloodPressureChartProps {
 }
 
 const WIDTH = 320;
-const HEIGHT = 160;
-const PADDING = { top: 22, right: 12, bottom: 20, left: 34 };
+const HEIGHT = 180;
+const PADDING = { top: 18, right: 12, bottom: 24, left: 34 };
 const COLORS = {
   systolic: "#FF6B4A", // 最高血圧(収縮期)
   diastolic: "#2EC4B6", // 最低血圧(拡張期)
+  band: "#8C8C8C", // 最高〜最低の帯(脈圧)を薄く塗る中立色
   pointBorder: "#FFF8F0",
   label: "#8C8C8C",
   grid: "#F0E7DB",
 };
 
-/** 血圧推移グラフ(Issue #117)。手書きSVGで最高血圧・最低血圧の上下2本線を描く(体重グラフと同じパターン)。 */
+/** 血圧推移グラフ(Issue #117)。最高・最低の上下2本線と、その間の帯を薄く塗る(Issue #128)。 */
 export default function BloodPressureChart({ records }: BloodPressureChartProps) {
   if (records.length === 0) {
     return (
       <div
         style={{
           display: "flex",
-          height: 160,
+          height: HEIGHT,
           alignItems: "center",
           justifyContent: "center",
           borderRadius: 16,
@@ -63,7 +64,14 @@ export default function BloodPressureChart({ records }: BloodPressureChartProps)
       .map((record, i) => `${i === 0 ? "M" : "L"}${xScale(times[i]).toFixed(1)},${yScale(pick(record)).toFixed(1)}`)
       .join(" ");
 
+  // 最高線→(逆順で)最低線を繋いだ閉領域=脈圧の帯
+  const bandPath =
+    `${sorted.map((r, i) => `${i === 0 ? "M" : "L"}${xScale(times[i]).toFixed(1)},${yScale(r.systolic).toFixed(1)}`).join(" ")} ` +
+    `${[...sorted].reverse().map((r) => `L${xScale(new Date(`${r.date}T00:00:00`).getTime()).toFixed(1)},${yScale(r.diastolic).toFixed(1)}`).join(" ")} Z`;
+
   const ticks = axisTicks(minValue - yPad, maxValue + yPad);
+  const lastTime = times[times.length - 1];
+  const lastRecord = sorted[sorted.length - 1];
 
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: "100%", display: "block" }} role="img" aria-label="血圧推移グラフ">
@@ -75,6 +83,8 @@ export default function BloodPressureChart({ records }: BloodPressureChartProps)
           </text>
         </g>
       ))}
+
+      {sorted.length > 1 && <path d={bandPath} fill={COLORS.band} fillOpacity={0.08} stroke="none" />}
 
       {(["systolic", "diastolic"] as const).map((key) => (
         <path
@@ -88,19 +98,32 @@ export default function BloodPressureChart({ records }: BloodPressureChartProps)
         />
       ))}
 
-      {sorted.map((record, i) => (
+      {sorted.slice(0, -1).map((record, i) => (
         <g key={record.id}>
           <circle cx={xScale(times[i])} cy={yScale(record.systolic)} r={3.2} fill={COLORS.systolic} stroke={COLORS.pointBorder} strokeWidth={1.5} />
           <circle cx={xScale(times[i])} cy={yScale(record.diastolic)} r={3.2} fill={COLORS.diastolic} stroke={COLORS.pointBorder} strokeWidth={1.5} />
         </g>
       ))}
 
-      <text x={PADDING.left} y={HEIGHT - 4} fontSize={9} fill={COLORS.label}>
-        {formatMonthDay(sorted[0].date)}
-      </text>
-      <text x={WIDTH - PADDING.right} y={HEIGHT - 4} textAnchor="end" fontSize={9} fill={COLORS.label}>
-        {formatMonthDay(sorted[sorted.length - 1].date)}
-      </text>
+      {/* 最新の点を上下とも強調する(Issue #128) */}
+      <g>
+        <circle cx={xScale(lastTime)} cy={yScale(lastRecord.systolic)} r={4.5} fill={COLORS.systolic} stroke={COLORS.pointBorder} strokeWidth={2} />
+        <circle cx={xScale(lastTime)} cy={yScale(lastRecord.diastolic)} r={4.5} fill={COLORS.diastolic} stroke={COLORS.pointBorder} strokeWidth={2} />
+      </g>
+
+      {/* X軸: 両端+途中の日付目盛り。ラベルはX位置(時間軸)に対応する日付にする(Issue #128) */}
+      {xAxisTicks(sorted.length).map((tick) => (
+        <text
+          key={tick.fraction}
+          x={PADDING.left + tick.fraction * plotWidth}
+          y={HEIGHT - 5}
+          textAnchor={tick.anchor}
+          fontSize={9}
+          fill={COLORS.label}
+        >
+          {formatMonthDay(formatDate(new Date(minTime + tick.fraction * timeSpan)))}
+        </text>
+      ))}
     </svg>
   );
 }

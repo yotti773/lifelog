@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/db";
+import { updateSettings } from "@/db/settings";
 import { getDiaryRecord, deleteDiaryRecord, saveDiaryRecord } from "@/db/diaryRecords";
 import { addExerciseMasterItem, deleteExerciseMasterItem, getAllExerciseMasterItems } from "@/db/exerciseMaster";
 import { addFoodMasterItem, deleteFoodMasterItem, getAllFoodMasterItems } from "@/db/foodMaster";
 import { addMealRecord, deleteMealRecord, getMealRecord } from "@/db/mealRecords";
 import { deleteWeightRecord, getWeightRecord, saveWeightRecord } from "@/db/weightRecords";
-import { runImport } from "@/sync/importEngine";
+import { runActivityImport, runImport } from "@/sync/importEngine";
 import { SyncNotConfiguredError } from "@/sync/notConfiguredTransport";
-import type { SyncPullResult, SyncPullTransport } from "@/sync/types";
+import type {
+  SyncPullActivityResult,
+  SyncPullActivityTransport,
+  SyncPullResult,
+  SyncPullTransport,
+} from "@/sync/types";
 
 beforeEach(async () => {
   await db.weightRecords.clear();
@@ -19,6 +25,7 @@ beforeEach(async () => {
   await db.foodMasterItems.clear();
   await db.exerciseMasterItems.clear();
   await db.syncDeletions.clear();
+  await db.settings.clear();
 });
 
 const emptyPull: SyncPullResult = {
@@ -54,6 +61,9 @@ const successOutcome = (overrides: {
   importedBodyMeasurementCount?: number;
   importedHabitMasterCount?: number;
   importedHabitRecordCount?: number;
+  importedSettingsCount?: number;
+  importedAdviceCount?: number;
+  importedMonthlyAdviceCount?: number;
   skippedExistingCount?: number;
   skippedRowCount?: number;
 }) => ({
@@ -70,6 +80,9 @@ const successOutcome = (overrides: {
   importedBodyMeasurementCount: 0,
   importedHabitMasterCount: 0,
   importedHabitRecordCount: 0,
+  importedSettingsCount: 0,
+  importedAdviceCount: 0,
+  importedMonthlyAdviceCount: 0,
   skippedExistingCount: 0,
   skippedRowCount: 0,
   ...overrides,
@@ -298,5 +311,123 @@ describe("runImport", () => {
     if (outcome.status === "error") {
       expect(outcome.message).toBe(new SyncNotConfiguredError().message);
     }
+  });
+});
+
+function fakeActivityTransport(result: SyncPullActivityResult): SyncPullActivityTransport {
+  return { pullActivity: vi.fn(async () => result) };
+}
+
+describe("runActivityImport", () => {
+  it("skips without touching data when offline", async () => {
+    const transport = fakeActivityTransport({ activityRecords: [], skippedActivityRows: 0 });
+
+    const outcome = await runActivityImport({ transport, isOnline: () => false });
+
+    expect(outcome).toEqual({ status: "skipped-offline" });
+    expect(transport.pullActivity).not.toHaveBeenCalled();
+  });
+
+  it("活動記録をsynced: trueで取り込み、既存日付は常にシート側で上書きする(Garminのバックフィル反映)", async () => {
+    await db.activityRecords.put({ date: "2026-07-01", steps: 100, synced: true });
+    const transport = fakeActivityTransport({
+      activityRecords: [pulledActivity, { date: "2026-07-02", steps: 6000 }],
+      skippedActivityRows: 1,
+    });
+
+    const outcome = await runActivityImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "success", importedActivityCount: 2, skippedRowCount: 1 });
+    // 既存の2026-07-01(steps: 100)がシート側の値で上書きされている
+    expect(await db.activityRecords.get("2026-07-01")).toEqual({ ...pulledActivity, synced: true });
+    expect(await db.activityRecords.count()).toBe(2);
+  });
+
+  it("活動記録以外のテーブルには触れない", async () => {
+    await saveWeightRecord({ date: "2026-07-01", weightKg: 70, timestamp: "2026-07-01T00:00:00.000Z" });
+    const transport = fakeActivityTransport({
+      activityRecords: [pulledActivity],
+      skippedActivityRows: 0,
+    });
+
+    await runActivityImport({ transport, isOnline: () => true });
+
+    // 体重記録は未同期のまま(runActivityImportはpushもマスタ取り込みもしない)
+    expect(await getWeightRecord("2026-07-01")).toMatchObject({ synced: false });
+    expect(await db.mealRecords.count()).toBe(0);
+  });
+
+  it("トランスポートが失敗したら何も取り込まずエラーを返す", async () => {
+    const transport: SyncPullActivityTransport = {
+      pullActivity: vi.fn(async () => {
+        throw new Error("network down");
+      }),
+    };
+
+    const outcome = await runActivityImport({ transport, isOnline: () => true });
+
+    expect(outcome).toEqual({ status: "error", message: "network down" });
+    expect(await db.activityRecords.count()).toBe(0);
+  });
+
+  it("defaults to the not-configured transport, surfacing a clear message", async () => {
+    const outcome = await runActivityImport({ isOnline: () => true });
+
+    expect(outcome.status).toBe("error");
+    if (outcome.status === "error") {
+      expect(outcome.message).toBe(new SyncNotConfiguredError().message);
+    }
+  });
+});
+
+describe("設定の取り込み(Issue #164)", () => {
+  const pullWith = (entries: { key: string; value: string | number | boolean }[]): SyncPullTransport => ({
+    pull: async () => ({ ...emptyPull, settingsEntries: entries }),
+  });
+
+  it("実フロー: APIトークンを入れた後の取り込みでも、既定値と同じキーをシートから復元する", async () => {
+    // 回帰: 取り込みには先にAPIトークンの入力が必須で、以前はその保存が既定値を実体化して
+    // いたため、goalWeightKg・goalDate・dailyCalorieTarget が「設定済み」に見えて復元されなかった。
+    // 「設定行がまったく無い端末」は現実には通らない状態なので、必ずこの順で検証する
+    await updateSettings({ apiToken: "secret" });
+
+    const outcome = await runImport({
+      transport: pullWith([
+        { key: "goalWeightKg", value: 60 },
+        { key: "goalDate", value: "2026-12-31" },
+        { key: "dailyCalorieTarget", value: 1600 },
+      ]),
+      isOnline: () => true,
+    });
+
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 3 });
+    const row = await db.settings.get("default");
+    expect(row?.goalWeightKg).toBe(60);
+    expect(row?.goalDate).toBe("2026-12-31");
+    expect(row?.dailyCalorieTarget).toBe(1600);
+    // 先に入れたAPIトークンは消えない
+    expect(row?.apiToken).toBe("secret");
+  });
+
+  it("ローカルで設定済みの項目はシート側で上書きしない(ローカル優先)", async () => {
+    await db.settings.put({ id: "default", goalWeightKg: 64, goalDate: "2026-10-31", dailyCalorieTarget: 1730 });
+
+    const outcome = await runImport({
+      transport: pullWith([
+        { key: "goalWeightKg", value: 60 },
+        { key: "heightCm", value: 172 },
+      ]),
+      isOnline: () => true,
+    });
+
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 1 });
+    const row = await db.settings.get("default");
+    expect(row?.goalWeightKg).toBe(64);
+    expect(row?.heightCm).toBe(172);
+  });
+
+  it("シートに設定が無くても壊れない", async () => {
+    const outcome = await runImport({ transport: pullWith([]), isOnline: () => true });
+    expect(outcome).toMatchObject({ status: "success", importedSettingsCount: 0 });
   });
 });

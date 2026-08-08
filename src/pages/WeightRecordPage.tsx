@@ -11,7 +11,7 @@ import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconArrow } from "@/components/icons";
 import { db } from "@/db/db";
 import { getWeightRecord, saveWeightRecord } from "@/db/weightRecords";
-import { toDatetimeLocalValue, todayDateString } from "@/lib/date";
+import { formatMonthDay, toDatetimeLocalValue, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 
 type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
@@ -38,6 +38,9 @@ export default function WeightRecordPage() {
   // ホームからは当日の日付が渡ってくるが、当日分がまだ未記録のこともあるため、
   // その場合は「見つかりません」ではなく新規入力として扱う
   const isTodayParam = editDate === todayDateString();
+  // 履歴確認画面の「記録を追加」から、入れ忘れた過去日を明示的に新規追加する場合に付く(Issue #141)。
+  // これが無いのに未記録日を開いた場合は、タップ後に別端末で削除された可能性があるとみなし「見つかりません」を出す
+  const createParam = searchParams.get("create") === "1";
   const [loadStatus, setLoadStatus] = useState<LoadStatus>(editDate ? "loading" : "idle");
   const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [weightKg, setWeightKg] = useState("");
@@ -55,7 +58,15 @@ export default function WeightRecordPage() {
     void getWeightRecord(editDate).then((record) => {
       if (cancelled) return;
       if (!record) {
-        setLoadStatus(isTodayParam ? "idle" : "not-found");
+        if (!isTodayParam && !createParam) {
+          setLoadStatus("not-found");
+          return;
+        }
+        // 過去日への新規追加は時刻が分からないため正午固定にする(当日は現在時刻のまま)
+        if (!isTodayParam) {
+          setDateTime(toDatetimeLocalValue(new Date(`${editDate}T12:00:00`).toISOString()));
+        }
+        setLoadStatus("idle");
         return;
       }
       setDateTime(toDatetimeLocalValue(record.timestamp));
@@ -132,7 +143,10 @@ export default function WeightRecordPage() {
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "110px" }}>
-      <RecordHeader title={isEditing ? "体重を編集" : "体重を記録"} onBack={() => navigate(-1)} />
+      <RecordHeader
+        title={isEditing ? "体重を編集" : !isTodayParam && editDate ? `${formatMonthDay(selectedDate)}の体重を記録` : "体重を記録"}
+        onBack={() => navigate(-1)}
+      />
 
       <Box component="form" onSubmit={handleSubmit}>
         <FieldLabel>日時</FieldLabel>

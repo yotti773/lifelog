@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { axisTicks } from "../chartAxis";
+import { axisTicks, xAxisTicks } from "../chartAxis";
 
 describe("axisTicks", () => {
   it("体重のような小さいレンジでは0.5〜2kg刻みの切りの良い値を返す", () => {
@@ -31,5 +31,31 @@ describe("axisTicks", () => {
     expect(axisTicks(5, 5)).toEqual([]);
     expect(axisTicks(10, 3)).toEqual([]);
     expect(axisTicks(Number.NaN, 10)).toEqual([]);
+  });
+});
+
+describe("xAxisTicks", () => {
+  it("点が十分あれば両端+中間の等間隔ラベル位置を返し、全て中央寄せアンカーになる", () => {
+    const ticks = xAxisTicks(20, 4);
+    expect(ticks.map((t) => t.fraction)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    expect(ticks.map((t) => t.anchor)).toEqual(["middle", "middle", "middle", "middle", "middle"]);
+  });
+
+  it("点が少ないときは区間数を点数-1に丸めて重複ラベルを防ぐ", () => {
+    expect(xAxisTicks(3, 4).map((t) => t.fraction)).toEqual([0, 0.5, 1]);
+    expect(xAxisTicks(2, 4).map((t) => t.fraction)).toEqual([0, 1]);
+  });
+
+  it("週表示など点が少ない(denseUpTo以下)ときは全点にラベルを出す", () => {
+    // 週=7点なら7ラベルすべて出す
+    expect(xAxisTicks(7)).toHaveLength(7);
+    // 8点以上は maxIntervals(既定4本=5ラベル)に間引く
+    expect(xAxisTicks(8)).toHaveLength(5);
+    expect(xAxisTicks(30)).toHaveLength(5);
+  });
+
+  it("点が1つ以下なら中央に1つだけ返す", () => {
+    expect(xAxisTicks(1)).toEqual([{ fraction: 0.5, anchor: "middle" }]);
+    expect(xAxisTicks(0)).toEqual([{ fraction: 0.5, anchor: "middle" }]);
   });
 });

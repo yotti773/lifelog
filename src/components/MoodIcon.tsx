@@ -2,7 +2,7 @@ import type { DiaryMood } from "@/types";
 
 /**
  * 日記の気分タグ(5段階)の定義と手描きSVG表情アイコン。
- * パスはデザインプロトタイプ(docs/handoff_lifelog_app/prototype.dc.html)のmoodDefsをそのまま移植している。
+ * パスはデザインプロトタイプ(docs/archive/handoff_lifelog_app/prototype.dc.html)のmoodDefsをそのまま移植している。
  */
 
 interface MoodDef {

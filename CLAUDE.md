@@ -20,6 +20,8 @@
 
 プロダクト/UXに関わる判断をする前にこれらを読むこと。真実の情報源はこれらの仕様書であり、このファイルではない。
 
+`docs/` 直下は上記の `からだログ_*.md` 仕様書群・検討メモのみ(過去IssueからのリンクとCLAUDE.md・articles/からのパス参照が多いため動かさない。Issue #191)。仕様書以外はサブフォルダに置く: `docs/icon/`(PWAアイコンの正、下記PWA節参照)、`docs/screenshots/`(動作確認スクリーンショット)、`docs/data/`(シート貼り付け用サンプルCSV)、`docs/archive/`(設計フェーズのデザインハンドオフ資料など、現役でない過去資料)。
+
 ## コマンド
 
 ```
@@ -59,9 +61,15 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 型だけからは分かりにくい、モデリング上の重要な選択:
 - **`WeightRecord` は `date`(YYYY-MM-DD)をDexieの主キーにしている。** これにより「1日1件、後勝ち」が自動的に成立する — `saveWeightRecord` は `.put()` を呼ぶだけで、手動の上書きロジックは不要。
 - **`MealRecord` は生成したUUIDをキーにしている。** 同じ日の同じ `mealType` に複数件の記録が許されるため(例: 間食を2回記録するなど)。
-- **すべてのレコードが `synced: boolean` を持つ。** `saveWeightRecord`/`updateWeightRecord`/`updateMealRecord` は、レコードの内容が変わるたびにこれを `false` にリセットする。これにより、同期後の編集も再度拾われる。`markWeightRecordsSynced`/`markMealRecordsSynced`、およびシート由来のレコードを保存する `runImport`(下記の取り込みを参照)以外の場所で `synced: true` を直接セットしないこと。
+- **すべてのレコードが `synced: boolean` を持つ。** `saveWeightRecord`/`updateWeightRecord`/`updateMealRecord` は、レコードの内容が変わるたびにこれを `false` にリセットする。これにより、同期後の編集も再度拾われる。`markWeightRecordsSynced`/`markMealRecordsSynced`、およびシート由来のレコードを保存する `runImport`/`runActivityImport`(下記の取り込みを参照)以外の場所で `synced: true` を直接セットしないこと。
 - **`getUnsyncedWeightRecords`/`getUnsyncedMealRecords` はDexieのインデックスではなくJS側の `.filter()` で絞り込んでいる** — IndexedDBはbooleanをインデックスのキーにできないことと、レコード件数がこの規模(単一ユーザー、1日あたり数件)では十分軽いため、これで問題ない。これをインデックス化して「最適化」しないこと。
 - `getDailyCalorieTotals(startDate, endDate)` は、食事記録が無い日でも範囲内の全日を `0kcal` で埋める — これにより、カロリー推移グラフが記録の空白を誤魔化して圧縮された線ではなく、隙間として表示される。
+
+**AIコメントの同期(Issue #164):** 週次・月次のAIコメント(`adviceRecords`/`monthlyAdviceRecords`)は**スプレッドシート同期の対象**。生成が非決定的で再生成しても同じものが出ず、失うと復旧手段が無い唯一のデータのため。**シートに載せるのは `advice`(判定・総評・良かった点・アクション)だけで、`digest` は載せない** — digestはレコードから再計算でき(`getWeeklyDigest()`)、実際に画面のどこからも参照されていないため。`AdviceRecord.digest` が任意になっているのはこのため(シート由来のレコードでは未設定)。判定は日本語ラベル(順調/やや遅れ/遅れ/要注意)でシートに書き、取り込み時に `VERDICT_FROM_LABEL` で逆引きする。削除UIが無いため削除トゥームストーンの仕組みには乗せていない。
+
+**設定の同期(Issue #164):** 設定(`Settings`)もシート同期の対象で、1設定=1行の key-value 形式で「設定」タブに書く(`src/sync/settingsSync.ts` の `SETTINGS_SYNC_FIELDS` と `worker/sheetsSync.ts` の `SETTINGS_FIELDS` を**手で同期させること** — worker側は src/ に依存しない独立ビルドのため共有できない)。**`apiToken` は載せない** — 取り込みAPIの呼び出し自体に `Authorization: Bearer` としてこの値が要るため、シートからは原理的に復元できない。`lastSyncedAt` も端末固有なので載せない。`SettingsRow.synced` で差分同期し、**`lastSyncedAt` だけの更新では未同期に戻さない**(同期完了のたびに書くため、戻すと永久に同期待ちになる)。
+
+**完全バックアップ(`src/db/backup.ts`、Issue #164):** 上記でAIコメントと設定は同期されるようになったため、**シート同期で戻せないのは食事のAI推定値・写真参照と`apiToken`だけ**になった。これを埋めるのが設定画面の「完全バックアップ(ファイル)」で、`syncDeletions` を除く全テーブルを1つのJSONに書き出し、全削除+書き戻しで復元する。**`BACKUP_TABLES` に新しいテーブルを足し忘れると `backup.test.ts` が落ちる**(`db.tables` と突き合わせている) — フェーズ1時代の実装が3テーブルのまま腐っていた実績があるため、この番人を外さないこと。復元は必ず `parseBackupData()` の検証を通してから行う(旧実装は壊れたファイルでも `clear()` してしまう作りだった)。**IndexedDBはオリジン単位なので、配信URLを変えるときも退避が必要**(同じブラウザでもデータは引き継がれない)。
 
 テストは `fake-indexeddb/auto`(`src/db/__tests__/setup.ts` を参照。`vitest.config.ts` の `setupFiles` で組み込まれている)を使っており、データ層全体をブラウザ無しでNode上でテストしている。`beforeEach` で各テーブルを直接クリアする(`db.weightRecords.clear()` など)— 共通のテストDBリセットヘルパーは無く、各テストファイルが自分の使うテーブルをクリアする。
 
@@ -73,7 +81,9 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 
 **取り込み(Issue #54):** シート→アプリ方向の手動インポート(設定画面の「シートから取り込み」ボタンのみがトリガー)。`runImport()`(`src/sync/importEngine.ts`)が `workerSheetsTransport.pull()` → `GET /api/import-sheets`(`worker/sheetsImport.ts`)経由で8タブ(体重・食事・水分・筋トレ・日記+Garmin由来の活動記録+食事マスタ・種目マスタ)の全行をレコードに逆変換して受け取り、**追加のみ・ローカル優先**でマージする(既存キー・削除トゥームストーン保留中のキーはスキップ。取り込んだレコードは `synced: true` で保存し再送信しない)。例外は活動記録で、アプリ内に編集・削除が無くGarminが真実の情報源のため、常にシート側の値で上書きする(Issue #81)。マスタ2タブ(Issue #96)はIDが違っても同名(前後空白無視)の既存品目・種目をスキップする — 種目マスタは名前がサジェストのキーで同名を許さないため。Worker側は、ID列が空の行(手入力の過去データ)にIDを採番して(体重・日記=日付、食事・水分・筋トレ・マスタ=UUID)**シートに書き戻す** — 書き戻せないと以後のupsert・行削除がその行を見つけられず重複行を生むため、書き戻し失敗は取り込み全体の失敗にする。行パース(`planWeightImport`/`planMealImport` ほか)は純関数として切り出してあり単体テストがある。シートに無い情報(食事のAI推定値・写真参照、設定)は復元されない。
 
-`notConfiguredTransport` は `runSync()`/`runImport()` の引数無しデフォルトのままで、常にthrowするだけのプレースホルダー(テストでも「デフォルトは未設定エラーになる」ことの検証に使われている)。実際に使われるのは `workerSheetsTransport`(`src/sync/workerSheetsTransport.ts`)で、`App.tsx`(自動同期)と設定画面の `SheetsSyncCard.tsx`(「今すぐ同期」「シートから取り込み」ボタン)からは `runSync({ transport: workerSheetsTransport })` / `runImport({ transport: workerSheetsTransport })` の形で明示的に渡している。自動同期のトリガーは起動時・アプリ復帰時(`visibilitychange`)・オンライン復帰時(`online`)の3つ(Issue #105)で、短時間の連続発火を防ぐスロットリング(最小間隔5分)と実行中の再入抑止は `src/sync/autoSync.ts` の `createAutoSyncRunner` が持つ(手動ボタンは対象外)。
+**活動記録の自動取り込み(Issue #133):** 上記の手動取り込みとは別に、活動記録タブ**だけ**は自動同期のたびに取り込む。`runActivityImport()`(`src/sync/importEngine.ts`)が `workerSheetsTransport.pullActivity()` → `GET /api/import-activity`(`worker/sheetsImport.ts` の `handleImportActivity`)経由で活動記録タブ1枚だけを読み取り(全12タブを読む `/api/import-sheets` と分けた軽量版)、`runImport` の活動記録と同じく常にシート側で上書きして `synced: true` で保存する。`createAutoSyncRunner` の既定動作 `runAutoSync` が push(`runSync`)に続けてこれを呼ぶ。取り込みはベストエフォートで、`runActivityImport` はthrowせずエラーを返すため push の成功を打ち消さない。手動の「今すぐ同期」ボタンは push のみ、全タブの取り込みは引き続き「シートから取り込み」ボタンのみ。
+
+`notConfiguredTransport` は `runSync()`/`runImport()`/`runActivityImport()` の引数無しデフォルトのままで、常にthrowするだけのプレースホルダー(テストでも「デフォルトは未設定エラーになる」ことの検証に使われている)。実際に使われるのは `workerSheetsTransport`(`src/sync/workerSheetsTransport.ts`)で、`App.tsx`(自動同期)と設定画面の `SheetsSyncCard.tsx`(「今すぐ同期」「シートから取り込み」ボタン)からは `runSync({ transport: workerSheetsTransport })` / `runImport({ transport: workerSheetsTransport })` の形で明示的に渡している。自動同期のトリガーは起動時・アプリ復帰時(`visibilitychange`)・オンライン復帰時(`online`)の3つ(Issue #105)で、そのたびに push と活動記録の取り込み(上記)の両方を行う。短時間の連続発火を防ぐスロットリング(最小間隔5分)と実行中の再入抑止は `src/sync/autoSync.ts` の `createAutoSyncRunner` が持つ(手動ボタンは対象外)。
 
 `workerSheetsTransport` は `POST /api/sync-sheets`(`worker/sheetsSync.ts`)を叩く。Workerはサービスアカウントの秘密鍵からJWTを組み立てて署名し(`worker/googleSheetsAuth.ts`、Web Crypto APIの `crypto.subtle` を使用。Node/ブラウザのcryptoライブラリは使わない)、Google OAuth2のJWT Bearerフローでアクセストークンを取得したうえで、Google Sheets API(`values.append`・`values:batchUpdate`・`spreadsheets:batchUpdate` の `deleteDimension`。詳細は上記の編集・削除の反映を参照)を呼び出す。認証情報(`GOOGLE_SERVICE_ACCOUNT_EMAIL`・`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`・`GOOGLE_SHEETS_SPREADSHEET_ID`)はWorkerのシークレットとしてのみ保持し、クライアントには渡さない。
 
@@ -109,7 +119,7 @@ UIはMUIで、`src/theme.ts` がデザインガイドのパレットをMUIテー
 
 ### デプロイ
 
-Cloudflare Workers(クラシックな別サービスの「Pages」ではなく、Git連携版)上で https://lifelog.tatu1228.workers.dev/ にホストされており、`main` へのpushで自動デプロイされる。ビルドコマンドは `npm run build`、デプロイコマンドは `npx wrangler deploy` で、`wrangler.toml` の `[assets]` ブロック(`directory = "dist"`、SPAルーティング用に `not_found_handling = "single-page-application"`)で駆動されている。
+Cloudflare Workers(クラシックな別サービスの「Pages」ではなく、Git連携版)上で https://lifelog.n1lab.workers.dev/ にホストされており、`main` へのpushで自動デプロイされる。ビルドコマンドは `npm run build`、デプロイコマンドは `npx wrangler deploy` で、`wrangler.toml` の `[assets]` ブロック(`directory = "dist"`、SPAルーティング用に `not_found_handling = "single-page-application"`)で駆動されている。
 
 **`public/_redirects` ファイルを追加しないこと** — `not_found_handling = "single-page-application"` と組み合わせると、CloudflareはSPAフォールバックの処理をどちらも試みるものとみなし、無限リダイレクトループとしてデプロイを拒否する。`[assets]` の設定だけで十分であり、現在デプロイされているのもこの構成。
 

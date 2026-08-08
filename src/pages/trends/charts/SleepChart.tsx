@@ -14,8 +14,11 @@ export default function SleepChart({ data }: SleepChartProps) {
     <DailyBarChart
       data={data.map(({ date, sleepMinutes }) => ({ date, value: Math.round((sleepMinutes / 60) * 10) / 10 }))}
       target={null}
-      targetLabel=""
       barColor="#FFC145"
+      // 棒が黄のため、最新(今日)は濃い黄で強調する(Issue #128)
+      todayColor="#FFB01F"
+      // 睡眠は小数1桁(時間)で表示する
+      formatTodayValue={(v) => v.toFixed(1)}
       targetColor="#8C8C8C"
       ariaLabel="睡眠時間推移グラフ"
     />

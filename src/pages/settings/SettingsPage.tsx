@@ -21,6 +21,7 @@ import { db } from "@/db/db";
 import { getSettings, updateSettings } from "@/db/settings";
 import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { fontRounded, tokens } from "@/theme";
+import LocalBackupCard from "./LocalBackupCard";
 import MasterDataSections from "./MasterDataSections";
 import PfcEditorDrawer from "./PfcEditorDrawer";
 import SettingRow, { SectionLabel } from "./SettingRow";
@@ -185,6 +186,9 @@ export default function SettingsPage() {
 
       <SectionLabel>データ同期・バックアップ(スプレッドシート)</SectionLabel>
       <SheetsSyncCard lastSyncedAt={settings.lastSyncedAt} />
+
+      <SectionLabel>完全バックアップ(ファイル)</SectionLabel>
+      <LocalBackupCard />
 
       <SectionLabel>API保護</SectionLabel>
       <Card sx={{ overflow: "hidden", mb: "8px" }}>

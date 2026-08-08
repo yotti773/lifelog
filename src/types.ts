@@ -86,6 +86,12 @@ export interface MealRecord {
   confirmedProteinG: number;
   confirmedFatG: number;
   confirmedCarbsG: number;
+  /**
+   * この区分は食べなかった、という明示的な記録(Issue #143)。trueの場合、その日・その区分の
+   * MealRecordはこの1件のみを持つ(replaceMealRecordsForDateAndTypeが丸ごと置き換えるため)。
+   * 「未記録」(MealRecordが0件)と区別するためのフラグで、kcal/PFCは0で保存する。
+   */
+  skipped?: boolean;
   synced: boolean; // スプレッドシートへの同期済みフラグ
 }
 
@@ -445,25 +451,36 @@ export interface WeeklyAdvice {
 
 /**
  * AIコーチのコメントのキャッシュ(Issue #12。画面設計書11章)。
- * 週の開始日(月曜)を主キーとし、1週1件・再生成で上書き(後勝ち)。スプレッドシート同期の対象外(ローカルのみ)。
- * 生成時のdigestも保存し、「何を根拠にこのコメントが出たか」を後から再現できるようにする。
+ * 週の開始日(月曜)を主キーとし、1週1件・再生成で上書き(後勝ち)。
+ *
+ * **スプレッドシート同期の対象(Issue #164)。** 生成が非決定的で再生成しても同じものが得られず、
+ * 失うと復旧手段が無い唯一のデータのため、記録と同じくシートへ書き出して保全する。
+ * シートに載せるのは`advice`(判定・総評・良かった点・アクション)だけで、`digest`は載せない。
  */
 export interface AdviceRecord {
   weekStart: string; // YYYY-MM-DD(月曜)
   createdAt: string; // ISO8601
-  digest: WeeklyDigest;
+  /**
+   * 生成時のdigest。「何を根拠にこのコメントが出たか」の証跡として残すが、画面からは参照していない。
+   * 数値はレコードから再計算できる(`getWeeklyDigest()`)ため**シートには書き出さず**、
+   * シートから取り込んだレコードでは未設定になる(Issue #164)
+   */
+  digest?: WeeklyDigest;
   advice: WeeklyAdvice;
+  synced: boolean; // スプレッドシートへの同期済みフラグ
 }
 
 /**
  * 月次AIコーチコメントのキャッシュ(Issue #114)。週次のAdviceRecordと同じ仕組みを月キーで流用する:
- * 月(YYYY-MM)を主キーとし、1月1件・再生成で上書き(後勝ち)。スプレッドシート同期の対象外(ローカルのみ)。
+ * 月(YYYY-MM)を主キーとし、1月1件・再生成で上書き(後勝ち)。**スプレッドシート同期の対象**(Issue #164。週次と同じ理由)。
  * 出力契約(verdict/summary/wins/actions)は週次と共通で、winsは「今月の良かった変化」、
  * actionsは「来月の重点」の意味で使う。
  */
 export interface MonthlyAdviceRecord {
   month: string; // YYYY-MM
   createdAt: string; // ISO8601
-  digest: MonthlyDigest;
+  /** 週次と同じ扱い。シートには書き出さず、取り込んだレコードでは未設定になる(Issue #164) */
+  digest?: MonthlyDigest;
   advice: WeeklyAdvice;
+  synced: boolean; // スプレッドシートへの同期済みフラグ
 }

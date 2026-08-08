@@ -11,8 +11,9 @@ export default function StepsChart({ data }: StepsChartProps) {
     <DailyBarChart
       data={data.map(({ date, steps }) => ({ date, value: steps }))}
       target={null}
-      targetLabel=""
       barColor="#FF6B4A"
+      // 棒がコーラルのため、最新(今日)は濃いコーラルで強調する(Issue #128)
+      todayColor="#FF5A38"
       targetColor="#8C8C8C"
       ariaLabel="歩数推移グラフ"
     />

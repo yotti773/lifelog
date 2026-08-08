@@ -16,8 +16,7 @@ interface NutrientFieldsGridProps {
 }
 
 /**
- * kcal・P・F・Cの4項目入力グリッド。食事マスタの追加・編集(FoodMasterPage)と
- * 食事編集時の手動追加(ManualMealItemAdder)で共通の見た目・挙動を持つ(Issue #93/#99)。
+ * kcal・P・F・Cの4項目入力グリッド。食事マスタの追加・編集(FoodMasterPage)で使う共通の見た目・挙動(Issue #93)。
  */
 export default function NutrientFieldsGrid({ values, onChange }: NutrientFieldsGridProps) {
   return (

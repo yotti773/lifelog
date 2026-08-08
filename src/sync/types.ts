@@ -1,5 +1,6 @@
 import type {
   ActivityRecord,
+  AdviceRecord,
   BloodPressureRecord,
   BodyMeasurementRecord,
   DiaryRecord,
@@ -8,10 +9,17 @@ import type {
   HabitMasterItem,
   HabitRecord,
   MealRecord,
+  MonthlyAdviceRecord,
   WaterRecord,
   WeightRecord,
   WorkoutRecord,
 } from "@/types";
+
+/** 送信する週次AIコメント。生成時の証跡である`digest`はシートに載せないため送らない(Issue #164) */
+export type PushableAdviceRecord = Omit<AdviceRecord, "digest">;
+
+/** 送信する月次AIコメント(Issue #164) */
+export type PushableMonthlyAdviceRecord = Omit<MonthlyAdviceRecord, "digest">;
 
 export interface SyncPushPayload {
   weightRecords: WeightRecord[];
@@ -25,6 +33,15 @@ export interface SyncPushPayload {
   bodyMeasurementRecords: BodyMeasurementRecord[];
   habitMasterItems: HabitMasterItem[];
   habitRecords: HabitRecord[];
+  /** 設定(Issue #164)。key-valueの行として送る。apiToken・lastSyncedAtは含めない */
+  settingsEntries: { key: string; value: string }[];
+  /**
+   * 週次AIコメント(Issue #164)。生成が非決定的で再生成しても同じものが得られないため同期対象にした。
+   * **`digest`は送らない** — Workerは捨てるうえ、日記本文の送信をONにしている週は digest に本文が入りうる
+   */
+  adviceRecords: PushableAdviceRecord[];
+  /** 月次AIコメント(Issue #164)。週次と同じく`digest`は送らない */
+  monthlyAdviceRecords: PushableMonthlyAdviceRecord[];
   /** スプレッドシートから削除すべき体重記録のID(=日付)一覧。トゥームストーン由来(Issue #30) */
   deletedWeightIds: string[];
   /** スプレッドシートから削除すべき食事記録のID一覧。トゥームストーン由来(Issue #30) */
@@ -72,6 +89,12 @@ export interface SyncPushResult {
   syncedHabitMasterIds?: string[];
   /** 送信に成功したHabitRecordのid一覧。未対応の旧Workerは返さないため省略可(Issue #113) */
   syncedHabitRecordIds?: string[];
+  /** 送信に成功した設定のキー一覧。未対応の旧Workerは返さないため省略可(Issue #164) */
+  syncedSettingsKeys?: string[];
+  /** 送信に成功した週次AIコメントのweekStart一覧。未対応の旧Workerは返さないため省略可(Issue #164) */
+  syncedAdviceWeekStarts?: string[];
+  /** 送信に成功した月次AIコメントのmonth一覧。未対応の旧Workerは返さないため省略可(Issue #164) */
+  syncedMonthlyAdviceMonths?: string[];
   /** 削除を確定できた体重記録のID一覧。省略時は空とみなす(Issue #30) */
   deletedWeightIds?: string[];
   /** 削除を確定できた食事記録のID一覧。省略時は空とみなす(Issue #30) */
@@ -152,6 +175,15 @@ export type PulledHabitMasterItem = Omit<HabitMasterItem, "synced">;
 /** スプレッドシートから取り込んだ習慣記録(Issue #113)。シートに無い`synced`を除きHabitRecordと同形 */
 export type PulledHabitRecord = Omit<HabitRecord, "synced">;
 
+/**
+ * スプレッドシートから取り込んだ週次AIコメント(Issue #164)。
+ * `digest`はシートに書き出していない(レコードから再計算できるため)ので復元されない
+ */
+export type PulledAdviceRecord = Omit<AdviceRecord, "synced" | "digest">;
+
+/** スプレッドシートから取り込んだ月次AIコメント(Issue #164)。週次と同じく`digest`は復元されない */
+export type PulledMonthlyAdviceRecord = Omit<MonthlyAdviceRecord, "synced" | "digest">;
+
 export interface SyncPullResult {
   weightRecords: PulledWeightRecord[];
   mealRecords: PulledMealRecord[];
@@ -171,6 +203,12 @@ export interface SyncPullResult {
   habitMasterItems?: PulledHabitMasterItem[];
   /** 未対応の旧Workerは返さないため省略可(Issue #113) */
   habitRecords?: PulledHabitRecord[];
+  /** 未対応の旧Workerは返さないため省略可(Issue #164) */
+  settingsEntries?: { key: string; value: string | number | boolean }[];
+  /** 未対応の旧Workerは返さないため省略可(Issue #164) */
+  adviceRecords?: PulledAdviceRecord[];
+  /** 未対応の旧Workerは返さないため省略可(Issue #164) */
+  monthlyAdviceRecords?: PulledMonthlyAdviceRecord[];
   /** 解釈できずスキップされた体重タブの行数(見出し行とみなす1行目を除く) */
   skippedWeightRows: number;
   /** 解釈できずスキップされた食事タブの行数(見出し行とみなす1行目を除く) */
@@ -195,9 +233,30 @@ export interface SyncPullResult {
   skippedHabitMasterRows?: number;
   /** 解釈できずスキップされた習慣記録タブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
   skippedHabitRecordRows?: number;
+  /** 解釈できずスキップされた設定タブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedSettingsRows?: number;
+  /** 解釈できずスキップされた週次AIコメントタブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedAdviceRows?: number;
+  /** 解釈できずスキップされた月次AIコメントタブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedMonthlyAdviceRows?: number;
 }
 
 /** スプレッドシートからの取り込み(復元・過去データ移行)を担うインターフェース(Issue #54) */
 export interface SyncPullTransport {
   pull(): Promise<SyncPullResult>;
+}
+
+/** 活動記録タブだけを取り込んだ結果(Issue #133)。全タブを読むSyncPullResultの活動記録部分だけを持つ軽量版 */
+export interface SyncPullActivityResult {
+  activityRecords: PulledActivityRecord[];
+  /** 解釈できずスキップされた活動記録タブの行数(見出し行を除く。タブ自体が無い場合は0) */
+  skippedActivityRows: number;
+}
+
+/**
+ * 活動記録タブ(Garmin由来)だけをスプレッドシートから取り込むインターフェース(Issue #133)。
+ * 自動同期のたびに叩くため、全タブを読むSyncPullTransport.pull()と分けた軽量経路。
+ */
+export interface SyncPullActivityTransport {
+  pullActivity(): Promise<SyncPullActivityResult>;
 }

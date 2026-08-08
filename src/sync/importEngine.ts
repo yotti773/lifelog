@@ -1,6 +1,8 @@
 import { db } from "@/db/db";
+import { updateSettings } from "@/db/settings";
 import { getPendingDeletionIds } from "@/db/syncDeletions";
 import { notConfiguredTransport } from "./notConfiguredTransport";
+import { fromSettingsEntries } from "./settingsSync";
 import type { SyncPullActivityTransport, SyncPullTransport } from "./types";
 
 export type ImportOutcome =
@@ -19,6 +21,8 @@ export type ImportOutcome =
       importedBodyMeasurementCount: number;
       importedHabitMasterCount: number;
       importedHabitRecordCount: number;
+      /** 取り込んだ設定項目の件数(Issue #164)。ローカル未設定の項目だけ入れる */
+      importedSettingsCount: number;
       /** 取り込んだ週次AIコメントの件数(Issue #164) */
       importedAdviceCount: number;
       /** 取り込んだ月次AIコメントの件数(Issue #164) */
@@ -71,6 +75,7 @@ export async function runImport({
         db.bodyMeasurementRecords,
         db.habitMasterItems,
         db.habitRecords,
+        db.settings,
         db.syncDeletions,
       ],
       async () => {
@@ -122,6 +127,7 @@ export async function runImport({
         let importedBodyMeasurementCount = 0;
         let importedHabitMasterCount = 0;
         let importedHabitRecordCount = 0;
+        let importedSettingsCount = 0;
         let importedAdviceCount = 0;
         let importedMonthlyAdviceCount = 0;
         let skippedExistingCount = 0;
@@ -217,6 +223,29 @@ export async function runImport({
           importedExerciseMasterCount++;
         }
 
+        // 設定も追加のみ・ローカル優先(Issue #164)。ローカルで未設定の項目だけ埋める —
+        // 上書きすると、機種変更後に手で入れ直した値をシートの古い値が潰しうる
+        const pulledSettings = fromSettingsEntries(pulled.settingsEntries ?? []);
+        if (Object.keys(pulledSettings).length > 0) {
+          // **既定値とのマージ結果ではなく、保存されている行そのものを見る。**
+          // getSettings()は行が無いとDEFAULT_SETTINGSを返すため、それで判定すると
+          // 新規端末で goalWeightKg・goalDate・dailyCalorieTarget が「設定済み」に見えて
+          // 復元されない(最重要の3項目が戻らない)
+          const currentRow = await db.settings.get("default");
+          const patch: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(pulledSettings)) {
+            if (currentRow?.[key as keyof typeof currentRow] === undefined) {
+              patch[key] = value;
+              importedSettingsCount++;
+            } else {
+              skippedExistingCount++;
+            }
+          }
+          // 取り込んだ設定は未同期のまま残す(次回同期で押し戻る)。ここで同期済みにすると、
+          // 手元に残っている未送信の設定変更まで送信対象から外れてしまう
+          if (importedSettingsCount > 0) await updateSettings(patch);
+        }
+
         // AIコメントも追加のみ・ローカル優先(Issue #164)。手元にあるものはdigest付きなので上書きしない
         // (シート側にはdigestが無く、上書きすると生成時の証跡を失うため)
         for (const record of pulled.adviceRecords ?? []) {
@@ -308,6 +337,7 @@ export async function runImport({
           importedBodyMeasurementCount,
           importedHabitMasterCount,
           importedHabitRecordCount,
+          importedSettingsCount,
           importedAdviceCount,
           importedMonthlyAdviceCount,
           skippedExistingCount,
@@ -331,6 +361,7 @@ export async function runImport({
         (pulled.skippedBodyMeasurementRows ?? 0) +
         (pulled.skippedHabitMasterRows ?? 0) +
         (pulled.skippedHabitRecordRows ?? 0) +
+        (pulled.skippedSettingsRows ?? 0) +
         (pulled.skippedAdviceRows ?? 0) +
         (pulled.skippedMonthlyAdviceRows ?? 0),
     };

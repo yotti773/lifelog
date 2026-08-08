@@ -37,6 +37,8 @@ export interface SyncPushPayload {
    * 週次AIコメント(Issue #164)。生成が非決定的で再生成しても同じものが得られないため同期対象にした。
    * **`digest`は送らない** — Workerは捨てるうえ、日記本文の送信をONにしている週は digest に本文が入りうる
    */
+  /** 設定(Issue #164)。key-valueの行として送る。apiToken・lastSyncedAtは含めない */
+  settingsEntries: { key: string; value: string }[];
   adviceRecords: PushableAdviceRecord[];
   /** 月次AIコメント(Issue #164)。週次と同じく`digest`は送らない */
   monthlyAdviceRecords: PushableMonthlyAdviceRecord[];
@@ -88,6 +90,8 @@ export interface SyncPushResult {
   /** 送信に成功したHabitRecordのid一覧。未対応の旧Workerは返さないため省略可(Issue #113) */
   syncedHabitRecordIds?: string[];
   /** 送信に成功した週次AIコメントのweekStart一覧。未対応の旧Workerは返さないため省略可(Issue #164) */
+  /** 送信に成功した設定のキー一覧。未対応の旧Workerは返さないため省略可(Issue #164) */
+  syncedSettingsKeys?: string[];
   syncedAdviceWeekStarts?: string[];
   /** 送信に成功した月次AIコメントのmonth一覧。未対応の旧Workerは返さないため省略可(Issue #164) */
   syncedMonthlyAdviceMonths?: string[];
@@ -200,6 +204,8 @@ export interface SyncPullResult {
   /** 未対応の旧Workerは返さないため省略可(Issue #113) */
   habitRecords?: PulledHabitRecord[];
   /** 未対応の旧Workerは返さないため省略可(Issue #164) */
+  /** 未対応の旧Workerは返さないため省略可(Issue #164) */
+  settingsEntries?: { key: string; value: string | number | boolean }[];
   adviceRecords?: PulledAdviceRecord[];
   /** 未対応の旧Workerは返さないため省略可(Issue #164) */
   monthlyAdviceRecords?: PulledMonthlyAdviceRecord[];
@@ -228,6 +234,8 @@ export interface SyncPullResult {
   /** 解釈できずスキップされた習慣記録タブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
   skippedHabitRecordRows?: number;
   /** 解釈できずスキップされた週次AIコメントタブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  /** 解釈できずスキップされた設定タブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
+  skippedSettingsRows?: number;
   skippedAdviceRows?: number;
   /** 解釈できずスキップされた月次AIコメントタブの行数(見出し行を除く。タブ自体が無い・旧Workerの場合は0扱い) */
   skippedMonthlyAdviceRows?: number;

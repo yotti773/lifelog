@@ -18,7 +18,11 @@ import type {
   WorkoutRecord,
 } from "@/types";
 
-export type SettingsRow = Settings & { id: "default" };
+/**
+ * `synced` は設定のシート同期用(Issue #164)。`Settings` 側には持たせない —
+ * 画面が読む設定値と、同期の内部状態を混ぜないため
+ */
+export type SettingsRow = Settings & { id: "default"; synced?: boolean };
 
 export const db = new Dexie("lifelog") as Dexie & {
   weightRecords: EntityTable<WeightRecord, "date">;
@@ -115,4 +119,5 @@ db.version(12)
   .upgrade(async (tx) => {
     await tx.table("adviceRecords").toCollection().modify({ synced: false });
     await tx.table("monthlyAdviceRecords").toCollection().modify({ synced: false });
+    await tx.table("settings").toCollection().modify({ synced: false });
   });

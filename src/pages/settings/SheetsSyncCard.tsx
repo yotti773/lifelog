@@ -6,6 +6,7 @@ import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import { IconDownload, IconSync, IconWarning } from "@/components/icons";
 import { getUnsyncedAdviceRecords, getUnsyncedMonthlyAdviceRecords } from "@/db/adviceRecords";
+import { getUnsyncedSettings } from "@/db/settings";
 import { getUnsyncedBloodPressureRecords } from "@/db/bloodPressureRecords";
 import { getUnsyncedBodyMeasurementRecords } from "@/db/bodyMeasurementRecords";
 import { getUnsyncedDiaryRecords } from "@/db/diaryRecords";
@@ -53,6 +54,7 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedBodyMeasurementCount,
         importedHabitMasterCount,
         importedHabitRecordCount,
+        importedSettingsCount,
         importedAdviceCount,
         importedMonthlyAdviceCount,
         skippedExistingCount,
@@ -71,6 +73,7 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
         importedBodyMeasurementCount +
         importedHabitMasterCount +
         importedHabitRecordCount +
+        importedSettingsCount +
         importedAdviceCount +
         importedMonthlyAdviceCount;
       let message: string;
@@ -86,7 +89,8 @@ function importOutcomeMessage(outcome: ImportOutcome): string {
           `食事マスタ${importedFoodMasterCount}件・種目マスタ${importedExerciseMasterCount}件・` +
           `血圧${importedBloodPressureCount}件・サイズ${importedBodyMeasurementCount}件・` +
           `習慣マスタ${importedHabitMasterCount}件・習慣記録${importedHabitRecordCount}件・` +
-          `AIコメント${importedAdviceCount + importedMonthlyAdviceCount}件を取り込みました`;
+          `AIコメント${importedAdviceCount + importedMonthlyAdviceCount}件・` +
+          `設定${importedSettingsCount}件を取り込みました`;
         if (skippedExistingCount > 0) {
           message += `(既にある${skippedExistingCount}件はスキップ)`;
         }
@@ -126,6 +130,7 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       habitRecords,
       advices,
       monthlyAdvices,
+      unsyncedSettings,
       weightDeletions,
       mealDeletions,
       waterDeletions,
@@ -151,6 +156,7 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       getUnsyncedHabitRecords(),
       getUnsyncedAdviceRecords(),
       getUnsyncedMonthlyAdviceRecords(),
+      getUnsyncedSettings(),
       getPendingDeletionIds("weight"),
       getPendingDeletionIds("meal"),
       getPendingDeletionIds("water"),
@@ -177,6 +183,7 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
       habitRecords.length +
       advices.length +
       monthlyAdvices.length +
+      (unsyncedSettings ? 1 : 0) +
       weightDeletions.length +
       mealDeletions.length +
       waterDeletions.length +

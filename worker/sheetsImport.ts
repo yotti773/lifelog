@@ -15,8 +15,12 @@ import {
   HABIT_MASTER_HEADER,
   HABIT_RECORD_CONFIG,
   MEAL_CONFIG,
+  BOOLEAN_FALSE_LABEL,
+  BOOLEAN_TRUE_LABEL,
   MONTHLY_ADVICE_CONFIG,
   monthToSheetId,
+  SETTINGS_CONFIG,
+  SETTINGS_FIELDS,
   SHEETS_API_BASE,
   VERDICT_FROM_LABEL,
   WATER_CONFIG,
@@ -104,6 +108,12 @@ export interface ImportedExerciseMasterItemOutput {
 }
 
 /** 週次AIコメント(Issue #164)。digestはシートに無いため復元されない */
+/** 設定の1項目(Issue #164)。値はキーごとの型に復元して返す */
+export interface ImportedSettingsEntryOutput {
+  key: string;
+  value: string | number | boolean;
+}
+
 export interface ImportedAdviceRecordOutput {
   weekStart: string;
   createdAt: string;
@@ -169,6 +179,7 @@ interface SheetsImportResultOutput {
   exerciseMasterItems: ImportedExerciseMasterItemOutput[];
   bloodPressureRecords: ImportedBloodPressureRecordOutput[];
   bodyMeasurementRecords: ImportedBodyMeasurementRecordOutput[];
+  settingsEntries: ImportedSettingsEntryOutput[];
   adviceRecords: ImportedAdviceRecordOutput[];
   monthlyAdviceRecords: ImportedMonthlyAdviceRecordOutput[];
   habitMasterItems: ImportedHabitMasterItemOutput[];
@@ -185,6 +196,7 @@ interface SheetsImportResultOutput {
   skippedBodyMeasurementRows: number;
   skippedHabitMasterRows: number;
   skippedHabitRecordRows: number;
+  skippedSettingsRows: number;
   skippedAdviceRows: number;
   skippedMonthlyAdviceRows: number;
 }
@@ -720,6 +732,53 @@ export function planExerciseMasterImport(
   return { records, idBackfills, skippedRowCount };
 }
 
+/**
+ * 設定タブの全行を項目へ逆変換する(Issue #164)。ID列(C)のキーで項目を特定し、
+ * `SETTINGS_FIELDS` の型に沿って値を復元する。未知のキー・空値の行はスキップする。
+ */
+export function planSettingsImport(rows: CellValue[][]): SheetImportPlan<ImportedSettingsEntryOutput> {
+  const records: ImportedSettingsEntryOutput[] = [];
+  let skippedRowCount = 0;
+  const seenKeys = new Set<string>();
+
+  rows.forEach((cells, index) => {
+    const rowNumber = index + 1;
+    const key = String(cells?.[2] ?? "").trim();
+    const field = SETTINGS_FIELDS.find((f) => f.key === key);
+    const raw = String(cells?.[1] ?? "").trim();
+    if (field === undefined || raw === "") {
+      if (rowNumber !== 1) skippedRowCount++;
+      return;
+    }
+    if (seenKeys.has(key)) {
+      skippedRowCount++;
+      return;
+    }
+
+    let value: string | number | boolean | null = null;
+    if (field.type === "number") {
+      value = parseCellNumber(cells?.[1]);
+    } else if (field.type === "date") {
+      value = parseCalendarDate(cells?.[1]);
+    } else if (field.type === "boolean") {
+      if (raw === BOOLEAN_TRUE_LABEL) value = true;
+      else if (raw === BOOLEAN_FALSE_LABEL) value = false;
+    } else {
+      value = raw;
+    }
+    if (value === null) {
+      skippedRowCount++;
+      return;
+    }
+
+    seenKeys.add(key);
+    records.push({ key, value });
+  });
+
+  // ID列は書き出し時に必ずキーが入る(採番の概念が無い)ため、書き戻しは発生しない
+  return { records, idBackfills: [], skippedRowCount };
+}
+
 /** 1セル内の改行区切りを配列へ戻す。空行は落とす(wins/actions用) */
 function parseMultiline(cell: CellValue): string[] {
   return String(cell ?? "")
@@ -1148,6 +1207,7 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       habitRecordRows,
       adviceRows,
       monthlyAdviceRows,
+      settingsRows,
     ] = await Promise.all([
       readSheetRows(accessToken, spreadsheetId, WEIGHT_CONFIG),
       readSheetRows(accessToken, spreadsheetId, MEAL_CONFIG),
@@ -1166,6 +1226,7 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       // AIコメントの2タブも後付け(Issue #164)。同じく欠如を失敗にしない
       readSheetRowsIfPresent(accessToken, spreadsheetId, ADVICE_CONFIG),
       readSheetRowsIfPresent(accessToken, spreadsheetId, MONTHLY_ADVICE_CONFIG),
+      readSheetRowsIfPresent(accessToken, spreadsheetId, SETTINGS_CONFIG),
     ]);
 
     const nowIso = new Date().toISOString();
@@ -1183,6 +1244,7 @@ export async function handleImportSheets(env: Env): Promise<Response> {
     const habitRecordPlan = planHabitRecordImport(habitRecordRows);
     const advicePlan = planAdviceImport(adviceRows);
     const monthlyAdvicePlan = planMonthlyAdviceImport(monthlyAdviceRows);
+    const settingsPlan = planSettingsImport(settingsRows);
 
     // 書き戻しに失敗したら取り込み全体を失敗させる。IDがシートに無いままレコードだけ
     // クライアントへ返すと、以後の編集同期が既存行を見つけられず重複行を生むため
@@ -1215,6 +1277,7 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       bodyMeasurementRecords: bodyMeasurementPlan.records,
       habitMasterItems: habitMasterPlan.records,
       habitRecords: habitRecordPlan.records,
+      settingsEntries: settingsPlan.records,
       adviceRecords: advicePlan.records,
       monthlyAdviceRecords: monthlyAdvicePlan.records,
       skippedWeightRows: weightPlan.skippedRowCount,
@@ -1229,6 +1292,7 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       skippedBodyMeasurementRows: bodyMeasurementPlan.skippedRowCount,
       skippedHabitMasterRows: habitMasterPlan.skippedRowCount,
       skippedHabitRecordRows: habitRecordPlan.skippedRowCount,
+      skippedSettingsRows: settingsPlan.skippedRowCount,
       skippedAdviceRows: advicePlan.skippedRowCount,
       skippedMonthlyAdviceRows: monthlyAdvicePlan.skippedRowCount,
     } satisfies SheetsImportResultOutput);

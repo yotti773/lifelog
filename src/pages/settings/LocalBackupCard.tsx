@@ -113,7 +113,7 @@ export default function LocalBackupCard() {
         端末内データの書き出し・復元
       </Typography>
       <Typography sx={{ fontSize: 11, color: "text.secondary", lineHeight: 1.6, mb: "14px" }}>
-        シートに列を持たないデータ(設定、食事のAI推定値と写真)は、シートからの取り込みでは戻りません。機種変更・ブラウザデータの削除・アプリのURL変更の前に書き出しておいてください
+        記録・設定・AIコメントはシート同期で戻せます。シートから戻らないのは食事のAI推定値と写真参照だけなので、これは移行前の保険(断面のまるごと退避)です
       </Typography>
       <Typography sx={{ fontSize: 11, color: tokens.warnText, lineHeight: 1.6, mb: "14px" }}>
         書き出したファイルにはAPIトークンがそのまま入ります。共有ストレージには置かないでください

@@ -12,12 +12,13 @@ import { getUnsyncedFoodMasterItems, markFoodMasterItemsSynced } from "@/db/food
 import { getUnsyncedHabitMasterItems, markHabitMasterItemsSynced } from "@/db/habitMaster";
 import { getUnsyncedHabitRecords, markHabitRecordsSynced } from "@/db/habitRecords";
 import { getUnsyncedMealRecords, markMealRecordsSynced } from "@/db/mealRecords";
-import { updateSettings } from "@/db/settings";
+import { getUnsyncedSettings, markSettingsSynced, updateSettings } from "@/db/settings";
 import { clearDeletions, getPendingDeletionIds } from "@/db/syncDeletions";
 import { getUnsyncedWaterRecords, markWaterRecordsSynced } from "@/db/waterRecords";
 import { getUnsyncedWeightRecords, markWeightRecordsSynced } from "@/db/weightRecords";
 import { getUnsyncedWorkoutRecords, markWorkoutRecordsSynced } from "@/db/workoutRecords";
 import { notConfiguredTransport } from "./notConfiguredTransport";
+import { toSettingsEntries } from "./settingsSync";
 import type { SyncTransport } from "./types";
 
 export type SyncOutcome =
@@ -58,6 +59,7 @@ export async function runSync({
     unsyncedHabitRecords,
     unsyncedAdviceRecords,
     unsyncedMonthlyAdviceRecords,
+    unsyncedSettings,
     deletedWeightIds,
     deletedMealIds,
     deletedWaterIds,
@@ -83,6 +85,7 @@ export async function runSync({
     getUnsyncedHabitRecords(),
     getUnsyncedAdviceRecords(),
     getUnsyncedMonthlyAdviceRecords(),
+    getUnsyncedSettings(),
     getPendingDeletionIds("weight"),
     getPendingDeletionIds("meal"),
     getPendingDeletionIds("water"),
@@ -110,6 +113,7 @@ export async function runSync({
     unsyncedHabitRecords.length === 0 &&
     unsyncedAdviceRecords.length === 0 &&
     unsyncedMonthlyAdviceRecords.length === 0 &&
+    unsyncedSettings === null &&
     deletedWeightIds.length === 0 &&
     deletedMealIds.length === 0 &&
     deletedWaterIds.length === 0 &&
@@ -139,6 +143,7 @@ export async function runSync({
       habitMasterItems: unsyncedHabitMasterItems,
       habitRecords: unsyncedHabitRecords,
       // digestはシートに載せない。日記本文の送信がONの週は digest に本文が入りうるため落としてから送る
+      settingsEntries: unsyncedSettings ? toSettingsEntries(unsyncedSettings) : [],
       adviceRecords: unsyncedAdviceRecords.map(({ digest: _digest, ...rest }) => rest),
       monthlyAdviceRecords: unsyncedMonthlyAdviceRecords.map(({ digest: _digest, ...rest }) => rest),
       deletedWeightIds,
@@ -172,6 +177,7 @@ export async function runSync({
     // AIコメントも同様(Issue #164)
     const syncedAdviceWeekStarts = result.syncedAdviceWeekStarts ?? [];
     const syncedMonthlyAdviceMonths = result.syncedMonthlyAdviceMonths ?? [];
+    const syncedSettingsKeys = result.syncedSettingsKeys ?? [];
     const confirmedBloodPressureDeletions = result.deletedBloodPressureIds ?? [];
     const confirmedBodyMeasurementDeletions = result.deletedBodyMeasurementIds ?? [];
     const confirmedHabitMasterDeletions = result.deletedHabitMasterIds ?? [];
@@ -207,6 +213,7 @@ export async function runSync({
       syncedMonthlyAdviceMonths.length > 0
         ? markMonthlyAdviceRecordsSynced(syncedMonthlyAdviceMonths)
         : Promise.resolve(),
+      syncedSettingsKeys.length > 0 ? markSettingsSynced() : Promise.resolve(),
       clearDeletions("weight", confirmedWeightDeletions),
       clearDeletions("meal", confirmedMealDeletions),
       clearDeletions("water", confirmedWaterDeletions),
@@ -237,6 +244,7 @@ export async function runSync({
         syncedHabitRecordIds.length +
         syncedAdviceWeekStarts.length +
         syncedMonthlyAdviceMonths.length +
+        syncedSettingsKeys.length +
         confirmedWeightDeletions.length +
         confirmedMealDeletions.length +
         confirmedWaterDeletions.length +

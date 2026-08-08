@@ -71,6 +71,12 @@ interface ExerciseMasterItemInput {
 }
 
 /** 週次AIコメント(Issue #164)。シートに載せるのはadviceだけで、digestは送らない */
+/** 設定の1項目(Issue #164)。クライアント側で文字列化済みの値を受け取る */
+interface SettingsEntryInput {
+  key: string;
+  value: string;
+}
+
 interface AdviceRecordInput {
   weekStart: string;
   createdAt: string;
@@ -128,6 +134,7 @@ interface SyncPushPayloadInput {
   diaryRecords?: DiaryRecordInput[];
   foodMasterItems?: FoodMasterItemInput[];
   exerciseMasterItems?: ExerciseMasterItemInput[];
+  settingsEntries?: SettingsEntryInput[];
   adviceRecords?: AdviceRecordInput[];
   monthlyAdviceRecords?: MonthlyAdviceRecordInput[];
   bloodPressureRecords?: BloodPressureRecordInput[];
@@ -155,6 +162,7 @@ interface SyncPushResultOutput {
   syncedDiaryDates: string[];
   syncedFoodMasterIds: string[];
   syncedExerciseMasterIds: string[];
+  syncedSettingsKeys: string[];
   syncedAdviceWeekStarts: string[];
   syncedMonthlyAdviceMonths: string[];
   syncedBloodPressureDates: string[];
@@ -201,6 +209,8 @@ export const HABIT_MASTER_CONFIG: SheetConfig = { name: "習慣マスタ", idCol
 export const HABIT_RECORD_CONFIG: SheetConfig = { name: "習慣記録", idColumnLetter: "E" };
 // AIコメントの2タブも後付け(Issue #164)。ID列は週次=週開始日・月次=月そのもの(体重記録が日付をIDにしているのと同じ)
 export const ADVICE_CONFIG: SheetConfig = { name: "週次AIコメント", idColumnLetter: "G" };
+// 設定(Issue #164)。1設定=1行の key-value 形式にして、設定項目が増えても列構成を変えずに済ませる
+export const SETTINGS_CONFIG: SheetConfig = { name: "設定", idColumnLetter: "C" };
 export const MONTHLY_ADVICE_CONFIG: SheetConfig = { name: "月次AIコメント", idColumnLetter: "G" };
 
 // マスタ系タブは記録系と違い後付けのため(Issue #96)、既存スプレッドシートには存在しない。
@@ -212,6 +222,37 @@ export const BODY_MEASUREMENT_HEADER = ["日付", "腹囲(cm)", "胸囲(cm)", "�
 export const HABIT_MASTER_HEADER = ["習慣名", "目標頻度(週)", "アーカイブ", "並び順", "登録日時", "ID"];
 export const HABIT_RECORD_HEADER = ["日付", "習慣名", "習慣ID", "記録日時", "ID"];
 export const ADVICE_HEADER = ["週開始日", "判定", "総評", "良かった点", "来週のアクション", "生成日時", "ID"];
+export const SETTINGS_HEADER = ["項目", "値", "ID"];
+
+/**
+ * シート同期する設定項目(Issue #164)。ID列にはこのkeyをそのまま書く。
+ *
+ * **`apiToken` は載せない。** 取り込みAPIの呼び出し自体に `Authorization: Bearer` としてこの値が要るため、
+ * 入力済みでなければ取り込みが始まらない=シートからは原理的に復元できない。認証情報をシートに置かない
+ * という判断(#164の論点)とも一致する。
+ * **`lastSyncedAt` も載せない。** 端末ごとの同期状態であって利用者の設定ではない。
+ *
+ * 値の書き方は Sheets の USER_ENTERED による解釈し直しを避ける形にそろえる:
+ * 日付は「2026年10月31日」、真偽は「はい/いいえ」。数値はそのまま書いてよい。
+ */
+export const SETTINGS_FIELDS: { key: string; label: string; type: "number" | "date" | "text" | "boolean" }[] = [
+  { key: "goalWeightKg", label: "目標体重(kg)", type: "number" },
+  { key: "goalDate", label: "目標日", type: "date" },
+  { key: "baselineDate", label: "進捗バーの起点日", type: "date" },
+  { key: "dailyCalorieTarget", label: "目標カロリー(kcal)", type: "number" },
+  { key: "dailyWaterTargetMl", label: "目標水分量(ml)", type: "number" },
+  { key: "dailyProteinTargetG", label: "目標たんぱく質(g)", type: "number" },
+  { key: "dailyFatTargetG", label: "目標脂質(g)", type: "number" },
+  { key: "dailyCarbsTargetG", label: "目標炭水化物(g)", type: "number" },
+  { key: "heightCm", label: "身長(cm)", type: "number" },
+  { key: "birthYear", label: "生年", type: "number" },
+  { key: "sex", label: "性別", type: "text" },
+  { key: "activityLevel", label: "活動係数", type: "number" },
+  { key: "sendDiaryTextToAi", label: "日記本文をAIに送る", type: "boolean" },
+];
+
+export const BOOLEAN_TRUE_LABEL = "はい";
+export const BOOLEAN_FALSE_LABEL = "いいえ";
 export const MONTHLY_ADVICE_HEADER = ["月", "判定", "総評", "良かった変化", "来月の重点", "生成日時", "ID"];
 
 /**
@@ -330,6 +371,11 @@ function exerciseMasterItemToRow(r: ExerciseMasterItemInput): (string | number)[
 }
 
 // wins/actionsは配列。1セル内改行で並べると、シート上でも1行=1項目として読める
+function settingsEntryToRow(e: SettingsEntryInput): (string | number)[] {
+  const field = SETTINGS_FIELDS.find((f) => f.key === e.key);
+  return [field?.label ?? e.key, e.value, e.key];
+}
+
 function adviceRecordToRow(r: AdviceRecordInput): (string | number)[] {
   return [
     formatCalendarDate(r.weekStart),
@@ -669,6 +715,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   const diaryRecords = payload.diaryRecords ?? [];
   const foodMasterItems = payload.foodMasterItems ?? [];
   const exerciseMasterItems = payload.exerciseMasterItems ?? [];
+  const settingsEntries = payload.settingsEntries ?? [];
   const adviceRecords = payload.adviceRecords ?? [];
   const monthlyAdviceRecords = payload.monthlyAdviceRecords ?? [];
   const bloodPressureRecords = payload.bloodPressureRecords ?? [];
@@ -710,6 +757,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     habitRecordResult,
     adviceResult,
     monthlyAdviceResult,
+    settingsResult,
   ] = await Promise.allSettled([
     syncOneSheet(
       accessToken,
@@ -811,6 +859,15 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       [],
       MONTHLY_ADVICE_HEADER,
     ),
+    // 設定も削除の概念が無いので削除IDは常に空
+    syncOneSheet(
+      accessToken,
+      spreadsheetId,
+      SETTINGS_CONFIG,
+      settingsEntries.map((e) => ({ id: e.key, cells: settingsEntryToRow(e) })),
+      [],
+      SETTINGS_HEADER,
+    ),
   ]);
 
   const syncedWeightDates = weightResult.status === "fulfilled" ? weightResult.value.syncedIds : [];
@@ -851,6 +908,8 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       ? monthlyAdviceResult.value.syncedIds.map((id) => id.slice(0, 7))
       : [];
 
+  const syncedSettingsKeys = settingsResult.status === "fulfilled" ? settingsResult.value.syncedIds : [];
+
   if (weightResult.status === "rejected") console.error("体重記録の同期に失敗:", weightResult.reason);
   if (mealResult.status === "rejected") console.error("食事記録の同期に失敗:", mealResult.reason);
   if (waterResult.status === "rejected") console.error("水分記録の同期に失敗:", waterResult.reason);
@@ -866,6 +925,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   if (adviceResult.status === "rejected") console.error("週次AIコメントの同期に失敗:", adviceResult.reason);
   if (monthlyAdviceResult.status === "rejected")
     console.error("月次AIコメントの同期に失敗:", monthlyAdviceResult.reason);
+  if (settingsResult.status === "rejected") console.error("設定の同期に失敗:", settingsResult.reason);
 
   const attempted =
     weightRecords.length +
@@ -881,6 +941,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       habitRecords.length +
       adviceRecords.length +
       monthlyAdviceRecords.length +
+      settingsEntries.length +
       deletedWeightIds.length +
       deletedMealIds.length +
       deletedWaterIds.length +
@@ -917,7 +978,8 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       syncedHabitRecordIds.length +
       deletedHabitRecordIdsOut.length +
       syncedAdviceWeekStarts.length +
-      syncedMonthlyAdviceMonths.length ===
+      syncedMonthlyAdviceMonths.length +
+      syncedSettingsKeys.length ===
     0;
   const results = [
     weightResult,
@@ -933,6 +995,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     habitRecordResult,
     adviceResult,
     monthlyAdviceResult,
+    settingsResult,
   ];
   const anyFailure = results.some((r) => r.status === "rejected");
 
@@ -957,6 +1020,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     syncedHabitRecordIds,
     syncedAdviceWeekStarts,
     syncedMonthlyAdviceMonths,
+    syncedSettingsKeys,
     deletedWeightIds: deletedWeightIdsOut,
     deletedMealIds: deletedMealIdsOut,
     deletedWaterIds: deletedWaterIdsOut,

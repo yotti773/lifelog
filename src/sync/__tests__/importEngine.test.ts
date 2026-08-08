@@ -59,6 +59,7 @@ const successOutcome = (overrides: {
   importedBodyMeasurementCount?: number;
   importedHabitMasterCount?: number;
   importedHabitRecordCount?: number;
+  importedSettingsCount?: number;
   importedAdviceCount?: number;
   importedMonthlyAdviceCount?: number;
   skippedExistingCount?: number;
@@ -77,6 +78,7 @@ const successOutcome = (overrides: {
   importedBodyMeasurementCount: 0,
   importedHabitMasterCount: 0,
   importedHabitRecordCount: 0,
+  importedSettingsCount: 0,
   importedAdviceCount: 0,
   importedMonthlyAdviceCount: 0,
   skippedExistingCount: 0,

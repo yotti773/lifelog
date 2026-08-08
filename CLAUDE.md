@@ -65,7 +65,9 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 
 **AIコメントの同期(Issue #164):** 週次・月次のAIコメント(`adviceRecords`/`monthlyAdviceRecords`)は**スプレッドシート同期の対象**。生成が非決定的で再生成しても同じものが出ず、失うと復旧手段が無い唯一のデータのため。**シートに載せるのは `advice`(判定・総評・良かった点・アクション)だけで、`digest` は載せない** — digestはレコードから再計算でき(`getWeeklyDigest()`)、実際に画面のどこからも参照されていないため。`AdviceRecord.digest` が任意になっているのはこのため(シート由来のレコードでは未設定)。判定は日本語ラベル(順調/やや遅れ/遅れ/要注意)でシートに書き、取り込み時に `VERDICT_FROM_LABEL` で逆引きする。削除UIが無いため削除トゥームストーンの仕組みには乗せていない。
 
-**完全バックアップ(`src/db/backup.ts`、Issue #164):** 上記でAIコメントは同期されるようになったため、**シート同期で戻せないのは設定(`Settings`)と食事のAI推定値・写真参照だけ**になった。これを埋めるのが設定画面の「完全バックアップ(ファイル)」で、`syncDeletions` を除く全テーブルを1つのJSONに書き出し、全削除+書き戻しで復元する。**`BACKUP_TABLES` に新しいテーブルを足し忘れると `backup.test.ts` が落ちる**(`db.tables` と突き合わせている) — フェーズ1時代の実装が3テーブルのまま腐っていた実績があるため、この番人を外さないこと。復元は必ず `parseBackupData()` の検証を通してから行う(旧実装は壊れたファイルでも `clear()` してしまう作りだった)。**IndexedDBはオリジン単位なので、配信URLを変えるときも退避が必要**(同じブラウザでもデータは引き継がれない)。
+**設定の同期(Issue #164):** 設定(`Settings`)もシート同期の対象で、1設定=1行の key-value 形式で「設定」タブに書く(`src/sync/settingsSync.ts` の `SETTINGS_SYNC_FIELDS` と `worker/sheetsSync.ts` の `SETTINGS_FIELDS` を**手で同期させること** — worker側は src/ に依存しない独立ビルドのため共有できない)。**`apiToken` は載せない** — 取り込みAPIの呼び出し自体に `Authorization: Bearer` としてこの値が要るため、シートからは原理的に復元できない。`lastSyncedAt` も端末固有なので載せない。`SettingsRow.synced` で差分同期し、**`lastSyncedAt` だけの更新では未同期に戻さない**(同期完了のたびに書くため、戻すと永久に同期待ちになる)。
+
+**完全バックアップ(`src/db/backup.ts`、Issue #164):** 上記でAIコメントと設定は同期されるようになったため、**シート同期で戻せないのは食事のAI推定値・写真参照と`apiToken`だけ**になった。これを埋めるのが設定画面の「完全バックアップ(ファイル)」で、`syncDeletions` を除く全テーブルを1つのJSONに書き出し、全削除+書き戻しで復元する。**`BACKUP_TABLES` に新しいテーブルを足し忘れると `backup.test.ts` が落ちる**(`db.tables` と突き合わせている) — フェーズ1時代の実装が3テーブルのまま腐っていた実績があるため、この番人を外さないこと。復元は必ず `parseBackupData()` の検証を通してから行う(旧実装は壊れたファイルでも `clear()` してしまう作りだった)。**IndexedDBはオリジン単位なので、配信URLを変えるときも退避が必要**(同じブラウザでもデータは引き継がれない)。
 
 テストは `fake-indexeddb/auto`(`src/db/__tests__/setup.ts` を参照。`vitest.config.ts` の `setupFiles` で組み込まれている)を使っており、データ層全体をブラウザ無しでNode上でテストしている。`beforeEach` で各テーブルを直接クリアする(`db.weightRecords.clear()` など)— 共通のテストDBリセットヘルパーは無く、各テストファイルが自分の使うテーブルをクリアする。
 

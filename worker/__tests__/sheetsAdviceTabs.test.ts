@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { planAdviceImport, planMonthlyAdviceImport } from "../sheetsImport";
+import { planAdviceImport, planMonthlyAdviceImport, planSettingsImport } from "../sheetsImport";
 import {
   ADVICE_HEADER,
   MONTHLY_ADVICE_HEADER,
   monthToSheetId,
+  SETTINGS_FIELDS,
+  SETTINGS_HEADER,
   monthToSheetLabel,
   VERDICT_FROM_LABEL,
   VERDICT_LABELS,
@@ -140,5 +142,69 @@ describe("planMonthlyAdviceImport", () => {
     const rows = [MONTHLY_ADVICE_HEADER, ["2026年07月", "順調", "総評", "", "", "", "2026-07-01"]];
     const plan = planMonthlyAdviceImport(rows);
     expect(plan.records[0].createdAt).toBe("2026-06-30T15:00:00.000Z");
+  });
+});
+
+describe("planSettingsImport", () => {
+  it("ID列のキーで項目を特定し、型に沿って値を復元する", () => {
+    const rows = [
+      SETTINGS_HEADER,
+      ["目標体重(kg)", "64", "goalWeightKg"],
+      ["目標日", "2026年10月31日", "goalDate"],
+      ["性別", "male", "sex"],
+      ["日記本文をAIに送る", "はい", "sendDiaryTextToAi"],
+    ];
+
+    const plan = planSettingsImport(rows);
+
+    expect(plan.records).toEqual([
+      { key: "goalWeightKg", value: 64 },
+      { key: "goalDate", value: "2026-10-31" },
+      { key: "sex", value: "male" },
+      { key: "sendDiaryTextToAi", value: true },
+    ]);
+    // ID列は書き出し時に必ずキーが入るため採番は発生しない
+    expect(plan.idBackfills).toEqual([]);
+    expect(plan.skippedRowCount).toBe(0);
+  });
+
+  it("「いいえ」はfalseとして復元する(未設定と区別する)", () => {
+    const rows = [SETTINGS_HEADER, ["日記本文をAIに送る", "いいえ", "sendDiaryTextToAi"]];
+    expect(planSettingsImport(rows).records).toEqual([{ key: "sendDiaryTextToAi", value: false }]);
+  });
+
+  it("未知のキー・空値の行はスキップする", () => {
+    const rows = [
+      SETTINGS_HEADER,
+      ["知らない項目", "1", "unknownKey"],
+      ["目標体重(kg)", "", "goalWeightKg"],
+    ];
+    const plan = planSettingsImport(rows);
+    expect(plan.records).toEqual([]);
+    expect(plan.skippedRowCount).toBe(2);
+  });
+
+  it("apiToken・lastSyncedAtは対象外なので取り込まない", () => {
+    // シートに書かれていても復元しない(認証情報・端末ごとの同期状態のため)
+    const rows = [
+      SETTINGS_HEADER,
+      ["APIトークン", "secret-value", "apiToken"],
+      ["最終同期日時", "2026年08月08日 10:00", "lastSyncedAt"],
+    ];
+    const plan = planSettingsImport(rows);
+    expect(plan.records).toEqual([]);
+    expect(SETTINGS_FIELDS.map((f) => f.key)).not.toContain("apiToken");
+    expect(SETTINGS_FIELDS.map((f) => f.key)).not.toContain("lastSyncedAt");
+  });
+
+  it("同じキーの2行目以降は重複としてスキップする", () => {
+    const rows = [
+      SETTINGS_HEADER,
+      ["目標体重(kg)", "64", "goalWeightKg"],
+      ["目標体重(kg)", "70", "goalWeightKg"],
+    ];
+    const plan = planSettingsImport(rows);
+    expect(plan.records).toEqual([{ key: "goalWeightKg", value: 64 }]);
+    expect(plan.skippedRowCount).toBe(1);
   });
 });

@@ -34,7 +34,11 @@ export default function HomePage() {
   const settings = useLiveQuery(() => getSettings(), []);
 
   useEffect(() => {
-    if (settings !== undefined && (settings.goalWeightKg === undefined || settings.goalDate === undefined || settings.dailyCalorieTarget === undefined)) {
+    if (
+      settings !== undefined &&
+      !settings.initialSetupSkipped &&
+      (settings.goalWeightKg === undefined || settings.goalDate === undefined || settings.dailyCalorieTarget === undefined)
+    ) {
       navigate("/setup");
     }
   }, [settings, navigate]);

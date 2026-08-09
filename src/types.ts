@@ -243,6 +243,13 @@ export interface Settings {
    * デフォルト(undefined)はOFF = 本文は外部AIに送らず気分タグの件数集計のみ(AIコンサルティング設計書7章)
    */
   sendDiaryTextToAi?: boolean;
+
+  /**
+   * 初回セットアップをスキップしたかどうかのフラグ(Issue #217)。
+   * true の場合、目標値が未設定でも /setup へリダイレクトしない。
+   * 既存ユーザーの移行パターン対応用。
+   */
+  initialSetupSkipped?: boolean;
 }
 
 // --- フェーズ3: 週次レビュー・AIコーチング(Issue #45・#12。AIコンサルティング設計書3〜4章) ---

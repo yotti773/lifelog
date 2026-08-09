@@ -16,7 +16,7 @@ import {
   IconSun,
 } from "@/components/icons";
 import { db } from "@/db/db";
-import { getSettings } from "@/db/settings";
+import { getSettings, updateSettings } from "@/db/settings";
 import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { tokens } from "@/theme";
 import SettingRow, { SectionLabel } from "./settings/SettingRow";
@@ -77,6 +77,11 @@ export default function InitialSetupPage() {
 
   const handleEditorClose = () => {
     setEditTarget(null);
+  };
+
+  const handleSkip = async () => {
+    await updateSettings({ initialSetupSkipped: true });
+    navigate("/");
   };
 
   return (
@@ -196,7 +201,7 @@ export default function InitialSetupPage() {
         <Button
           variant="outlined"
           size="large"
-          onClick={() => navigate("/")}
+          onClick={handleSkip}
         >
           スキップして始める
         </Button>

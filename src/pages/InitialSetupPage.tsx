@@ -1,135 +1,107 @@
 import { useEffect, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Container from "@mui/material/Container";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
-import Alert from "@mui/material/Alert";
-import { getSettings, updateSettings } from "@/db/settings";
+import {
+  IconCalendar,
+  IconClock,
+  IconSun,
+} from "@/components/icons";
+import { db } from "@/db/db";
+import { getSettings } from "@/db/settings";
+import { tokens } from "@/theme";
+import SettingRow, { SectionLabel } from "./settings/SettingRow";
+import ValueEditorDrawer, { type EditTarget } from "./settings/ValueEditorDrawer";
+
+/** YYYY-MM-DD を 2026/10/31 形式で表示する */
+function formatSlashDate(date: string): string {
+  const [y, m, d] = date.split("-");
+  return `${y}/${Number(m)}/${Number(d)}`;
+}
 
 export default function InitialSetupPage() {
   const navigate = useNavigate();
-  const [goalWeightKg, setGoalWeightKg] = useState("");
-  const [goalDate, setGoalDate] = useState("");
-  const [dailyCalorieTarget, setDailyCalorieTarget] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const settings = useLiveQuery(() => getSettings(), []);
+  const latestWeightRecord = useLiveQuery(
+    () => db.weightRecords.orderBy("date").last().then((v) => v ?? null),
+    [],
+  );
+
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
 
   useEffect(() => {
-    const checkExistingSettings = async () => {
-      const settings = await getSettings();
-      if (settings.goalWeightKg !== undefined && settings.goalDate !== undefined && settings.dailyCalorieTarget !== undefined) {
-        navigate("/");
-      }
-      setIsLoading(false);
-    };
-    void checkExistingSettings();
-  }, [navigate]);
-
-  const handleSave = async () => {
-    setError("");
-
-    if (!goalWeightKg.trim() || !goalDate.trim() || !dailyCalorieTarget.trim()) {
-      setError("すべての項目を入力してください");
-      return;
-    }
-
-    const weight = parseFloat(goalWeightKg);
-    const calories = parseInt(dailyCalorieTarget, 10);
-
-    if (isNaN(weight) || weight <= 0) {
-      setError("目標体重は正の数値を入力してください");
-      return;
-    }
-
-    if (!goalDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      setError("目標日はYYYY-MM-DD形式で入力してください");
-      return;
-    }
-
-    if (isNaN(calories) || calories <= 0) {
-      setError("目標カロリーは正の整数を入力してください");
-      return;
-    }
-
-    try {
-      await updateSettings({
-        goalWeightKg: weight,
-        goalDate,
-        dailyCalorieTarget: calories,
-      });
+    if (settings !== undefined && settings.goalWeightKg !== undefined && settings.goalDate !== undefined && settings.dailyCalorieTarget !== undefined) {
       navigate("/");
-    } catch (err) {
-      setError(`保存に失敗しました: ${err instanceof Error ? err.message : "不明なエラー"}`);
     }
-  };
+  }, [settings, navigate]);
 
-  if (isLoading) {
-    return null;
+  if (settings === undefined) {
+    return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
   }
 
+  const handleEditorClose = () => {
+    setEditTarget(null);
+  };
+
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "background.default", display: "flex", alignItems: "center" }}>
-      <Container maxWidth="sm">
-        <Stack spacing={3} sx={{ py: 4 }}>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 600, mb: 1 }}>
-              目標を設定しましょう
-            </Typography>
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              減量目標と日々の目標カロリーを入力してください。後から変更できます。
-            </Typography>
-          </Box>
+    <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "80px" }}>
+      <Box sx={{ mb: "28px" }}>
+        <Typography sx={{ fontWeight: 600, fontSize: 18, mb: "8px" }}>
+          目標を設定しましょう
+        </Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary", lineHeight: 1.6 }}>
+          減量目標と日々の目標カロリーを入力してください。後から変更できます。
+        </Typography>
+      </Box>
 
-          {error && <Alert severity="error">{error}</Alert>}
+      <SectionLabel>目標</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "18px" }}>
+        <SettingRow
+          icon={<IconClock />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label="目標体重"
+          value={settings.goalWeightKg !== undefined ? `${settings.goalWeightKg.toFixed(1)} kg` : "未設定"}
+          divider
+          onClick={() => setEditTarget("weight")}
+        />
+        <SettingRow
+          icon={<IconCalendar />}
+          iconBg={tokens.primarySoft}
+          iconColor="#FF6B4A"
+          label="目標日"
+          value={settings.goalDate !== undefined ? formatSlashDate(settings.goalDate) : "未設定"}
+          divider
+          onClick={() => setEditTarget("goalDate")}
+        />
+        <SettingRow
+          icon={<IconSun />}
+          iconBg={tokens.warnBg}
+          iconColor={tokens.warnIcon}
+          label="1日の目標カロリー"
+          value={settings.dailyCalorieTarget !== undefined ? `${settings.dailyCalorieTarget.toLocaleString()} kcal` : "未設定"}
+          onClick={() => setEditTarget("calories")}
+        />
+      </Card>
 
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
-                目標体重(kg)
-              </Typography>
-              <TextField
-                fullWidth
-                type="number"
-                placeholder="例: 64.5"
-                value={goalWeightKg}
-                onChange={(e) => setGoalWeightKg(e.target.value)}
-              />
-            </Box>
-
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
-                目標達成日(YYYY-MM-DD)
-              </Typography>
-              <TextField
-                fullWidth
-                type="date"
-                value={goalDate}
-                onChange={(e) => setGoalDate(e.target.value)}
-              />
-            </Box>
-
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
-                日々の目標カロリー(kcal)
-              </Typography>
-              <TextField
-                fullWidth
-                type="number"
-                placeholder="例: 1900"
-                value={dailyCalorieTarget}
-                onChange={(e) => setDailyCalorieTarget(e.target.value)}
-              />
-            </Box>
-          </Stack>
-
-          <Button variant="contained" size="large" onClick={handleSave} sx={{ mt: 2 }}>
-            設定する
+      {settings.goalWeightKg !== undefined && settings.goalDate !== undefined && settings.dailyCalorieTarget !== undefined && (
+        <Box sx={{ textAlign: "center" }}>
+          <Button variant="contained" size="large" onClick={() => navigate("/")} sx={{ minWidth: 200 }}>
+            はじめる
           </Button>
-        </Stack>
-      </Container>
+        </Box>
+      )}
+
+      <ValueEditorDrawer
+        target={editTarget}
+        settings={settings}
+        latestWeightRecord={latestWeightRecord}
+        onClose={handleEditorClose}
+        onCalorieTargetChanged={() => {}}
+      />
     </Box>
   );
 }

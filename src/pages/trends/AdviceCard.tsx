@@ -4,6 +4,7 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
+import { isApiConnectionError } from "@/api/request";
 import { IconCheck, IconSparkle, IconWarning } from "@/components/icons";
 import { formatDateTime } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
@@ -16,6 +17,12 @@ const VERDICT_STYLES: Record<WeeklyAdvice["verdict"], { label: string; color: st
   behind: { label: "遅れ気味", color: tokens.errorText, bg: tokens.errorBg },
   needs_attention: { label: "要注意", color: tokens.errorText, bg: tokens.errorBg },
 };
+
+/** selfContained=true のメッセージは、それ自体で原因と対処が分かるためカード側で言い回しを足さない */
+interface AdviceError {
+  message: string;
+  selfContained: boolean;
+}
 
 interface AdviceCardProps {
   title: string;
@@ -44,11 +51,11 @@ export default function AdviceCard({
   generate,
 }: AdviceCardProps) {
   const [isGenerating, setGenerating] = useState(false);
-  const [adviceError, setAdviceError] = useState<string | null>(null);
+  const [adviceError, setAdviceError] = useState<AdviceError | null>(null);
 
   const handleGenerateAdvice = async () => {
     if (!navigator.onLine) {
-      setAdviceError("オフラインのため生成できません");
+      setAdviceError({ message: "オフラインのため生成できません", selfContained: true });
       return;
     }
     setGenerating(true);
@@ -56,7 +63,11 @@ export default function AdviceCard({
     try {
       await generate();
     } catch (error) {
-      setAdviceError(error instanceof Error ? error.message : "生成に失敗しました");
+      setAdviceError({
+        message: error instanceof Error ? error.message : "生成に失敗しました",
+        // 接続できなかった場合は原因も対処もメッセージ側に書いてあるので、そのまま出す(Issue #204)
+        selfContained: isApiConnectionError(error),
+      });
     } finally {
       setGenerating(false);
     }
@@ -177,7 +188,9 @@ export default function AdviceCard({
             <IconWarning size={13} />
           </Box>
           <Typography sx={{ fontSize: 11, fontWeight: 500, color: tokens.errorText, lineHeight: 1.5 }}>
-            生成に失敗しました({adviceError})。時間をおいて再試行してください
+            {adviceError.selfContained
+              ? adviceError.message
+              : `生成に失敗しました(${adviceError.message})。時間をおいて再試行してください`}
           </Typography>
         </Box>
       )}

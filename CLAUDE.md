@@ -127,7 +127,9 @@ UIはMUIで、`src/theme.ts` がデザインガイドのパレットをMUIテー
 
 ### PWA
 
-`vite-plugin-pwa`(`vite.config.ts` を参照)がビルド時にマニフェストとService Workerを生成する — アイコン以外、手作業でメンテナンスするものはない。
+`vite-plugin-pwa`(`vite.config.ts` を参照)がビルド時にマニフェストとService Workerを生成する — アイコン以外、手作業でメンテナンスするものはない。生成されるSWは precache と NavigationRoute だけを持ち、**`/api/*` の呼び出しは横取りしない**(APIの通信失敗はSWの仕業ではなく本物のネットワーク失敗、という切り分けの前提になる)。
+
+**SWが壊れた場合の復旧経路は設定画面の「アプリのリセット」(`src/lib/appReset.ts`、Issue #203)。** SW登録解除とCache Storage削除だけを行い、**IndexedDBには触れない** — PWAのアンインストールはストレージごと消えることがあり、記録が全てIndexedDBにある本アプリでは危険なため、再インストールに頼らずに復旧できる経路として用意してある。ここでIndexedDBも消すように「整理」しないこと。
 
 アイコンの正はベクター素材の `docs/icon/icon_master.svg`(1024px、クリーム `#FFF8F0` の角丸背景 + プライマリ `#FF6B4A` のマーク)で、`public/icons/` のPNG(`icon-192` / `icon-512` / `icon-512-maskable` / `apple-touch-icon`)はそこから書き出したもの。PNGを直接編集せず、マスターSVGを直してから書き出し直すこと。`icon-512-maskable` と `apple-touch-icon` は、OS側が独自にマスクをかけるため**角丸を付けず全面をクリームで塗り**、maskableはさらに中央80%のセーフゾーンに収まるようマークを縮小してある。`public/icons/icon.svg` はマスターSVGのコピーで、ファビコン(`index.html` の `rel="icon"`)として使っている。
 

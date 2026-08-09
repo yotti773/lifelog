@@ -78,6 +78,35 @@ verdictは次の規則で機械的に選ぶ(上から順に最初に当てはま
 - wins: 続けるべき良かった点(1〜2個)。入力データの裏付けがある事実だけを挙げる
 - actions: 来週の具体的行動(1〜3個)。できるだけ測定可能な形で書く(例: 「たんぱく質を毎日130g以上とる」)`;
 
+/**
+ * Gemini APIがエラーステータスを返したことを表すエラー(Issue #205)。
+ * リトライすべきか(5xx=一時的)、諦めるべきか(4xx=キー・モデル名・リクエストの誤り)の判断に使う。
+ */
+export class GeminiHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "GeminiHttpError";
+  }
+}
+
+/**
+ * リトライして意味がある失敗かを判定する(Issue #205)。
+ *
+ * 再試行するのは一時的な失敗だけ: 5xx(過負荷)・429(レート制限)・408(タイムアウト)と、
+ * スキーマ検証落ち(生成のブレ)。それ以外の4xxはAPIキー不正・モデル名不正・リクエスト不正の
+ * いずれかで、投げ直しても同じ結果になるうえ待ち時間だけが倍になるため再試行しない。
+ */
+export function isRetryableAdviceError(error: unknown): boolean {
+  if (error instanceof GeminiHttpError) {
+    // 429 RESOURCE_EXHAUSTED は瞬間的なレート超過で、1回待って投げ直せば通ることが多い
+    return error.status >= 500 || error.status === 429 || error.status === 408;
+  }
+  return true;
+}
+
 /** GeminiのJSONテキストを検証してWeeklyAdviceに変換する。検証を通らなければthrow(呼び出し側で1回リトライ) */
 export function parseWeeklyAdvice(text: string): WeeklyAdvice {
   const invalid = () => new Error("AIコメントの形式が不正でした。もう一度お試しください");
@@ -136,7 +165,7 @@ async function callGeminiOnce(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini APIエラー (${res.status}): ${errText}`);
+    throw new GeminiHttpError(res.status, `Gemini APIエラー (${res.status}): ${errText}`);
   }
 
   const data = (await res.json()) as {
@@ -149,7 +178,10 @@ async function callGeminiOnce(
   return parseWeeklyAdvice(text);
 }
 
-/** コメントを生成する。失敗(APIエラー・スキーマ検証落ち)は1回だけリトライする(設計書4章) */
+/**
+ * コメントを生成する。一時的な失敗(5xx・スキーマ検証落ち)は1回だけリトライする(設計書4章)。
+ * 4xxはリトライせず即座に返す(Issue #205)。
+ */
 export async function generateWeeklyAdvice(
   env: WeeklyAdviceEnv,
   digest: object,
@@ -158,7 +190,8 @@ export async function generateWeeklyAdvice(
   const digestJson = JSON.stringify(digest);
   try {
     return await callGeminiOnce(env, digestJson, fetchImpl);
-  } catch {
+  } catch (error) {
+    if (!isRetryableAdviceError(error)) throw error;
     return callGeminiOnce(env, digestJson, fetchImpl);
   }
 }

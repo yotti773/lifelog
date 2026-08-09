@@ -87,6 +87,14 @@ describe("generateMonthlyAdvice", () => {
     expect(advice).toEqual(VALID_ADVICE);
     expect(calls).toHaveLength(2);
   });
+
+  it("4xxはリトライせず即座に返す(週次と同じ。Issue #205)", async () => {
+    const { fetchImpl, calls } = stubFetch([new Response("bad request", { status: 400 })]);
+    await expect(generateMonthlyAdvice(ENV, digestOnTrack, fetchImpl)).rejects.toThrow(
+      "Gemini APIエラー (400)",
+    );
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe("handleMonthlyAdvice", () => {

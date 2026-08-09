@@ -218,9 +218,9 @@ export interface SyncDeletion {
 export type Sex = "male" | "female";
 
 export interface Settings {
-  goalWeightKg: number;
-  goalDate: string; // ISO8601 date
-  dailyCalorieTarget: number;
+  goalWeightKg?: number; // 減量の目標体重(kg)。未設定時は目標差分・必要ペースを表示しない
+  goalDate?: string; // YYYY-MM-DD, 目標到達日。未設定時は進捗判定に使わない
+  dailyCalorieTarget?: number; // 1日の目標摂取カロリー(kcal)。未設定時はホーム・食事記録画面で目標差分を表示しない
   dailyWaterTargetMl?: number; // 1日の目標水分摂取量(ml)。未設定時はホーム・水分記録画面で合計mlのみ表示する(画面設計書5章)
   lastSyncedAt?: string; // ISO8601, 最終同期日時
   apiToken?: string; // Worker API(/api/*)の共有トークン(Issue #87)。WorkerのAPI_AUTH_TOKENと同じ値を設定する
@@ -274,9 +274,9 @@ export type MonthlyDigestFlag = Exclude<DigestFlag, "ACTIVITY_DROP" | "WORKOUT_S
 export interface WeeklyDigest {
   period: { start: string; end: string }; // 対象週(月曜〜日曜、YYYY-MM-DD)
   goal: {
-    targetWeightKg: number;
-    targetDate: string; // YYYY-MM-DD
-    remainingDays: number; // 今日から目標日までの残り日数(過ぎていれば0)
+    targetWeightKg: number; // 減量目標。未設定時はダミー値(0)が入る
+    targetDate: string; // YYYY-MM-DD。未設定時はダミー値("1900-01-01")が入る
+    remainingDays: number; // 今日から目標日までの残り日数(過ぎていれば0。目標未設定なら0)
   };
   weight: {
     weekAvgKg: number | null; // 週平均体重(記録が無い週はnull)
@@ -418,9 +418,9 @@ export interface MonthlyDigest {
   month: string; // YYYY-MM
   period: { start: string; end: string }; // 最初の週の月曜〜最後の週の日曜
   goal: {
-    targetWeightKg: number;
-    targetDate: string; // YYYY-MM-DD
-    remainingDays: number; // 今日から目標日までの残り日数(過ぎていれば0)
+    targetWeightKg: number; // 減量目標。未設定時はダミー値(0)が入る
+    targetDate: string; // YYYY-MM-DD。未設定時はダミー値("1900-01-01")が入る
+    remainingDays: number; // 今日から目標日までの残り日数(過ぎていれば0。目標未設定なら0)
   };
   /** 月内の週平均体重・平均摂取の系列(週の昇順、4〜5点)。ペースの加速・減速を見せる折れ線の元データ */
   weeks: {

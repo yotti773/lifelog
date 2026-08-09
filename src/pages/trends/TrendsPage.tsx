@@ -296,7 +296,7 @@ export default function TrendsPage() {
   // 現在ペースでの着地予測(Issue #25)。起点=基準日の記録(なければ最古の記録)、最新=直近の記録。
   const projectionStart = baselineWeightRecord ?? firstWeightRecord;
   const projectedWeightKg =
-    projectionStart && lastWeightRecord
+    projectionStart && lastWeightRecord && settings.goalDate !== undefined
       ? projectWeightAtDate(
           { date: projectionStart.date, weightKg: projectionStart.weightKg },
           { date: lastWeightRecord.date, weightKg: lastWeightRecord.weightKg },
@@ -368,7 +368,7 @@ export default function TrendsPage() {
 
       {viewMode === "chart" ? (
         <>
-          {lastWeightRecord ? (
+          {lastWeightRecord && settings.goalWeightKg !== undefined && settings.goalDate !== undefined ? (
             <GoalBar
               startWeightKg={startWeightKg ?? lastWeightRecord.weightKg}
               currentWeightKg={lastWeightRecord.weightKg}
@@ -392,8 +392,8 @@ export default function TrendsPage() {
             activityDailyTotals={activityDailyTotals}
             bloodPressureChartRecords={bloodPressureChartRecords}
             bodyMeasurementChartRecords={bodyMeasurementChartRecords}
-            goalWeightKg={settings.goalWeightKg}
-            dailyCalorieTarget={settings.dailyCalorieTarget}
+            goalWeightKg={settings.goalWeightKg ?? 0}
+            dailyCalorieTarget={settings.dailyCalorieTarget ?? 1}
             dailyWaterTargetMl={settings.dailyWaterTargetMl ?? null}
           />
         </>

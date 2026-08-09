@@ -61,13 +61,13 @@ export const SEX_OPTIONS: { value: Sex; label: string }[] = [
 function initialDraft(target: EditTarget, settings: Settings): string {
   switch (target) {
     case "weight":
-      return String(settings.goalWeightKg);
+      return settings.goalWeightKg !== undefined ? String(settings.goalWeightKg) : "";
     case "goalDate":
-      return settings.goalDate;
+      return settings.goalDate ?? "";
     case "baseline":
       return settings.baselineDate ?? "";
     case "calories":
-      return String(settings.dailyCalorieTarget);
+      return settings.dailyCalorieTarget !== undefined ? String(settings.dailyCalorieTarget) : "";
     case "waterGoal":
       return settings.dailyWaterTargetMl !== undefined ? String(settings.dailyWaterTargetMl) : "";
     case "height":
@@ -201,7 +201,7 @@ function ValueEditorContent({
     settings.birthYear !== undefined &&
     settings.sex !== undefined &&
     settings.activityLevel !== undefined;
-  const remainingDays = daysBetween(today, settings.goalDate);
+  const remainingDays = settings.goalDate !== undefined ? daysBetween(today, settings.goalDate) : -1;
   const calorieAutoCalcHint = !hasProfile
     ? "「あなたのプロフィール」をすべて入力すると自動計算できます"
     : !latestWeightRecord
@@ -225,7 +225,7 @@ function ValueEditorContent({
       tdeeKcal: measuredTdeeKcal ?? calcFormulaTdee(bmrKcal, settings.activityLevel!),
       tdeeSource: measuredTdeeKcal !== null ? "measured" : "formula",
       currentWeightKg: latestWeightRecord.weightKg,
-      goalWeightKg: settings.goalWeightKg,
+      goalWeightKg: settings.goalWeightKg ?? 0,
       remainingDays,
     });
     setCalorieSuggestion(suggestion);

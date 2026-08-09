@@ -6,7 +6,7 @@ import { accent, fontRounded, tokens } from "@/theme";
 
 interface CalorieCardProps {
   consumedKcal: number;
-  targetKcal: number;
+  targetKcal?: number; // 1日の目標カロリー。未設定時は実績のみ表示する(Issue #217)
   proteinG: number;
   fatG: number;
   carbsG: number;
@@ -22,9 +22,10 @@ const PFC_ROWS = [
 ] as const;
 
 export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, carbsG, pfcTargets }: CalorieCardProps) {
-  const pct = targetKcal > 0 ? Math.min(100, (consumedKcal / targetKcal) * 100) : 0;
-  const over = consumedKcal > targetKcal;
-  const diff = Math.abs(targetKcal - consumedKcal);
+  const hasTarget = targetKcal !== undefined && targetKcal > 0;
+  const pct = hasTarget ? Math.min(100, (consumedKcal / targetKcal) * 100) : 0;
+  const over = hasTarget && consumedKcal > targetKcal;
+  const diff = hasTarget ? Math.abs(targetKcal - consumedKcal) : 0;
 
   const grams = [proteinG, fatG, carbsG];
   const maxGrams = Math.max(...grams);
@@ -34,19 +35,21 @@ export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, 
     <Card sx={{ p: "20px" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px" }}>
         <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary" }}>今日の摂取カロリー</Typography>
-        <Typography
-          sx={{
-            fontSize: 11,
-            fontWeight: 500,
-            color: "secondary.main",
-            bgcolor: tokens.secondarySoft,
-            px: "9px",
-            py: "4px",
-            borderRadius: "20px",
-          }}
-        >
-          目標 {targetKcal.toLocaleString()} kcal
-        </Typography>
+        {hasTarget && (
+          <Typography
+            sx={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: "secondary.main",
+              bgcolor: tokens.secondarySoft,
+              px: "9px",
+              py: "4px",
+              borderRadius: "20px",
+            }}
+          >
+            目標 {targetKcal!.toLocaleString()} kcal
+          </Typography>
+        )}
       </Box>
       <Box sx={{ display: "flex", alignItems: "baseline", gap: "6px", mb: "14px" }}>
         <Typography sx={{ fontFamily: fontRounded, fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: "-.01em" }}>
@@ -54,23 +57,27 @@ export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, 
         </Typography>
         <Typography sx={{ fontFamily: fontRounded, fontWeight: 500, fontSize: 16, color: "text.secondary" }}>kcal</Typography>
       </Box>
-      <LinearProgress
-        variant="determinate"
-        value={pct}
-        sx={{
-          height: 14,
-          borderRadius: "10px",
-          bgcolor: tokens.track,
-          mb: "9px",
-          "& .MuiLinearProgress-bar": {
-            borderRadius: "10px",
-            bgcolor: over ? "primary.main" : "secondary.main",
-          },
-        }}
-      />
-      <Typography sx={{ fontSize: 13, fontWeight: 500, color: over ? "primary.main" : "text.secondary", mb: "16px" }}>
-        {over ? `${diff.toLocaleString()}kcal オーバーしています` : `あと ${diff.toLocaleString()}kcal 食べられます`}
-      </Typography>
+      {hasTarget && (
+        <>
+          <LinearProgress
+            variant="determinate"
+            value={pct}
+            sx={{
+              height: 14,
+              borderRadius: "10px",
+              bgcolor: tokens.track,
+              mb: "9px",
+              "& .MuiLinearProgress-bar": {
+                borderRadius: "10px",
+                bgcolor: over ? "primary.main" : "secondary.main",
+              },
+            }}
+          />
+          <Typography sx={{ fontSize: 13, fontWeight: 500, color: over ? "primary.main" : "text.secondary", mb: "16px" }}>
+            {over ? `${diff.toLocaleString()}kcal オーバーしています` : `あと ${diff.toLocaleString()}kcal 食べられます`}
+          </Typography>
+        </>
+      )}
       <Box
         sx={{
           display: "grid",

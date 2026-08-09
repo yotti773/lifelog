@@ -3,12 +3,9 @@ import type { Settings } from "@/types";
 
 const SETTINGS_ID = "default" as const;
 
-// 要件定義書の初期値(64kg / 2026-10-31)
-export const DEFAULT_SETTINGS: Settings = {
-  goalWeightKg: 64,
-  goalDate: "2026-10-31",
-  dailyCalorieTarget: 1900,
-};
+// デフォルト値は持たず、ユーザーの明示的な設定を待つ(Issue #217)。
+// 初回セットアップで目標を入力させることで、他人に配るときに開発者本人の目標値が表示されるのを防ぐ
+export const DEFAULT_SETTINGS: Settings = {};
 
 /**
  * **既定値は読み取り時にだけ被せ、保存はしない**(Issue #164)。

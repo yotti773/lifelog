@@ -9,6 +9,8 @@ import {
   IconBarbell,
   IconCalendar,
   IconClock,
+  IconDrop,
+  IconFork,
   IconPerson,
   IconRuler,
   IconSun,
@@ -19,6 +21,7 @@ import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { tokens } from "@/theme";
 import SettingRow, { SectionLabel } from "./settings/SettingRow";
 import ValueEditorDrawer, { SEX_OPTIONS, type EditTarget } from "./settings/ValueEditorDrawer";
+import PfcEditorDrawer from "./settings/PfcEditorDrawer";
 
 /** YYYY-MM-DD を 2026/10/31 形式で表示する */
 function formatSlashDate(date: string): string {
@@ -35,6 +38,13 @@ export default function InitialSetupPage() {
   );
 
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [pfcEditorOpen, setPfcEditorOpen] = useState(false);
+
+  const hasPfcTargets =
+    settings !== undefined &&
+    settings.dailyProteinTargetG !== undefined &&
+    settings.dailyFatTargetG !== undefined &&
+    settings.dailyCarbsTargetG !== undefined;
 
   useEffect(() => {
     if (
@@ -50,6 +60,16 @@ export default function InitialSetupPage() {
       navigate("/");
     }
   }, [settings, navigate]);
+
+  const isSetupComplete =
+    settings !== undefined &&
+    settings.heightCm !== undefined &&
+    settings.birthYear !== undefined &&
+    settings.sex !== undefined &&
+    settings.activityLevel !== undefined &&
+    settings.goalWeightKg !== undefined &&
+    settings.goalDate !== undefined &&
+    settings.dailyCalorieTarget !== undefined;
 
   if (settings === undefined) {
     return <Typography sx={{ p: 3, textAlign: "center", fontSize: 14, color: "text.secondary" }}>読み込み中...</Typography>;
@@ -138,23 +158,49 @@ export default function InitialSetupPage() {
           iconColor={tokens.warnIcon}
           label="1日の目標カロリー"
           value={settings.dailyCalorieTarget !== undefined ? `${settings.dailyCalorieTarget.toLocaleString()} kcal` : "未設定"}
+          divider
           onClick={() => setEditTarget("calories")}
+        />
+        <SettingRow
+          icon={<IconFork size={18} />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label="PFC目標"
+          value={
+            hasPfcTargets
+              ? `P${settings.dailyProteinTargetG} / F${settings.dailyFatTargetG} / C${settings.dailyCarbsTargetG} g`
+              : "未設定"
+          }
+          divider
+          onClick={() => setPfcEditorOpen(true)}
+        />
+        <SettingRow
+          icon={<IconDrop size={18} />}
+          iconBg={tokens.waterSoft}
+          iconColor={tokens.waterMain}
+          label="1日の目標水分摂取量"
+          value={settings.dailyWaterTargetMl !== undefined ? `${settings.dailyWaterTargetMl.toLocaleString()} ml` : "未設定"}
+          onClick={() => setEditTarget("waterGoal")}
         />
       </Card>
 
-      {settings.heightCm !== undefined &&
-        settings.birthYear !== undefined &&
-        settings.sex !== undefined &&
-        settings.activityLevel !== undefined &&
-        settings.goalWeightKg !== undefined &&
-        settings.goalDate !== undefined &&
-        settings.dailyCalorieTarget !== undefined && (
-          <Box sx={{ textAlign: "center" }}>
-            <Button variant="contained" size="large" onClick={() => navigate("/")} sx={{ minWidth: 200 }}>
-              はじめる
-            </Button>
-          </Box>
-        )}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: "8px", mt: "28px" }}>
+        <Button
+          variant="contained"
+          size="large"
+          onClick={() => navigate("/")}
+          disabled={!isSetupComplete}
+        >
+          はじめる
+        </Button>
+        <Button
+          variant="outlined"
+          size="large"
+          onClick={() => navigate("/")}
+        >
+          スキップして始める
+        </Button>
+      </Box>
 
       <ValueEditorDrawer
         target={editTarget}
@@ -162,6 +208,14 @@ export default function InitialSetupPage() {
         latestWeightRecord={latestWeightRecord}
         onClose={handleEditorClose}
         onCalorieTargetChanged={() => {}}
+      />
+
+      <PfcEditorDrawer
+        open={pfcEditorOpen}
+        withSuggestion={false}
+        settings={settings}
+        latestWeightRecord={latestWeightRecord}
+        onClose={() => setPfcEditorOpen(false)}
       />
     </Box>
   );

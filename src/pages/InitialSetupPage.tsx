@@ -80,7 +80,7 @@ export default function InitialSetupPage() {
   };
 
   return (
-    <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "80px" }}>
+    <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "130px" }}>
       <Box sx={{ mb: "28px" }}>
         <Typography sx={{ fontWeight: 600, fontSize: 18, mb: "8px" }}>
           プロフィールと目標を設定しましょう

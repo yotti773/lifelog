@@ -85,9 +85,13 @@ export default function InitialSetupPage() {
     settings.dailyFatTargetG !== undefined &&
     settings.dailyCarbsTargetG !== undefined;
 
+  const setupComplete = isInitialSetupComplete(settings);
+
   const handleSkip = async () => {
-    // スキップした事実を残さないと、ホームが毎回ここへ差し戻してしまう(移行ユーザーが記録を始められない)
-    await updateSettings({ initialSetupSkipped: true });
+    // スキップした事実を残さないと、ホームが毎回ここへ差し戻してしまう(移行ユーザーが記録を始められない)。
+    // フラグの意味は「目標を入れずに先へ進んだ」なので、必須が揃っている状態では立てない
+    // (ボタン自体も出していないが、フラグの意味を壊さないようここでも守る)
+    if (!setupComplete) await updateSettings({ initialSetupSkipped: true });
     navigate("/", { replace: true });
   };
 
@@ -236,19 +240,24 @@ export default function InitialSetupPage() {
           <Button
             fullWidth
             variant="contained"
-            disabled={!isInitialSetupComplete(settings)}
+            disabled={!setupComplete}
             onClick={() => navigate("/", { replace: true })}
             sx={{ height: 54, borderRadius: "16px", fontSize: 16, boxShadow: tokens.primaryButtonShadow }}
           >
             はじめる
           </Button>
-          <Button
-            fullWidth
-            onClick={handleSkip}
-            sx={{ height: 38, fontSize: 13, fontWeight: 500, color: "text.secondary", textDecoration: "underline" }}
-          >
-            あとで設定する
-          </Button>
+          {/* 必須が揃ったら「あとで」は出さない — 各項目は確定した時点で保存済みなので、
+              この状態では「はじめる」と同じ動きになり、押した人に「入力が破棄されるのか」と
+              思わせるだけになる。押せる出口は常にどちらか一方だけにする */}
+          {!setupComplete && (
+            <Button
+              fullWidth
+              onClick={handleSkip}
+              sx={{ height: 38, fontSize: 13, fontWeight: 500, color: "text.secondary", textDecoration: "underline" }}
+            >
+              あとで設定する
+            </Button>
+          )}
         </Box>
       </Box>
 

@@ -62,6 +62,31 @@ test("目標3項目を入れると「はじめる」でホームへ進める(任
   await expect(page.getByText("目標 1,900 kcal")).toBeVisible();
 });
 
+test("必須が揃うと「あとで設定する」は消え、出口は「はじめる」だけになる", async ({ page }) => {
+  await page.goto("/setup");
+  await expect(page.getByRole("button", { name: "あとで設定する" })).toBeVisible();
+
+  await fillRequiredGoals(page);
+
+  // 各項目は確定した時点で保存済みなので、この状態の「あとで」は「はじめる」と同じ動きになる。
+  // 押せる出口を常に一方だけにして、入力が破棄されると誤解させない
+  await expect(page.getByRole("button", { name: "あとで設定する" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "はじめる" })).toBeEnabled();
+});
+
+test("入力途中で「あとで設定する」を押しても、入れた値は保存されている", async ({ page }) => {
+  await page.goto("/setup");
+  // 必須3項目のうち1つだけ入れて離脱する
+  await editValue(page, "目標体重", "65");
+  await page.getByRole("button", { name: "あとで設定する" }).click();
+  await page.waitForURL("/");
+
+  // 設定画面に入力済みの値が残っている(ドロワーの確定=保存のため、離脱で失われない)
+  await page.goto("/settings");
+  await expect(page.getByText("65.0 kg")).toBeVisible();
+  await expect(page.getByText("未設定").first()).toBeVisible();
+});
+
 test("身体プロフィールは任意で、未入力でも先へ進める", async ({ page }) => {
   await page.goto("/setup");
   await fillRequiredGoals(page);

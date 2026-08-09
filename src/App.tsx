@@ -16,6 +16,7 @@ import StrengthRecordPage from "./pages/StrengthRecordPage";
 import BloodPressureRecordPage from "./pages/BloodPressureRecordPage";
 import BodyMeasurementRecordPage from "./pages/BodyMeasurementRecordPage";
 import { createAutoSyncRunner } from "./sync/autoSync";
+import InitialSetupPage from "./pages/InitialSetupPage";
 
 export default function App() {
   const location = useLocation();
@@ -49,6 +50,7 @@ export default function App() {
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "background.default" }}>
       <Routes>
+        <Route path="/setup" element={<InitialSetupPage />} />
         <Route path="/" element={<HomePage />} />
         <Route path="/trends" element={<TrendsPage />} />
         <Route path="/settings" element={<SettingsPage />} />

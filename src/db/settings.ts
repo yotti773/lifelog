@@ -8,6 +8,27 @@ const SETTINGS_ID = "default" as const;
 export const DEFAULT_SETTINGS: Settings = {};
 
 /**
+ * 初回セットアップ(Issue #217)を終えたとみなす条件。**目標の3項目だけを必須とする。**
+ * 身体プロフィール・PFC・水分目標は自動計算や補助表示にしか使わず、無くても記録も進捗表示も成立するため
+ * 任意に留める(必須にすると、入れる気の無い項目のせいで記録が始められなくなる)。
+ *
+ * **ホーム(リダイレクト判定)と初回セットアップ画面(「はじめる」の活性)で必ず同じ関数を使うこと。**
+ * 条件が食い違うと、片方だけを満たしたユーザーがどちらの画面からも解放されない状態が生まれる。
+ */
+export function isInitialSetupComplete(settings: Settings): boolean {
+  return (
+    settings.goalWeightKg !== undefined &&
+    settings.goalDate !== undefined &&
+    settings.dailyCalorieTarget !== undefined
+  );
+}
+
+/** 初回セットアップ画面へ誘導すべきか。スキップ済みなら未設定でも誘導しない(移行ユーザー向け) */
+export function shouldShowInitialSetup(settings: Settings): boolean {
+  return !settings.initialSetupSkipped && !isInitialSetupComplete(settings);
+}
+
+/**
  * **既定値は読み取り時にだけ被せ、保存はしない**(Issue #164)。
  *
  * 以前は `updateSettings` が `getSettings()` のマージ結果(既定値込み)をそのまま保存していた。

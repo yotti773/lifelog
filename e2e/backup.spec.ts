@@ -1,9 +1,10 @@
-import { expect, test } from "./fixtures";
+import { expect, skipInitialSetup, test } from "./fixtures";
 
 // 書き出し→編集→復元と画面遷移が多く、既定の30秒では足りない
 test.setTimeout(90_000);
 
 test("完全バックアップを書き出し、編集後に復元すると書き出し時点の断面へ戻る", async ({ page }) => {
+  await skipInitialSetup(page);
   // 退避対象のデータを作る
   await page.goto("/record/weight");
   await page.getByPlaceholder("72.0").fill("72.4");

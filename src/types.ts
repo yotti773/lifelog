@@ -281,9 +281,9 @@ export type MonthlyDigestFlag = Exclude<DigestFlag, "ACTIVITY_DROP" | "WORKOUT_S
 export interface WeeklyDigest {
   period: { start: string; end: string }; // 対象週(月曜〜日曜、YYYY-MM-DD)
   goal: {
-    targetWeightKg: number; // 減量目標。未設定時はダミー値(0)が入る
-    targetDate: string; // YYYY-MM-DD。未設定時はダミー値("1900-01-01")が入る
-    remainingDays: number; // 今日から目標日までの残り日数(過ぎていれば0。目標未設定なら0)
+    targetWeightKg: number | null; // 目標体重(未設定ならnull。Issue #217)
+    targetDate: string | null; // YYYY-MM-DD(未設定ならnull)
+    remainingDays: number | null; // 今日から目標日までの残り日数(過ぎていれば0。目標日未設定ならnull)
   };
   weight: {
     weekAvgKg: number | null; // 週平均体重(記録が無い週はnull)
@@ -296,8 +296,8 @@ export interface WeeklyDigest {
   };
   calories: {
     avgIntakeKcal: number | null; // 食事記録がある日の平均
-    targetKcal: number;
-    daysOnTarget: number; // 目標以内に収まった日数
+    targetKcal: number | null; // 目標カロリー(未設定ならnull。Issue #217)
+    daysOnTarget: number | null; // 目標以内に収まった日数(目標未設定ならnull)
     recordedDays: number; // 食事記録がある日数(0〜7)
     estimatedTdeeKcal: number | null; // 実測TDEE(Issue #44。有効週が無い間はnull)
     bmrKcal: number | null; // 基礎代謝(身体プロフィール未設定ならnull)
@@ -425,9 +425,9 @@ export interface MonthlyDigest {
   month: string; // YYYY-MM
   period: { start: string; end: string }; // 最初の週の月曜〜最後の週の日曜
   goal: {
-    targetWeightKg: number; // 減量目標。未設定時はダミー値(0)が入る
-    targetDate: string; // YYYY-MM-DD。未設定時はダミー値("1900-01-01")が入る
-    remainingDays: number; // 今日から目標日までの残り日数(過ぎていれば0。目標未設定なら0)
+    targetWeightKg: number | null; // 目標体重(未設定ならnull。Issue #217)
+    targetDate: string | null; // YYYY-MM-DD(未設定ならnull)
+    remainingDays: number | null; // 今日から目標日までの残り日数(過ぎていれば0。目標日未設定ならnull)
   };
   /** 月内の週平均体重・平均摂取の系列(週の昇順、4〜5点)。ペースの加速・減速を見せる折れ線の元データ */
   weeks: {
@@ -447,8 +447,8 @@ export interface MonthlyDigest {
   };
   calories: {
     avgIntakeKcal: number | null; // 月内の食事記録がある日の平均
-    targetKcal: number;
-    daysOnTarget: number; // 目標以内に収まった日数
+    targetKcal: number | null; // 目標カロリー(未設定ならnull。Issue #217)
+    daysOnTarget: number | null; // 目標以内に収まった日数(目標未設定ならnull)
     recordedDays: number; // 食事記録がある日数
     /** 月窓の実測TDEE(月内の有効週の週次逆算値の平均)。週単位よりブレが少ない安定値(Issue #44・#114) */
     monthlyTdeeKcal: number | null;

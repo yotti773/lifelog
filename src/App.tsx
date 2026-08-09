@@ -20,8 +20,9 @@ import InitialSetupPage from "./pages/InitialSetupPage";
 
 export default function App() {
   const location = useLocation();
-  // 記録フロー画面はヘッダー(戻る)+下部固定ボタンの全画面レイアウトのため、ナビを出さない(モックの画面構成参照)
-  const isRecordFlow = location.pathname.startsWith("/record/");
+  // 記録フロー画面はヘッダー(戻る)+下部固定ボタンの全画面レイアウトのため、ナビを出さない(モックの画面構成参照)。
+  // 初回セットアップ(Issue #217)も同じ全画面フロー — ナビを出すと目標未設定のまま他タブへ素通りできてしまう
+  const isFullScreenFlow = location.pathname.startsWith("/record/") || location.pathname === "/setup";
 
   // 自動同期のトリガー(画面設計書10章、Issue #105): 起動時に加え、PWAをホーム画面から開き直した
   // ときの復帰(visibilitychange)とオフライン→オンライン復帰(online)でも未同期分の同期を試みる。
@@ -66,7 +67,7 @@ export default function App() {
         <Route path="/record/measurement" element={<BodyMeasurementRecordPage />} />
       </Routes>
 
-      {!isRecordFlow && <BottomNav />}
+      {!isFullScreenFlow && <BottomNav />}
     </Box>
   );
 }

@@ -378,8 +378,11 @@ export default function TrendsPage() {
             />
           ) : (
             <Card sx={{ p: 2 }}>
+              {/* 何が足りないかを言い分ける(Issue #217で目標未設定がありうるようになったため) */}
               <Typography sx={{ textAlign: "center", fontSize: 14, color: "text.secondary" }}>
-                体重を記録するとここに進捗バーが表示されます
+                {!lastWeightRecord
+                  ? "体重を記録するとここに進捗バーが表示されます"
+                  : "設定画面で目標体重と目標日を決めると、ここに進捗バーが表示されます"}
               </Typography>
             </Card>
           )}
@@ -392,8 +395,8 @@ export default function TrendsPage() {
             activityDailyTotals={activityDailyTotals}
             bloodPressureChartRecords={bloodPressureChartRecords}
             bodyMeasurementChartRecords={bodyMeasurementChartRecords}
-            goalWeightKg={settings.goalWeightKg ?? 0}
-            dailyCalorieTarget={settings.dailyCalorieTarget ?? 1}
+            {...(settings.goalWeightKg !== undefined && { goalWeightKg: settings.goalWeightKg })}
+            dailyCalorieTarget={settings.dailyCalorieTarget ?? null}
             dailyWaterTargetMl={settings.dailyWaterTargetMl ?? null}
           />
         </>

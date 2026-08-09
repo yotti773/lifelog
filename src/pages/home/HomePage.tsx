@@ -7,7 +7,7 @@ import { db } from "@/db/db";
 import { getBloodPressureRecord } from "@/db/bloodPressureRecords";
 import { getDiaryRecord } from "@/db/diaryRecords";
 import { getRecordedDateSet } from "@/db/recordedDays";
-import { getSettings } from "@/db/settings";
+import { getSettings, shouldShowInitialSetup } from "@/db/settings";
 import { getWaterRecordsForDate } from "@/db/waterRecords";
 import { getWorkoutRecordsForDate } from "@/db/workoutRecords";
 import { localDateRangeToUtcIso, todayDateString } from "@/lib/date";
@@ -33,13 +33,10 @@ export default function HomePage() {
 
   const settings = useLiveQuery(() => getSettings(), []);
 
+  // 目標が未設定のまま(かつスキップもしていない)なら初回セットアップへ送る(Issue #217)
   useEffect(() => {
-    if (
-      settings !== undefined &&
-      !settings.initialSetupSkipped &&
-      (settings.goalWeightKg === undefined || settings.goalDate === undefined || settings.dailyCalorieTarget === undefined)
-    ) {
-      navigate("/setup");
+    if (settings !== undefined && shouldShowInitialSetup(settings)) {
+      navigate("/setup", { replace: true });
     }
   }, [settings, navigate]);
 

@@ -581,3 +581,51 @@ describe("buildWeeklyDigest: 進行中の週での誤検知(Issue #174のレビ�
     expect(digest.activityTrend?.weekAvgSteps).toBeNull();
   });
 });
+
+/**
+ * 目標未設定(Issue #217)。DEFAULT_SETTINGSから開発者本人の目標を撤去したことで、
+ * 目標が入っていない週のダイジェストを組み立てる経路が生まれた。
+ * ここでの不変条件は「無い値をでっち上げないこと」 — digestはそのままAIプロンプトへ
+ * 渡るため、0kgや1kcalのようなダミー値を入れるとAIがそれを実在の目標として助言する。
+ */
+describe("目標が未設定の週(Issue #217)", () => {
+  function noGoalSource(): WeeklyDigestSource {
+    return { ...goodWeekSource(), goalWeightKg: null, goalDate: null, calorieTargetKcal: null };
+  }
+
+  it("目標値をダミーで埋めず、nullのまま返す", () => {
+    const digest = buildWeeklyDigest(noGoalSource());
+    expect(digest.goal.targetWeightKg).toBeNull();
+    expect(digest.goal.targetDate).toBeNull();
+    expect(digest.goal.remainingDays).toBeNull();
+    expect(digest.calories.targetKcal).toBeNull();
+  });
+
+  it("目標カロリーが無い週は「目標以内の日数」を数えない(0日と断定しない)", () => {
+    const digest = buildWeeklyDigest(noGoalSource());
+    expect(digest.calories.daysOnTarget).toBeNull();
+  });
+
+  it("必要ペースは0(算出不能)で、BEHIND_PACEを立てない", () => {
+    // projectedKgは目標日と無関係に算出されうるが、比較する目標体重が無い以上ペース不足とは言えない
+    const digest = buildWeeklyDigest({ ...noGoalSource(), projectedKg: 99 });
+    expect(digest.weight.requiredWeeklyPaceKg).toBe(0);
+    expect(digest.flags).not.toContain("BEHIND_PACE");
+  });
+
+  it("目標に依存しない集計・フラグは通常どおり働く", () => {
+    const digest = buildWeeklyDigest({ ...noGoalSource(), bmrKcal: 2500 });
+    expect(digest.calories.avgIntakeKcal).toBe(1850);
+    expect(digest.weight.weeklyChangeKg).toBeCloseTo(-0.5, 5);
+    // 摂取が基礎代謝を下回る判定は目標と無関係に成立する
+    expect(digest.flags).toContain("INTAKE_BELOW_BMR");
+  });
+
+  it("目標体重だけ設定済みなら、目標日が無くても目標体重は保持する", () => {
+    const digest = buildWeeklyDigest({ ...noGoalSource(), goalWeightKg: 64 });
+    expect(digest.goal.targetWeightKg).toBe(64);
+    expect(digest.goal.remainingDays).toBeNull();
+    // 残り日数が無ければ必要ペースは定義できない
+    expect(digest.weight.requiredWeeklyPaceKg).toBe(0);
+  });
+});

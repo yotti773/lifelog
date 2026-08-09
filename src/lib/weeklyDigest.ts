@@ -49,9 +49,9 @@ export interface DigestMealDailyTotal {
 export interface WeeklyDigestSource {
   weekStart: string; // 月曜(YYYY-MM-DD)
   today: string;
-  goalWeightKg: number; // 減量目標。未設定時はダミー値(0)を渡す(呼び出し側で対応)
-  goalDate: string; // 目標日。未設定時はダミー値("1900-01-01")を渡す
-  calorieTargetKcal: number; // 目標カロリー。未設定時はダミー値(1)を渡す(0で除算を避けるため)
+  goalWeightKg: number | null; // 目標体重(未設定ならnull。Issue #217)
+  goalDate: string | null; // 目標日(未設定ならnull)
+  calorieTargetKcal: number | null; // 目標カロリー(未設定ならnull)
   pfcTargets: { proteinG: number; fatG: number; carbsG: number } | null;
   bmrKcal: number | null;
   weekWeights: { weightKg: number }[];
@@ -350,9 +350,8 @@ export function aggregateMoodCounts(moods: DiaryMood[]): { good: number; normal:
 
 export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   const weekEnd = addDaysToDateString(src.weekStart, 6);
-  // 目標日がダミー値("1900-01-01")の場合は残り日数を0に設定して必要ペース計算をスキップ
-  const isGoalUnset = src.goalDate === "1900-01-01";
-  const remainingDays = !isGoalUnset ? Math.max(0, daysBetween(src.today, src.goalDate)) : 0;
+  // 目標日が未設定なら残り日数は算出できない(Issue #217)。過ぎている場合は従来どおり0
+  const remainingDays = src.goalDate !== null ? Math.max(0, daysBetween(src.today, src.goalDate)) : null;
 
   // 体重: 週平均同士で比較する(単日比較は水分等のノイズが大きい)
   const weekAvgRaw = averageWeightKg(src.weekWeights);
@@ -362,11 +361,14 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   const weeklyChangeKg =
     weekAvgRaw !== null && prevWeekAvgRaw !== null ? round2(weekAvgRaw - prevWeekAvgRaw) : null;
 
-  // 必要ペース(kg/週)。減量が必要なら負の値。目標日超過・体重記録皆無・目標値未設定(ダミー値)の場合は0(フラグ側で状況を伝える)
+  // 必要ペース(kg/週)。減量が必要なら負の値。目標未設定・目標日超過・体重記録皆無の場合は0(フラグ側で状況を伝える)
   const paceBaseKg = weekAvgRaw ?? src.latestWeightKg;
+  // コールバック内でも絞り込みを効かせるためローカルに束ねる(src.xxx のままだと narrowing が消える)
+  const goalWeightKg = src.goalWeightKg;
+  const calorieTargetKcal = src.calorieTargetKcal;
   const requiredWeeklyPaceKg =
-    remainingDays > 0 && paceBaseKg !== null && !isGoalUnset
-      ? round2(-(((paceBaseKg - src.goalWeightKg) / remainingDays) * 7))
+    remainingDays !== null && remainingDays > 0 && paceBaseKg !== null && goalWeightKg !== null
+      ? round2(-(((paceBaseKg - goalWeightKg) / remainingDays) * 7))
       : 0;
 
   // カロリー・PFC: 食事記録がある日の平均
@@ -415,7 +417,7 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   if (avgIntakeKcal !== null && src.bmrKcal !== null && avgIntakeKcal < src.bmrKcal) {
     flags.push("INTAKE_BELOW_BMR");
   }
-  if (src.projectedKg !== null && !isGoalUnset && src.projectedKg > src.goalWeightKg) {
+  if (src.projectedKg !== null && goalWeightKg !== null && src.projectedKg > goalWeightKg) {
     flags.push("BEHIND_PACE");
   }
   if (src.recordedDays < LOW_RECORDING_THRESHOLD_DAYS) {
@@ -454,7 +456,7 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
       targetWeightKg: src.goalWeightKg,
       targetDate: src.goalDate,
       remainingDays,
-    } as const,
+    },
     weight: {
       weekAvgKg,
       prevWeekAvgKg,
@@ -465,8 +467,11 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     },
     calories: {
       avgIntakeKcal,
-      targetKcal: src.calorieTargetKcal,
-      daysOnTarget: src.calorieTargetKcal > 1 ? src.mealDailyTotals.filter((d) => d.kcal <= src.calorieTargetKcal).length : 0,
+      targetKcal: calorieTargetKcal,
+      daysOnTarget:
+        calorieTargetKcal !== null
+          ? src.mealDailyTotals.filter((d) => d.kcal <= calorieTargetKcal).length
+          : null,
       recordedDays: mealDays,
       estimatedTdeeKcal: src.estimatedTdeeKcal,
       bmrKcal: src.bmrKcal,

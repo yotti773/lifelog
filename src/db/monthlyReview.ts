@@ -53,19 +53,15 @@ export async function getMonthlyDigest(month: string, today: string = todayDateS
         )
       : null;
 
-  // 目標値が未設定(Issue #217)の場合はダミー値を使う。UI層での表示制御は別途対応
-  const goalWeightKgForDigest = settings.goalWeightKg ?? 0;
-  const goalDateForDigest = settings.goalDate ?? "1900-01-01";
-  const calorieTargetForDigest = settings.dailyCalorieTarget ?? 1;
-
   return buildMonthlyDigest({
     month,
     weekStarts,
     weekSummaries,
     today,
-    goalWeightKg: goalWeightKgForDigest,
-    goalDate: goalDateForDigest,
-    calorieTargetKcal: calorieTargetForDigest,
+    // 未設定はnullのまま純関数へ渡す(ダミー値を被せない。Issue #217)
+    goalWeightKg: settings.goalWeightKg ?? null,
+    goalDate: settings.goalDate ?? null,
+    calorieTargetKcal: settings.dailyCalorieTarget ?? null,
     bmrKcal,
     latestWeightKg: latestWeight?.weightKg ?? null,
     mealDailyTotals,

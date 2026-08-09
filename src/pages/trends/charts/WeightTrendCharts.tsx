@@ -36,8 +36,8 @@ interface WeightTrendChartsProps {
   bloodPressureChartRecords: BloodPressureRecord[];
   /** 周囲径記録(期間内。Issue #118)。1件も無ければカードごと非表示 */
   bodyMeasurementChartRecords: BodyMeasurementRecord[];
-  goalWeightKg: number;
-  dailyCalorieTarget: number;
+  goalWeightKg?: number; // 目標体重(未設定なら目標線・凡例を出さない。Issue #217)
+  dailyCalorieTarget: number | null; // 目標カロリー(未設定なら目標線・凡例を出さない)
   dailyWaterTargetMl: number | null;
 }
 
@@ -221,10 +221,12 @@ export default function WeightTrendCharts({
           <TitleCluster title="摂取カロリー">
             {calorieAvg !== null && <StatValue label="平均" value={calorieAvg.toLocaleString()} unit="kcal" />}
           </TitleCluster>
-          <Typography sx={{ display: "flex", alignItems: "center", gap: "5px", fontSize: 10, fontWeight: 500, color: "text.secondary" }}>
-            <Box component="span" sx={{ width: 14, height: "2px", bgcolor: "text.secondary", display: "inline-block" }} />
-            目標 {dailyCalorieTarget.toLocaleString()}
-          </Typography>
+          {dailyCalorieTarget !== null && (
+            <Typography sx={{ display: "flex", alignItems: "center", gap: "5px", fontSize: 10, fontWeight: 500, color: "text.secondary" }}>
+              <Box component="span" sx={{ width: 14, height: "2px", bgcolor: "text.secondary", display: "inline-block" }} />
+              目標 {dailyCalorieTarget.toLocaleString()}
+            </Typography>
+          )}
         </CardHeader>
         <CalorieChart data={calorieDailyTotals} targetKcal={dailyCalorieTarget} />
       </Card>

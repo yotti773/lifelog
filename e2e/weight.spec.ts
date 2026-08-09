@@ -1,8 +1,9 @@
-import { expect, test } from "./fixtures";
+import { expect, skipInitialSetup, test } from "./fixtures";
 
 // Playwrightはテストごとに新しいブラウザコンテキストを使うため、IndexedDBは常に空から始まる
 
 test("体重を記録するとホームに反映され、カードから編集モードで開き直せる", async ({ page }) => {
+  await skipInitialSetup(page);
   await page.goto("/record/weight");
   await expect(page.getByText("体重を記録")).toBeVisible();
 

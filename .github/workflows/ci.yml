@@ -1,0 +1,51 @@
+# PRのテスト・ビルドチェック(Issue #201)。
+#
+# **デプロイパイプラインには関与しない。** 本番デプロイは従来どおり Cloudflare Workers の
+# Git連携(mainへのpushで自動ビルド・デプロイ)が行う。ここが落ちてもデプロイは止まらない
+# (止めたい場合はGitHubのブランチ保護でこのチェックを必須にする設定が別途必要)。
+# デプロイ自体をActionsへ移す案は費用対効果が見合わないとして見送っている(Issue #18、意思決定ログ参照)。
+#
+# E2E(`npm run e2e`)はこのゲートに入れていない — Chromiumの取得が要り実行に数分かかること、
+# ランナーの遅さ起因で不安定になりうることから、ローカル実行の運用のままにしている(CLAUDE.md参照)。
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  # マージ後にmainが壊れていないかの事後シグナル(デプロイのゲートではない)
+  push:
+    branches: [main]
+
+# PRに連続pushしたときは古い実行を打ち切る。mainへのpushは打ち切らない —
+# 連続マージのときに先のコミットの結果が消え、このワークフローの目的である
+# 「マージ後の事後シグナル」が得られなくなるため
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存パッケージをインストール
+        run: npm ci
+
+      - name: ユニットテスト
+        run: npm run test
+
+      # tsc -b(app・node・e2eの型チェック)+ vite build
+      - name: ビルド
+        run: npm run build
+
+      # Workerはsrc/と独立ビルドのため、tsc -bの対象外。別途型チェックする
+      - name: Workerの型チェック
+        run: npm run typecheck:worker

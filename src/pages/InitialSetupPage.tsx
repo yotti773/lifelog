@@ -6,15 +6,19 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import {
+  IconBarbell,
   IconCalendar,
   IconClock,
+  IconPerson,
+  IconRuler,
   IconSun,
 } from "@/components/icons";
 import { db } from "@/db/db";
 import { getSettings } from "@/db/settings";
+import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { tokens } from "@/theme";
 import SettingRow, { SectionLabel } from "./settings/SettingRow";
-import ValueEditorDrawer, { type EditTarget } from "./settings/ValueEditorDrawer";
+import ValueEditorDrawer, { SEX_OPTIONS, type EditTarget } from "./settings/ValueEditorDrawer";
 
 /** YYYY-MM-DD を 2026/10/31 形式で表示する */
 function formatSlashDate(date: string): string {
@@ -33,7 +37,16 @@ export default function InitialSetupPage() {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
 
   useEffect(() => {
-    if (settings !== undefined && settings.goalWeightKg !== undefined && settings.goalDate !== undefined && settings.dailyCalorieTarget !== undefined) {
+    if (
+      settings !== undefined &&
+      settings.heightCm !== undefined &&
+      settings.birthYear !== undefined &&
+      settings.sex !== undefined &&
+      settings.activityLevel !== undefined &&
+      settings.goalWeightKg !== undefined &&
+      settings.goalDate !== undefined &&
+      settings.dailyCalorieTarget !== undefined
+    ) {
       navigate("/");
     }
   }, [settings, navigate]);
@@ -50,12 +63,54 @@ export default function InitialSetupPage() {
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "80px" }}>
       <Box sx={{ mb: "28px" }}>
         <Typography sx={{ fontWeight: 600, fontSize: 18, mb: "8px" }}>
-          目標を設定しましょう
+          プロフィールと目標を設定しましょう
         </Typography>
         <Typography variant="body2" sx={{ color: "text.secondary", lineHeight: 1.6 }}>
-          減量目標と日々の目標カロリーを入力してください。後から変更できます。
+          あなたの身体情報と減量目標を入力してください。後から変更できます。
         </Typography>
       </Box>
+
+      <SectionLabel>あなたのプロフィール</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "8px" }}>
+        <SettingRow
+          icon={<IconRuler />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label="身長"
+          value={settings.heightCm !== undefined ? `${settings.heightCm} cm` : "未設定"}
+          divider
+          onClick={() => setEditTarget("height")}
+        />
+        <SettingRow
+          icon={<IconCalendar />}
+          iconBg={tokens.warnBg}
+          iconColor={tokens.warnIcon}
+          label="生年"
+          value={settings.birthYear !== undefined ? `${settings.birthYear}年` : "未設定"}
+          divider
+          onClick={() => setEditTarget("birthYear")}
+        />
+        <SettingRow
+          icon={<IconPerson />}
+          iconBg={tokens.primarySoft}
+          iconColor="#FF6B4A"
+          label="性別"
+          value={SEX_OPTIONS.find((o) => o.value === settings.sex)?.label ?? "未設定"}
+          divider
+          onClick={() => setEditTarget("sex")}
+        />
+        <SettingRow
+          icon={<IconBarbell size={18} />}
+          iconBg={tokens.strengthBg}
+          iconColor="#FF6B4A"
+          label="活動レベル"
+          value={settings.activityLevel !== undefined ? activityLevelLabel(settings.activityLevel) : "未設定"}
+          onClick={() => setEditTarget("activityLevel")}
+        />
+      </Card>
+      <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
+        目標カロリーの自動計算にのみ使います。入力しないことも可能ですが、自動計算できなくなります
+      </Typography>
 
       <SectionLabel>目標</SectionLabel>
       <Card sx={{ overflow: "hidden", mb: "18px" }}>
@@ -87,13 +142,19 @@ export default function InitialSetupPage() {
         />
       </Card>
 
-      {settings.goalWeightKg !== undefined && settings.goalDate !== undefined && settings.dailyCalorieTarget !== undefined && (
-        <Box sx={{ textAlign: "center" }}>
-          <Button variant="contained" size="large" onClick={() => navigate("/")} sx={{ minWidth: 200 }}>
-            はじめる
-          </Button>
-        </Box>
-      )}
+      {settings.heightCm !== undefined &&
+        settings.birthYear !== undefined &&
+        settings.sex !== undefined &&
+        settings.activityLevel !== undefined &&
+        settings.goalWeightKg !== undefined &&
+        settings.goalDate !== undefined &&
+        settings.dailyCalorieTarget !== undefined && (
+          <Box sx={{ textAlign: "center" }}>
+            <Button variant="contained" size="large" onClick={() => navigate("/")} sx={{ minWidth: 200 }}>
+              はじめる
+            </Button>
+          </Box>
+        )}
 
       <ValueEditorDrawer
         target={editTarget}

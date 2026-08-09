@@ -21,6 +21,7 @@ import { db } from "@/db/db";
 import { getSettings, updateSettings } from "@/db/settings";
 import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { fontRounded, tokens } from "@/theme";
+import AppResetCard from "./AppResetCard";
 import LocalBackupCard from "./LocalBackupCard";
 import MasterDataSections from "./MasterDataSections";
 import PfcEditorDrawer from "./PfcEditorDrawer";
@@ -189,6 +190,9 @@ export default function SettingsPage() {
 
       <SectionLabel>完全バックアップ(ファイル)</SectionLabel>
       <LocalBackupCard />
+
+      <SectionLabel>トラブルシューティング</SectionLabel>
+      <AppResetCard />
 
       <SectionLabel>API保護</SectionLabel>
       <Card sx={{ overflow: "hidden", mb: "8px" }}>

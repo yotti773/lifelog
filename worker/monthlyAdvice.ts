@@ -1,5 +1,7 @@
 import {
   DEFAULT_ADVICE_MODEL,
+  GeminiHttpError,
+  isRetryableAdviceError,
   parseWeeklyAdvice,
   WEEKLY_ADVICE_RESPONSE_SCHEMA,
   type WeeklyAdvice,
@@ -69,7 +71,7 @@ async function callGeminiOnce(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini APIエラー (${res.status}): ${errText}`);
+    throw new GeminiHttpError(res.status, `Gemini APIエラー (${res.status}): ${errText}`);
   }
 
   const data = (await res.json()) as {
@@ -82,7 +84,10 @@ async function callGeminiOnce(
   return parseWeeklyAdvice(text);
 }
 
-/** コメントを生成する。失敗(APIエラー・スキーマ検証落ち)は1回だけリトライする(週次と同じ) */
+/**
+ * コメントを生成する。一時的な失敗(5xx・スキーマ検証落ち)は1回だけリトライし、
+ * 4xxはリトライしない(週次と同じ。Issue #205)
+ */
 export async function generateMonthlyAdvice(
   env: WeeklyAdviceEnv,
   digest: object,
@@ -91,7 +96,8 @@ export async function generateMonthlyAdvice(
   const digestJson = JSON.stringify(digest);
   try {
     return await callGeminiOnce(env, digestJson, fetchImpl);
-  } catch {
+  } catch (error) {
+    if (!isRetryableAdviceError(error)) throw error;
     return callGeminiOnce(env, digestJson, fetchImpl);
   }
 }

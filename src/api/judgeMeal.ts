@@ -1,4 +1,4 @@
-import { apiAuthHeaders } from "@/api/apiAuth";
+import { AI_REQUEST_TIMEOUT_MS, requestApi } from "@/api/request";
 import { resizeImageToBase64 } from "@/lib/image";
 import type { MealType } from "@/types";
 
@@ -31,18 +31,13 @@ export async function judgeMealPhoto(
     }),
   );
 
-  const res = await fetch("/api/judge-meal", {
+  const result = await requestApi<MealJudgmentResult>("/api/judge-meal", {
     method: "POST",
-    headers: { "content-type": "application/json", ...(await apiAuthHeaders()) },
-    body: JSON.stringify({ images, mealType, note }),
+    body: { images, mealType, note },
+    timeoutMs: AI_REQUEST_TIMEOUT_MS,
+    fallbackErrorMessage: () => "食事の判定に失敗しました",
   });
 
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? "食事の判定に失敗しました");
-  }
-
-  const result = (await res.json()) as MealJudgmentResult;
   if (!Array.isArray(result.items) || result.items.length === 0) {
     throw new Error("写真から料理を判定できませんでした");
   }

@@ -6,8 +6,9 @@ import { defineConfig } from "@playwright/test";
  *
  * 実行: `npm run e2e`(初回はブラウザ取得のため `npx playwright install chromium` が必要)。
  * devサーバーはwebServer設定で自動起動される(起動済みならそれを再利用)。
- * `npm run test`(vitest)には含めない。CIゲートは設けない方針(Issue #18)のまま、
- * リリース前にローカルで実行する運用とする。
+ * `npm run test`(vitest)には含めない。**CI(`.github/workflows/ci.yml`)にも入れていない** —
+ * Chromiumの取得が要り数分かかること、ランナー起因で不安定になりうることから、
+ * PR前・リリース前にローカルで実行する運用とする(Issue #201、CLAUDE.mdの開発フロー参照)。
  */
 export default defineConfig({
   testDir: "./e2e",

@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>note07 貼り付け用 — 食べすぎのほうは、教えてくれなかった</title>
+<style>
+  :root {
+    --cream: #FFF8F0;
+    --primary: #FF6B4A;
+    --teal: #2EC4B6;
+    --ink: #2E2A27;
+    --muted: #7A716B;
+    --line: #E7DDD3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 64px;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif;
+    line-height: 1.8;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .panel {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+  }
+  h1.page-title { font-size: 20px; margin: 0 0 4px; }
+  .page-sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; letter-spacing: .02em; }
+  ol.steps { margin: 0; padding-left: 1.3em; font-size: 14px; }
+  ol.steps li { margin-bottom: 8px; }
+  .field { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .field input {
+    flex: 1 1 320px; min-width: 0;
+    font: inherit; font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: #FFFDFB;
+  }
+  button {
+    font: inherit; font-size: 14px; font-weight: 700;
+    color: #fff; background: var(--primary);
+    border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer;
+  }
+  button.ghost { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+  button:active { transform: translateY(1px); }
+  .status { font-size: 13px; color: var(--teal); font-weight: 700; min-height: 1.4em; }
+  .note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+  .copybox {
+    border: 2px dashed var(--primary);
+    border-radius: 14px;
+    background: #fff;
+    padding: 8px 22px 22px;
+    margin-bottom: 20px;
+  }
+  .copybox-label {
+    display: inline-block;
+    background: var(--primary); color: #fff;
+    font-size: 12px; font-weight: 700;
+    padding: 3px 10px; border-radius: 0 0 8px 8px;
+    margin-left: -22px;
+  }
+  #article-body h2 { font-size: 19px; margin: 30px 0 12px; }
+  #article-body h3 { font-size: 16px; margin: 24px 0 10px; }
+  #article-body p { margin: 0 0 16px; }
+  #article-body ul, #article-body ol { margin: 0 0 16px; padding-left: 1.4em; }
+  #article-body li { margin-bottom: 6px; }
+  #article-body blockquote {
+    margin: 0 0 16px; padding: 12px 16px;
+    border-left: 3px solid var(--line); background: #FCF8F4; color: #4A433E;
+  }
+  .tags { font-size: 14px; }
+  .tags code { background: #FFF3EE; padding: 2px 6px; border-radius: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1 class="page-title">note07 貼り付け用</h1>
+  <p class="page-sub">食べすぎのほうは、教えてくれなかった — 減量実験レポート 8/3〜8/9(公開予定 2026-08-10)</p>
+
+  <div class="panel">
+    <h2>手順</h2>
+    <ol class="steps">
+      <li>下の「タイトルをコピー」を押して、noteのタイトル欄に貼る</li>
+      <li>「本文をコピー」を押して、noteの本文欄に貼る(見出し・箇条書き・引用・リンクが保持される)</li>
+      <li>本文中の [画像1] の位置に <code>note07_活動量の変化.png</code>(週次レビューの「活動量の変化」カード)を挿入する</li>
+      <li>サムネイルに <code>note07_サムネ.png</code> を設定する</li>
+      <li>公開設定でハッシュタグを入力する(下記)</li>
+    </ol>
+
+    <div class="field">
+      <input id="title-text" value="食べすぎのほうは、教えてくれなかった — 減量実験レポート 8/3〜8/9" readonly>
+      <button id="copy-title" class="ghost">タイトルをコピー</button>
+    </div>
+
+    <p class="note tags">ハッシュタグ(公開設定の画面で入力):
+      <code>#個人開発</code> <code>#ClaudeCode</code> <code>#AI</code> <code>#ダイエット記録</code> <code>#減量</code></p>
+    <p class="note">カテゴリはライフスタイル系ではなく開発寄りに寄せる(README「ハッシュタグ」の方針)。</p>
+  </div>
+
+  <div class="panel">
+    <button id="copy-body">本文をコピー</button>
+    <span class="status" id="status"></span>
+    <p class="note">noteのエディタはMarkdownを解釈しないため、書式付き(text/html)でコピーします。<strong>表はnoteに無いので、本文では箇条書きに置き換えてあります。</strong></p>
+  </div>
+
+  <div class="copybox">
+    <span class="copybox-label">ここから下が本文</span>
+    <div id="article-body">
+
+      <h2>今週の1行</h2>
+      <p><strong>体重は0.04kg増えました。</strong>歩数が直近4週平均より26%落ちて、先週アプリに追加したばかりの警告が、さっそく自分に向けて出ました。ただ<strong>その週は摂取カロリーも目標を258kcal/日超えていて、そちらは何も言われませんでした。</strong></p>
+
+      <h2>今週わかったこと: 警告は「フラグがあるものしか」出ない</h2>
+      <p>先週、このアプリに「活動量の変化」という警告を追加しました。その週の平均歩数を直近4週の平均と並べ、大きく下回っていたら知らせるものです。</p>
+      <p>作った理由は、7月中旬から減量のペースが落ちていたのに、<strong>アプリがそれを一度も知らせなかった</strong>からでした。摂取カロリーは意識して減らしていて、6月の約2,130kcal/日から直近は約1,700kcal/日まで400kcalほど削っています。それでも体重が落ちない。実データを追うと、原因は摂取ではなく消費側にありました。</p>
+      <ul>
+        <li>6月: 歩数17,995歩/日・筋トレ2日</li>
+        <li>7月: 歩数12,825歩/日・筋トレ0日</li>
+        <li>8月: 歩数10,811歩/日・筋トレ0日</li>
+      </ul>
+      <p>5月は12日あった筋トレが6月に2日、7月以降はゼロ。歩数も6月から4割近く減っています。<strong>削った400kcalを、落ちた消費がそのまま打ち消していた</strong>わけです。</p>
+      <p>週次レビューには歩数も筋トレ日数も表示されていました。それでも「落ちている」とは言ってくれなかった。<strong>数字を並べることと、変化に気づかせることは別だった</strong>、というのが先週の結論です。</p>
+
+      <h3>今週、その警告が出ました</h3>
+      <p>追加した週の翌週にさっそく条件を満たしました。</p>
+      <ul>
+        <li>平均歩数(今週): <strong>9,283歩/日</strong></li>
+        <li>平均歩数(直近4週): <strong>12,597歩/日</strong></li>
+        <li>変化: <strong>−26%</strong></li>
+      </ul>
+      <blockquote>⚠ 歩数が直近数週の平均を大きく下回っています。消費が落ちるとペースも落ちます</blockquote>
+      <p>[画像1]</p>
+      <p>意図したとおりに動きました。ここまでは答え合わせ成功です。</p>
+      <p>ちなみに筋トレは今週1日で、直近4週の平均が1.3日/週なので、こちらは警告の条件に入っていません。<strong>落ちたのは歩数だけ</strong>、と正しく切り分けられていました。</p>
+
+      <h3>でも、もっと大きい見逃しがありました</h3>
+      <p>今週の摂取カロリーは平均1,988kcal/日。目標は1,730kcalなので、<strong>1日あたり258kcalの超過</strong>です。目標カロリー以内に収まった日は<strong>7日中1日</strong>しかありません。</p>
+      <p><strong>この件について、アプリは何も言いませんでした。</strong></p>
+      <p>理由は分かっています。このアプリは「気をつけたいこと」として出す警告をコード側で決め打ちしていて、AIコーチにも「アプリが判定済みの項目以外を新たに指摘しない」と指示しています。数字の解釈をAIに任せると、根拠のない指摘が混ざるからです。</p>
+      <p>そして現時点で、<strong>「摂取が目標を大きく超えた週」という判定は実装されていません。</strong>ペースの遅れと活動量の低下はあるのに、摂取超過には無い。だからAIは触れようがなかった。</p>
+      <p>先週「数字を並べることと、変化に気づかせることは別だ」と書いたばかりなのに、<strong>同じ穴が反対側に空いていた</strong>わけです。消費の低下は塞いだけれど、摂取の超過は塞いでいなかった。</p>
+
+      <h3>PFCを見ると、超過の中身がはっきりしています</h3>
+      <ul>
+        <li>たんぱく質: 94g(目標143g)→ <strong>49g不足</strong></li>
+        <li>脂質: 80g(目標48g)→ <strong>32g超過</strong></li>
+        <li>炭水化物: 210g(目標179g)→ 31g超過</li>
+      </ul>
+      <p>脂質の超過32gは、そのまま288kcalです。<strong>今週の超過258kcalは、ほぼ脂質だけで説明がつきます。</strong></p>
+      <p>日記にもそう書いてありました。土曜に「食べすぎちゃったので、悲しい。美味しかったからまぁ、いいか」、日曜に「太宰府ではランチにデザートに贅沢してしまい、やっぱり食べすぎだなと反省」。お盆休みに入って外食が続いた週です。自覚はあった。<strong>アプリだけが黙っていました。</strong></p>
+
+      <h2>今週の数字(8/3〜8/9)</h2>
+      <ul>
+        <li><strong>週平均体重</strong>: 71.1kg(前週比 <strong>+0.04kg</strong>)。必要ペースは−0.60kg/週(残り83日)、着地予測66.8kg / 目標64.0kg</li>
+        <li><strong>平均摂取カロリー</strong>: 1,988kcal/日(目標1,730。目標以内の日は<strong>1/7日</strong>)</li>
+        <li><strong>PFC平均</strong>: P94g / F80g / C210g(目標 P143 / F48 / C179)</li>
+        <li><strong>記録率</strong>: 7/7日、<strong>連続97日</strong></li>
+        <li><strong>実測TDEE</strong>: 約1,882kcal/日(Garmin計測は2,651kcal/日。差が大きい週としてアプリが注記)</li>
+        <li>参考: 平均歩数9,283歩/日、平均睡眠6時間56分、水分2,129ml/日(目標達成4/7日)、血圧週平均113/75mmHg</li>
+      </ul>
+
+      <h2>AIコーチはこう言った</h2>
+      <blockquote>今週は活動量の低下が見られ、目標ペースに対して少し停滞気味です。暑さなどで疲れやすい時期かと思いますが、記録を毎日継続できていることは素晴らしい習慣ですので、この調子で自分のペースを守っていきましょう。<br><br>
+      続けたいこと: ・97日間という素晴らしい継続力で、毎日欠かさず記録を続けられています ・水分摂取量の目標を週の半分以上達成できています<br><br>
+      来週やってみること: 1. 意識的に歩数を少しずつ増やし、先週の平均に近づけていきましょう 2. たんぱく質を目標値に近づけるよう、意識的に摂取量を高めてみましょう 3. 涼しい時間帯の散歩などを活用して活動量を維持することを目指しましょう</blockquote>
+      <p>(AIによる参考情報であり、医学的助言ではありません)</p>
+
+      <h3>自分はこう読んだ</h3>
+      <p><strong>歩数の指摘は、先週の実装がそのまま効いています。</strong>今週からこのAIには「活動量の変化」のデータが渡るようになっていて、実際に1番目の行動提案がそこを突いてきました。以前は歩数に触れることすらなかったので、入力に足したものがちゃんと出力に出た、という確認になりました。</p>
+      <p><strong>一方で「たんぱく質を高めましょう」は、半分だけ正しい。</strong>P94g / 目標143gなので、たんぱく質が足りていないのは事実です。ただ、<strong>1日258kcal超過して食べている週に「摂取量を高めて」と言われると、字面としてはかなり妙</strong>です。正確には「脂質を減らして、その分をたんぱく質に置き換える」が正しい指示で、AIはその後半しか言えていません。</p>
+      <p>責めるべきはAIではなく、<strong>入力にそれを渡していない自分</strong>です。今のアプリは「摂取が目標を超えた」も「脂質が目標の167%だった」も判定していないので、AIの手元にその事実がありません。前半を言わせるには、まずアプリ側で判定する必要があります。</p>
+      <p><strong>「暑さで疲れやすい時期」という推測だけは、根拠がありません。</strong>これはデータに無い話で、日記にも暑さで動けなかったとは書いていない(むしろ8/3の日記で「暑いのだけがネック」とは書いているので、日記本文を読んで拾った可能性はあります)。共感を作る文としては効いていますが、事実の指摘と地続きに置かれると境界が曖昧になります。ここは今後の観察対象です。</p>
+      <p><strong>そして今週いちばん効いた指摘は、AIではなく日記でした。</strong>「最近ダイエットへのモチベが上がってないのが悩み」(8/8)。数字より先に本人が書いていて、実際その週の結果がこれでした。</p>
+
+      <h2>来週やること</h2>
+      <ol>
+        <li><strong>歩数を12,000歩/日に戻す。</strong>直近4週平均が12,597歩なので、そこが基準です。今週は9,283歩でした</li>
+        <li><strong>脂質を目標48gに寄せる。</strong>超過の中身はほぼ脂質でした。総カロリーを見るより、脂質1項目を見るほうが今週は効きます</li>
+        <li><strong>摂取が目標を超えた週の判定をアプリに足す。</strong>今回いちばん困ったのがこれが無いことだったので、次の開発トピックにします</li>
+      </ol>
+      <p>摂取をこれ以上「削る」方向には動かしません。実測TDEEの逆算値は1,882kcalまで落ちていますが、これは摂取と体重変化から逆算した数字なので、<strong>体重が減らなければ自動的に低く出ます</strong>。消費が落ちた根拠として使うと循環論法になるので、判断には歩数と筋トレ日数の実数だけを使います。</p>
+
+      <p>アプリ: <a href="https://lifelog.n1lab.workers.dev/">https://lifelog.n1lab.workers.dev/</a><br>
+      GitHub: <a href="https://github.com/yotti773/lifelog">https://github.com/yotti773/lifelog</a></p>
+      <p>前回: <a href="https://note.com/yotti073/n/ne4a3440999ef">体重は減ったのに、まだ届かない</a></p>
+      <p>関連(このアプリの作り方): <a href="https://zenn.dev/yotti073/articles/spec-driven-claude-code">Claude Codeに実装を丸投げしたら、個人開発のボトルネックが「書く」から「決める」に変わった話</a></p>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const status = document.getElementById('status');
+
+  function flash(msg) {
+    status.textContent = msg;
+    setTimeout(() => { status.textContent = ''; }, 2500);
+  }
+
+  function selectAndCopy(el) {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const ok = document.execCommand('copy');
+    sel.removeAllRanges();
+    return ok;
+  }
+
+  document.getElementById('copy-body').addEventListener('click', async () => {
+    const el = document.getElementById('article-body');
+    try {
+      const html = el.innerHTML;
+      const text = el.innerText;
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' })
+      })]);
+      flash('本文をコピーしました');
+    } catch (e) {
+      flash(selectAndCopy(el) ? '本文をコピーしました' : 'コピーできませんでした。枠内を手で選択してください');
+    }
+  });
+
+  document.getElementById('copy-title').addEventListener('click', async () => {
+    const value = document.getElementById('title-text').value;
+    try {
+      await navigator.clipboard.writeText(value);
+      flash('タイトルをコピーしました');
+    } catch (e) {
+      const input = document.getElementById('title-text');
+      input.select();
+      flash(document.execCommand('copy') ? 'タイトルをコピーしました' : 'コピーできませんでした');
+    }
+  });
+</script>
+</body>
+</html>

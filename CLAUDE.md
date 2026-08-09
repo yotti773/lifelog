@@ -27,14 +27,24 @@
 ```
 npm run dev       # Vite開発サーバーを起動(localhost:5173)
 npm run build     # tsc -b && vite build(PWAのService Workerも生成される)
-npm run test      # vitest run(全テスト実行)
+npm run test      # vitest run(ユニットテスト全実行。e2e/は含まない)
 npx vitest run src/db/__tests__/weightRecords.test.ts   # 単一テストファイルの実行
+npm run e2e       # playwright test(E2Eスモーク。devサーバーは自動起動される)
+npx playwright test e2e/weight.spec.ts   # 単一E2Eファイルの実行
 npm run preview   # 本番ビルドをローカルで配信(実際のPWA/インストール動作の確認に必要)
 ```
 
 `npm run lint` は package.json に定義されているが、ESLintは実際にはインストール・設定されていない — 当てにしないこと。
 
-このリポジトリにはブラウザ用のテストランナーが組み込まれていない。UI変更を目視確認するには `npm run dev` を起動し、Playwright(スクラッチディレクトリで `npm install playwright` + `npx playwright install chromium`)で操作すること — リポジトリ内にヘルパースクリプトは無い。
+### テストの構成(Issue #198)
+
+- **ユニットテスト(vitest)** — `src/**/__tests__/`・`worker/__tests__/`。データ層は `fake-indexeddb` で実Dexieを動かし、ロジック・同期・行パースは純関数として検証する。ブラウザは使わない。
+- **E2Eスモーク(Playwright)** — `e2e/`。ユニットで見えない結線(ルーティング・`useLiveQuery`・フォーム→IndexedDB)を、クリティカルフロー(体重・食事・水分・日記・レビュー・完全バックアップの復元)に絞って確認する。**Worker必須の機能(シート同期・AI生成)はE2Eの対象外** — そこはユニットのfetchモックで担保済みで、E2Eに持ち込むと認証情報が要るため。
+- 初回は `npx playwright install chromium` が必要。標準の場所にChromiumが無い環境では `PLAYWRIGHT_CHROMIUM_PATH` にパスを渡す。
+- **E2Eは `npm run test` に含めない**(実行に数分かかるため)。
+- 個々のUI変更を目視で確認したい場合は、E2Eスイートとは別に `npm run dev` + Playwrightのアドホックなスクリプトで操作してよい(スクリーンショット確認など)。
+
+**CIチェック(`.github/workflows/ci.yml`、Issue #201):** PR作成時と `main` へのpushで、`npm run test` / `npm run build` / `npm run typecheck:worker` が自動実行される。**これはPRの品質シグナルであってデプロイのゲートではない** — 本番デプロイは従来どおりCloudflareのGit連携が行い、CIが落ちてもデプロイは止まらない(デプロイ自体をActionsへ移す案は見送っている。Issue #18)。**E2EはCIに入れていない**ため、下記の通りローカルで実行すること。
 
 ## 開発フロー
 
@@ -43,7 +53,11 @@ npm run preview   # 本番ビルドをローカルで配信(実際のPWA/イン�
 - **非自明な作業は着手前にIssueを立てる。** 自分一人で作業する場合でも同様。`docs/` での意思決定とそれを実装したコードの対応関係をたどれるようにし、後続のセッション(人間・Claudeどちらも)が仕様書を読み直さなくても「なぜ」を把握できるようにするため。
 - **新規画面の追加や大きなレイアウト変更を伴う場合、実装前の画面設計のタイミングでArtifactツールを使ってHTMLモックアップを作成し、レイアウト・配色案を確認する。** テキストの画面設計書だけでは見た目の合意が取りにくいため。モックアップは実装前の意思決定用であり、実装そのものの代わりにはならない — 実際のMUIテーマ・実データでの見え方は、次の項目の通り `npm run dev` + Playwrightで別途確認する。
 - **新しい作業ブランチを作成する際は、まず `git status` で作業ツリーがクリーンであることを確認し、`git checkout main && git pull --ff-only origin main` でローカルmainを最新化してから、そこから作業ブランチを切る。** mainに未コミットの変更がある、または`--ff-only`が失敗する(ローカルmainが分岐している)場合は、最新化を強行せずユーザーに確認する。古いmainから作業ブランチを切ると、並行してマージされた変更を見落としたまま実装・PR作成してしまう。
-- ブランチ上で実装し、`npm run test` / `npm run build` で検証、UI変更であれば上記コマンド節の通りPlaywrightで手動確認する。
+- **PR作成前に、ローカルで次を実行して通ることを確認する(必須)。** CIは同じ内容をPR作成後に回すが、push前に気づけるようローカルでも必ず流す。
+  - `npm run test` と `npm run build`(全変更で必須)
+  - `npm run typecheck:worker`(`worker/` を触った場合。`tsc -b` の対象外のため)
+  - **`npm run e2e`(画面・ルーティング・データ層に影響する変更をした場合は必須)。** E2EはCIに含めていないため、ここで流さないと誰も流さない。数分かかるので、ドキュメントのみの変更やWorker内部だけの変更では省いてよい。
+- UI変更であれば、上記に加えて上記コマンド節の通りPlaywrightで見た目を目視確認する。
 - **仕様に影響する変更を実装したら、対応する `docs/` の仕様書へ書き戻す(必須)。** 画面の挙動・データモデル・同期・意思決定に関わる変更は、実装だけで終わらせず該当する仕様書本文(画面設計書・要件定義書など)を現在の仕様に更新し、見送っていた論点を実装した場合は12章などの論点リストと `docs/からだログ_意思決定ログ.md` に経緯を残す。仕様書が真実の情報源であり、コードと乖離させない。純粋なバグ修正・リファクタなど仕様に影響しない変更は書き戻し不要(その旨を判断できるよう、影響有無は毎回確認する)。
 - **PR作成前にレビューを行う(必須)。** `docs/からだログ_レビューチェックリスト.md` の観点(特に「5. UIコードのレビュー観点」「4. コード不変条件チェック」)で自分の変更を点検する。まとまった変更では `/code-review` skill を併用してよい。指摘は修正するか、対応しない場合は理由を残す。
 - **Issueが完了したらPRを作成する。** PR本文で該当Issueを参照し(例: `Closes #6`)、マージ時に自動クローズされるようにする。PRを介さず `main` へ直接マージしない — PRは「何を・なぜ変更したか」の記録になる。
@@ -77,11 +91,11 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 
 `runSync()`(`syncEngine.ts` 内)はトランスポート非依存: 未同期のレコードと**削除トゥームストーン**(`src/db/syncDeletions.ts`、後述)を取得し、`SyncTransport.push()` を呼び、トランスポートが成功を報告したレコードだけを同期済みにする(部分的な成功は想定内で、ハンドリングされている)。何らかのエラーがthrowされた場合、何も同期済みにされず、エラーは呼び出し元に伝播する — これがリトライの仕組みであり、別途リトライキューは存在しない。
 
-**編集・削除の反映(Issue #30):** 追記のみだと、同期済みレコードを編集すると新しい行が重複して増え、削除はスプレッドシートに残り続ける。これを防ぐため、(1) 編集は `synced: false` に戻る性質をそのまま使い、Worker側で**ID列(体重=F・食事=H・水分=C・筋トレ=H・日記=E・食事マスタ=H・種目マスタ=C列)をキーに既存行を特定して上書き**(無ければ追記)する upsert にした。(2) 削除は `deleteWeightRecord`/`deleteMealRecord` が `syncDeletions` テーブルに**トゥームストーン**(対象タブとID列の値)を残し、次回同期でWorkerが該当行を `deleteDimension` で物理削除する。削除確定後にトゥームストーンを消す。体重は主キーが日付のため、削除した日付を再登録したら `saveWeightRecord` が保留中のトゥームストーンを取り消す(`cancelDeletion`)。`worker/sheetsSync.ts` の `planUpserts`/`planRowDeletions` は純関数として切り出してあり単体テストがある。
+**編集・削除の反映(Issue #30):** 追記のみだと、同期済みレコードを編集すると新しい行が重複して増え、削除はスプレッドシートに残り続ける。これを防ぐため、(1) 編集は `synced: false` に戻る性質をそのまま使い、Worker側で**ID列をキーに既存行を特定して上書き**(無ければ追記)する upsert にした(タブごとのID列は `worker/sheetsSync.ts` の `*_CONFIG` が正)。(2) 削除は `deleteWeightRecord`/`deleteMealRecord` が `syncDeletions` テーブルに**トゥームストーン**(対象タブとID列の値)を残し、次回同期でWorkerが該当行を `deleteDimension` で物理削除する。削除確定後にトゥームストーンを消す。体重は主キーが日付のため、削除した日付を再登録したら `saveWeightRecord` が保留中のトゥームストーンを取り消す(`cancelDeletion`)。`worker/sheetsSync.ts` の `planUpserts`/`planRowDeletions` は純関数として切り出してあり単体テストがある。
 
-**取り込み(Issue #54):** シート→アプリ方向の手動インポート(設定画面の「シートから取り込み」ボタンのみがトリガー)。`runImport()`(`src/sync/importEngine.ts`)が `workerSheetsTransport.pull()` → `GET /api/import-sheets`(`worker/sheetsImport.ts`)経由で8タブ(体重・食事・水分・筋トレ・日記+Garmin由来の活動記録+食事マスタ・種目マスタ)の全行をレコードに逆変換して受け取り、**追加のみ・ローカル優先**でマージする(既存キー・削除トゥームストーン保留中のキーはスキップ。取り込んだレコードは `synced: true` で保存し再送信しない)。例外は活動記録で、アプリ内に編集・削除が無くGarminが真実の情報源のため、常にシート側の値で上書きする(Issue #81)。マスタ2タブ(Issue #96)はIDが違っても同名(前後空白無視)の既存品目・種目をスキップする — 種目マスタは名前がサジェストのキーで同名を許さないため。Worker側は、ID列が空の行(手入力の過去データ)にIDを採番して(体重・日記=日付、食事・水分・筋トレ・マスタ=UUID)**シートに書き戻す** — 書き戻せないと以後のupsert・行削除がその行を見つけられず重複行を生むため、書き戻し失敗は取り込み全体の失敗にする。行パース(`planWeightImport`/`planMealImport` ほか)は純関数として切り出してあり単体テストがある。シートに無い情報(食事のAI推定値・写真参照、設定)は復元されない。
+**取り込み(Issue #54):** シート→アプリ方向の手動インポート(設定画面の「シートから取り込み」ボタンのみがトリガー)。`runImport()`(`src/sync/importEngine.ts`)が `workerSheetsTransport.pull()` → `GET /api/import-sheets`(`worker/sheetsImport.ts`)経由で**全タブ**(一覧は `worker/sheetsImport.ts` の `handleImportSheets` が正)の全行をレコードに逆変換して受け取り、**追加のみ・ローカル優先**でマージする(既存キー・削除トゥームストーン保留中のキーはスキップ。取り込んだレコードは `synced: true` で保存し再送信しない)。例外は活動記録で、アプリ内に編集・削除が無くGarminが真実の情報源のため、常にシート側の値で上書きする(Issue #81)。マスタ2タブ(Issue #96)はIDが違っても同名(前後空白無視)の既存品目・種目をスキップする — 種目マスタは名前がサジェストのキーで同名を許さないため。Worker側は、ID列が空の行(手入力の過去データ)にIDを採番して(体重・日記=日付、食事・水分・筋トレ・マスタ=UUID)**シートに書き戻す** — 書き戻せないと以後のupsert・行削除がその行を見つけられず重複行を生むため、書き戻し失敗は取り込み全体の失敗にする。行パース(`planWeightImport`/`planMealImport` ほか)は純関数として切り出してあり単体テストがある。シートに無い情報(食事のAI推定値・写真参照、設定)は復元されない。
 
-**活動記録の自動取り込み(Issue #133):** 上記の手動取り込みとは別に、活動記録タブ**だけ**は自動同期のたびに取り込む。`runActivityImport()`(`src/sync/importEngine.ts`)が `workerSheetsTransport.pullActivity()` → `GET /api/import-activity`(`worker/sheetsImport.ts` の `handleImportActivity`)経由で活動記録タブ1枚だけを読み取り(全12タブを読む `/api/import-sheets` と分けた軽量版)、`runImport` の活動記録と同じく常にシート側で上書きして `synced: true` で保存する。`createAutoSyncRunner` の既定動作 `runAutoSync` が push(`runSync`)に続けてこれを呼ぶ。取り込みはベストエフォートで、`runActivityImport` はthrowせずエラーを返すため push の成功を打ち消さない。手動の「今すぐ同期」ボタンは push のみ、全タブの取り込みは引き続き「シートから取り込み」ボタンのみ。
+**活動記録の自動取り込み(Issue #133):** 上記の手動取り込みとは別に、活動記録タブ**だけ**は自動同期のたびに取り込む。`runActivityImport()`(`src/sync/importEngine.ts`)が `workerSheetsTransport.pullActivity()` → `GET /api/import-activity`(`worker/sheetsImport.ts` の `handleImportActivity`)経由で活動記録タブ1枚だけを読み取り(全タブを読む `/api/import-sheets` と分けた軽量版)、`runImport` の活動記録と同じく常にシート側で上書きして `synced: true` で保存する。`createAutoSyncRunner` の既定動作 `runAutoSync` が push(`runSync`)に続けてこれを呼ぶ。取り込みはベストエフォートで、`runActivityImport` はthrowせずエラーを返すため push の成功を打ち消さない。手動の「今すぐ同期」ボタンは push のみ、全タブの取り込みは引き続き「シートから取り込み」ボタンのみ。
 
 `notConfiguredTransport` は `runSync()`/`runImport()`/`runActivityImport()` の引数無しデフォルトのままで、常にthrowするだけのプレースホルダー(テストでも「デフォルトは未設定エラーになる」ことの検証に使われている)。実際に使われるのは `workerSheetsTransport`(`src/sync/workerSheetsTransport.ts`)で、`App.tsx`(自動同期)と設定画面の `SheetsSyncCard.tsx`(「今すぐ同期」「シートから取り込み」ボタン)からは `runSync({ transport: workerSheetsTransport })` / `runImport({ transport: workerSheetsTransport })` の形で明示的に渡している。自動同期のトリガーは起動時・アプリ復帰時(`visibilitychange`)・オンライン復帰時(`online`)の3つ(Issue #105)で、そのたびに push と活動記録の取り込み(上記)の両方を行う。短時間の連続発火を防ぐスロットリング(最小間隔5分)と実行中の再入抑止は `src/sync/autoSync.ts` の `createAutoSyncRunner` が持つ(手動ボタンは対象外)。
 
@@ -89,7 +103,7 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 
 全 `/api/*` エンドポイントは共有トークン認証で保護される(Issue #87、`worker/auth.ts`): Workerのシークレット `API_AUTH_TOKEN` が設定されている場合、クライアントは設定画面で入力したAPIトークン(`Settings.apiToken`)を `Authorization: Bearer` ヘッダで送る必要がある(付与は `src/api/apiAuth.ts` のヘルパー経由)。`API_AUTH_TOKEN` 未設定なら認証を要求しない(ローカル開発・移行期間用)。新しいAPIエンドポイント・API呼び出しを追加する際もこの仕組みに乗せること。
 
-**同期先はアプリのデータモデル専用に新規作成したスプレッドシート(体重記録・食事記録・水分記録・筋トレ記録・日記記録の5タブ+Garmin連携が書き込む活動記録タブ+食事マスタ・種目マスタの2タブ)であり、今使っている手動運用の既存スプレッドシートではない。** マスタ2タブは後付け(Issue #96)のため、同期時にタブが無ければWorkerが見出し行付きで自動作成する(記録タブは手動作成が前提のまま)。 検討の結果、既存の手動運用シートは「1日1行、その日の食事の合計カロリー/PFC」という集計形式で、アプリの `MealRecord`(1食事=1レコード、1日に複数件記録しうる)とは粒度が異なることが分かった。既存シートに合わせるには「日付で行を検索→既存の値と合算→上書き」という集計取り込みロジックが必要になり、「レコード単位で一方向に反映する(1レコード=1行、ID列で upsert・削除)」という現在の設計と相性が悪いため、新規スプレッドシートを採用した(Issue #3)。
+**同期先はアプリのデータモデル専用に新規作成したスプレッドシートであり、今使っている手動運用の既存スプレッドシートではない。** タブの一覧・タブ名・ID列・列の並びは `worker/sheetsSync.ts`(`*_CONFIG`・`*_HEADER`・`*ToRow`)が正で、ここには再掲しない。**フェーズ1〜2の記録5タブ(体重・食事・水分・筋トレ・日記)だけが手動作成前提で、それ以外は後付けのため同期時にタブが無ければWorkerが見出し行付きで自動作成する。** 検討の結果、既存の手動運用シートは「1日1行、その日の食事の合計カロリー/PFC」という集計形式で、アプリの `MealRecord`(1食事=1レコード、1日に複数件記録しうる)とは粒度が異なることが分かった。既存シートに合わせるには「日付で行を検索→既存の値と合算→上書き」という集計取り込みロジックが必要になり、「レコード単位で一方向に反映する(1レコード=1行、ID列で upsert・削除)」という現在の設計と相性が悪いため、新規スプレッドシートを採用した(Issue #3)。
 
 ### Garmin連携(`scripts/garmin/`、`.github/workflows/garmin-sync.yml`)
 
@@ -97,7 +111,7 @@ GitHub Actionsのcron(毎日3:00 JST)が `python-garminconnect`(非公式API)で
 
 ### UI(`src/pages/`、`src/components/`)
 
-ファイル配置は画面単位: 特定の画面からしか使わないコンポーネントは、その画面のディレクトリ(`src/pages/home/`、`src/pages/trends/`、`src/pages/meal/`、`src/pages/settings/`)に置く。`src/components/` に置くのは複数画面で共有するもの(`icons.tsx`・`BottomNav`・`RecordHeader`・`RecordSaveFooter`・`SectionLabel`・`SegmentedControl`・`PaginationControls`・`MoodIcon`・食事のkcal/PFC入力グリッド `NutrientFieldsGrid`・食事マスタのPFCサマリ表示 `PfcSummary`)だけで、複数画面で共有するReactフック(検索+ページ分割の `usePagedFilter` など)は `src/hooks/` に置く。ルートコンポーネントは `〜Page` という命名(`HomePage.tsx` など)で、ルーティングは `App.tsx` にある。単一ファイルで完結する記録系ページ(体重・水分・日記・筋トレ)は `src/pages/` 直下のフラット配置のまま。
+ファイル配置は画面単位: 特定の画面からしか使わないコンポーネントは、その画面のディレクトリ(`src/pages/home/`、`src/pages/trends/`、`src/pages/meal/`、`src/pages/settings/`)に置く。`src/components/` に置くのは複数画面で共有するもの(`icons.tsx`・`BottomNav`・`RecordHeader`・`RecordSaveFooter`・`SectionLabel`・`SegmentedControl`・`PaginationControls`・`MoodIcon`・食事のkcal/PFC入力グリッド `NutrientFieldsGrid`・食事マスタのPFCサマリ表示 `PfcSummary`・記録フォームの項目ラベル `FieldLabel`・日付記録の「見つかりません」画面 `RecordNotFound`)だけで、複数画面で共有するReactフック(検索+ページ分割の `usePagedFilter`、日付キー記録画面の編集モード制御 `useDailyRecordEditor` など)は `src/hooks/` に置く。ルートコンポーネントは `〜Page` という命名(`HomePage.tsx` など)で、ルーティングは `App.tsx` にある。単一ファイルで完結する記録系ページ(体重・水分・日記・筋トレ)は `src/pages/` 直下のフラット配置のまま。
 
 クライアントの状態は、React state + 手動再取得ではなく `dexie-react-hooks` の `useLiveQuery` から得ている — IndexedDBのテーブルが変化すると、ページは自動的に再レンダリングされる。
 
@@ -113,7 +127,9 @@ UIはMUIで、`src/theme.ts` がデザインガイドのパレットをMUIテー
 
 ### PWA
 
-`vite-plugin-pwa`(`vite.config.ts` を参照)がビルド時にマニフェストとService Workerを生成する — アイコン以外、手作業でメンテナンスするものはない。
+`vite-plugin-pwa`(`vite.config.ts` を参照)がビルド時にマニフェストとService Workerを生成する — アイコン以外、手作業でメンテナンスするものはない。生成されるSWは precache と NavigationRoute だけを持ち、**`/api/*` の呼び出しは横取りしない**(APIの通信失敗はSWの仕業ではなく本物のネットワーク失敗、という切り分けの前提になる)。
+
+**SWが壊れた場合の復旧経路は設定画面の「アプリのリセット」(`src/lib/appReset.ts`、Issue #203)。** SW登録解除とCache Storage削除だけを行い、**IndexedDBには触れない** — PWAのアンインストールはストレージごと消えることがあり、記録が全てIndexedDBにある本アプリでは危険なため、再インストールに頼らずに復旧できる経路として用意してある。ここでIndexedDBも消すように「整理」しないこと。
 
 アイコンの正はベクター素材の `docs/icon/icon_master.svg`(1024px、クリーム `#FFF8F0` の角丸背景 + プライマリ `#FF6B4A` のマーク)で、`public/icons/` のPNG(`icon-192` / `icon-512` / `icon-512-maskable` / `apple-touch-icon`)はそこから書き出したもの。PNGを直接編集せず、マスターSVGを直してから書き出し直すこと。`icon-512-maskable` と `apple-touch-icon` は、OS側が独自にマスクをかけるため**角丸を付けず全面をクリームで塗り**、maskableはさらに中央80%のセーフゾーンに収まるようマークを縮小してある。`public/icons/icon.svg` はマスターSVGのコピーで、ファビコン(`index.html` の `rel="icon"`)として使っている。
 
@@ -125,4 +141,4 @@ Cloudflare Workers(クラシックな別サービスの「Pages」ではなく�
 
 `npm run deploy` はローカルで同じbuild+deployを実行するが、事前に `wrangler login` が必要(このサンドボックス化された開発環境ではセットアップされていない — 特に指示が無い限り未認証だと想定すること)。
 
-**デプロイパイプラインに自動テストのゲートは無い**(`npm run test` が失敗していてもビルドさえ通れば本番へデプロイされる)。GitHub Actions移行によるテストゲート導入は検討したが、個人開発・単一ユーザー向けというプロジェクト規模には見合わないと判断し対応不要とした(Issue #18、からだログ_意思決定ログ.md参照)。デプロイ前に `npm run test` / `npm run build` をローカルで確認する運用でカバーする。
+**デプロイパイプラインに自動テストのゲートは無い**(`npm run test` が失敗していてもビルドさえ通れば本番へデプロイされる)。デプロイ自体をGitHub Actionsへ移してテストゲートを設ける案は、個人開発・単一ユーザー向けというプロジェクト規模には見合わないと判断し対応不要とした(Issue #18、からだログ_意思決定ログ.md参照)。**PRと `main` へのpushではCI(`.github/workflows/ci.yml`、Issue #201)がテスト・ビルドを回すが、これはデプロイに関与しない品質シグナルで、落ちてもデプロイは止まらない**(止めるにはブランチ保護でこのチェックを必須にする設定が別途要る)。上記テスト節の通り、PR前にローカルでも実行する運用と併せてカバーする。

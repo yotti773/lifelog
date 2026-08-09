@@ -78,7 +78,7 @@ describe("workerSheetsTransport", () => {
 
     await expect(workerSheetsTransport.pull()).resolves.toEqual(result);
     // APIトークン未設定時はAuthorizationヘッダを付けない(Issue #87)
-    expect(fetchMock).toHaveBeenCalledWith("/api/import-sheets", { headers: {} });
+    expect(fetchMock).toHaveBeenCalledWith("/api/import-sheets", expect.objectContaining({ headers: {} }));
   });
 
   it("sends the configured API token as an Authorization header (Issue #87)", async () => {
@@ -96,9 +96,11 @@ describe("workerSheetsTransport", () => {
         headers: { "content-type": "application/json", authorization: "Bearer test-token" },
       }),
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/import-sheets", {
-      headers: { authorization: "Bearer test-token" },
-    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/import-sheets",
+      expect.objectContaining({ headers: { authorization: "Bearer test-token" } }),
+    );
   });
 
   it("pull: throws with the server-provided error message on failure", async () => {

@@ -2,7 +2,7 @@
 
 作成日: 2026-07-06
 関連ドキュメント: からだログ_要件定義書.md(4.7章)、からだログ_画面設計書.md(8.2章・8.3章)、からだログ_意思決定ログ.md
-対応Issue: #12(AIコーチング)。前提となる土台: #43(身体プロフィール・目標カロリー)、#44(実測TDEE)、#45(週次レビュー)、#46(記録率)、#47(PFC目標)。拡張: #114(月次レビュー・月次AIコメント。10章)
+対応Issue: #12(AIコーチング)。前提となる土台: #43(身体プロフィール・目標カロリー)、#44(実測TDEE)、#45(週次レビュー)、#46(記録率)、#47(PFC目標)。拡張: #114(月次レビュー・月次AIコメント。10章)、#174(活動量低下の検知。`activityTrend`と`ACTIVITY_DROP`/`WORKOUT_STOPPED`)
 
 ## 1. 目的・位置づけ
 
@@ -32,17 +32,22 @@ AIへの入力はこの型のJSONのみ。週次レビュー画面の表示に�
 interface WeeklyDigest {
   period: { start: string; end: string };        // 対象週(月曜〜日曜、YYYY-MM-DD)
   goal: {
-    targetWeightKg: number;
-    targetDate: string;                          // YYYY-MM-DD
-    remainingDays: number;
+    goalType: "diet" | "maintain";              // 目標タイプ(#116)。未設定は"diet"扱い。維持モードで各セクションの判定・プロンプトを分岐する
+    targetWeightKg: number;                       // 減量=目標体重 / 維持=維持レンジの中心
+    targetDate: string;                          // YYYY-MM-DD(維持モードでは使わない)
+    remainingDays: number;                        // 目標日までの残り日数(維持モードでは常に0。判定に使わない)
+    rangeMinKg: number | null;                    // 維持レンジ下限(維持モードのみ。減量モードはnull)
+    rangeMaxKg: number | null;                    // 維持レンジ上限(維持モードのみ。減量モードはnull)
   };
   weight: {
     weekAvgKg: number | null;                    // 週平均体重(記録が無い週はnull)
     prevWeekAvgKg: number | null;
     weeklyChangeKg: number | null;               // 週平均同士の差(単日比較はノイズが大きいため使わない)
-    projectedKg: number | null;                  // 現在ペースでの着地予測(実装済みの線形予測を流用。Issue #25)
-    requiredWeeklyPaceKg: number;                // 必要ペース = 残り減量幅 ÷ 残り週数
+    projectedKg: number | null;                  // 現在ペースでの着地予測(減量モードのみ。維持モードはnull。実装済みの線形予測を流用。Issue #25)
+    requiredWeeklyPaceKg: number;                // 必要ペース = 残り減量幅 ÷ 残り週数(減量モードのみ意味を持つ。維持モードは0)
     paceBaseKg: number | null;                   // 必要ペース計算の基準体重(週平均、無ければ最新体重にフォールバック。体重記録が皆無ならnull)
+    withinRange: boolean | null;                 // 維持モード: 週平均が維持レンジ内か(減量モード・体重記録皆無はnull)
+    rangeDeviationKg: number | null;             // 維持モード: レンジからの乖離kg(内なら0、上抜けは正、下抜けは負。減量モードはnull)
   };
   calories: {
     avgIntakeKcal: number | null;                // 記録がある日の平均
@@ -67,6 +72,15 @@ interface WeeklyDigest {
     avgTotalKcal: number | null;                 // 週平均総消費カロリー(Garmin計測)
     avgSleepMinutes: number | null;              // 平均睡眠時間(分)
     recordedDays: number;                        // 活動データがある日数(0〜7)
+  };
+  activityTrend?: {                              // 活動量の週次比較(Issue #174)。比較できる過去週が足りない週は省略
+    weekAvgSteps: number | null;                 // 当該週の平均歩数(品質ゲート未達なら null)
+    prevWeeksAvgSteps: number | null;            // 当該週を除く直近4週の平均歩数
+    stepsChangeRatio: number | null;             // 歩数の変化率(-0.2 = 20%減。算出済みで渡す)
+    stepsComparedWeeks: number;                  // 歩数の基準に使った週数(品質ゲートを通った週のみ)
+    weekWorkoutDays: number;                     // 当該週に筋トレを記録した日数
+    prevWeeksAvgWorkoutDays: number | null;      // 当該週を除く直近4週の平均筋トレ日数
+    comparedWeeks: number;                       // 筋トレの基準に使った週数(過去週すべて)
   };
   workout?: {                                    // 筋トレの週サマリー(Issue #103)。記録が無い週は省略
     activeDays: number;                          // 筋トレを記録した日数(0〜7)
@@ -113,21 +127,38 @@ interface WeeklyDigest {
 
 ### DigestFlag(コード側で判定する注意フラグ)
 
-| フラグ | 判定条件(コード側。`src/lib/weeklyDigest.ts` で実装済み) |
-|---|---|
-| `PACE_TOO_AGGRESSIVE` | 週の減少幅(週平均の前週比)が週平均体重の1%を超えている(増加時は判定しない) |
-| `INTAKE_BELOW_BMR` | 週平均摂取カロリーが基礎代謝を下回っている(身体プロフィール未設定でBMRが無い場合は判定しない) |
-| `BEHIND_PACE` | 着地予測が目標体重を上回っている(ペース不足。予測が計算できない場合は判定しない) |
-| `LOW_RECORDING_RATE` | 記録した日が5日未満 |
-| `NO_WEIGHT_DATA` | 当該週に体重記録が無い |
-| `INSUFFICIENT_DATA` | 記録した日が2日未満(利用開始直後など、評価に適さない週) |
+| フラグ | 適用モード | 判定条件(コード側。`src/lib/weeklyDigest.ts` で実装済み) |
+|---|---|---|
+| `PACE_TOO_AGGRESSIVE` | 減量 | 週の減少幅(週平均の前週比)が週平均体重の1%を超えている(増加時は判定しない) |
+| `INTAKE_BELOW_BMR` | 両方 | 週平均摂取カロリーが基礎代謝を下回っている(身体プロフィール未設定でBMRが無い場合は判定しない) |
+| `BEHIND_PACE` | 減量 | 着地予測が目標体重を上回っている(ペース不足。予測が計算できない場合は判定しない) |
+| `ABOVE_RANGE` | 維持 | 週平均体重が維持レンジ上限を超えている(リバウンド方向。#116。体重記録が皆無の週は判定しない) |
+| `BELOW_RANGE` | 維持 | 週平均体重が維持レンジ下限を割っている(絞りすぎ。#116。体重記録が皆無の週は判定しない) |
+| `LOW_RECORDING_RATE` | 両方 | 記録した日が5日未満 |
+| `NO_WEIGHT_DATA` | 両方 | 当該週に体重記録が無い |
+| `INSUFFICIENT_DATA` | 両方 | 記録した日が2日未満(利用開始直後など、評価に適さない週) |
+| `ACTIVITY_DROP` | 両方 | 週平均歩数が直近4週の平均を20%以上下回っている(週次のみ。#174。当該週・基準週とも**歩数の値がある日**が5日以上ある週だけを比較に使い、基準にできる過去週が2週未満なら判定しない) |
+| `WORKOUT_STOPPED` | 両方 | 直近4週の平均筋トレ日数が週1日以上あるのに、当該週は0日(週次のみ。#174。もともと筋トレの習慣が無い場合は判定しない。進行中の週での誤発火を防ぐため、週の経過日数が5日未満なら判定しない) |
+
+「適用モード」は目標タイプ(#116)ごとの判定対象を表す。減量専用フラグ(`PACE_TOO_AGGRESSIVE`・`BEHIND_PACE`)は維持モードでは判定せず、維持専用フラグ(`ABOVE_RANGE`・`BELOW_RANGE`)は減量モードでは判定しない。維持期のリバウンドは、単週の `ABOVE_RANGE` に加え、月次(#114。10章)で複数週にわたる上抜けの継続として捉える(週次より安定した信号になる)。
 
 フラグの一覧・判定条件は実装時にこの表を起点に確定し、変更したらこの表を更新する。**AIに新しい警告を発明させない**(プロンプトで「flagsに無い問題を指摘しない」ことを指示する。5章)。
 
 補足(実装時の確定事項):
 - `mood` は日記の気分タグ(5段階。画面設計書6章)を3区分へ集計する: 絶好調・良い → `good` / 普通 → `normal` / 眠い・不調 → `bad`。日記が無い週は `mood` 自体を省略する
-- `activity` はGarmin連携(CLAUDE.mdのGarmin連携を参照)で取り込んだ活動記録の週集計(Issue #82)。各平均は「その項目のデータがある日」の平均(欠測日は分母に入れない)。週内に活動記録が1日も無ければ省略する(未連携ユーザーのdigest・プロンプトは従来と変わらない)。`avgTotalKcal`(Garmin計測)と `estimatedTdeeKcal`(逆算)は独立した消費カロリー推定値で、画面側は乖離15%超で「記録漏れ等の可能性」の注記を出す。AIには差の計算をさせない(プロンプトで明示。5章)。activity由来の新しい警告フラグは設けない(歩数・睡眠の多寡は安全判定ではなく解釈の領域のため)
+- `activity` はGarmin連携(CLAUDE.mdのGarmin連携を参照)で取り込んだ活動記録の週集計(Issue #82)。各平均は「その項目のデータがある日」の平均(欠測日は分母に入れない)。週内に活動記録が1日も無ければ省略する(未連携ユーザーのdigest・プロンプトは従来と変わらない)。`avgTotalKcal`(Garmin計測)と `estimatedTdeeKcal`(逆算)は独立した消費カロリー推定値で、画面側は乖離15%超で「記録漏れ等の可能性」の注記を出す。AIには差の計算をさせない(プロンプトで明示。5章)。**`activity` の水準そのもの(歩数・睡眠の多寡)は解釈の領域としてフラグ化しないが、過去との比較による「低下」は #174 でフラグ化した(下記 `activityTrend`)** — 当初は「activity由来の新しい警告フラグは設けない」としていたが、実測TDEEの下落を一度も知らせられなかった実例が出たため方針を変えた(意思決定ログ参照)
 - `requiredWeeklyPaceKg` は「減量が必要なら負」の符号で持つ(`weeklyChangeKg` と直接比較できるように)。体重記録が皆無・目標日超過の場合は `0` とし、状況はフラグ側で伝える
+- `goalType`・`rangeMinKg`/`rangeMaxKg`・`withinRange`/`rangeDeviationKg` は維持モード(#116)の追加項目。`goalType==="maintain"` のとき、レンジは `targetWeightKg`(維持レンジの中心)± 許容幅(`Settings.maintainToleranceKg`、初期値1.0)で `rangeMin/MaxKg` を埋め、週平均体重が `[rangeMinKg, rangeMaxKg]` に収まっていれば `withinRange=true`・`rangeDeviationKg=0`、上抜けなら乖離を正・下抜けなら負で `rangeDeviationKg` に入れる。減量モードではこれら4項目は `null`(`requiredWeeklyPaceKg`/`projectedKg` 側で判定する)。逆に維持モードでは `requiredWeeklyPaceKg=0`・`projectedKg=null` とし、画面・プロンプトとも必要ペース/着地予測は使わない
+- `activityTrend` は活動量低下の検知(Issue #174)で追加した、当該週と直近4週の並置。**実測TDEEが落ちたとき、その要因が摂取ではなく消費側にあることを示すための項目**で、`ACTIVITY_DROP`・`WORKOUT_STOPPED` の判定根拠でもある。設計上の要点:
+  - **`activity`/`workout` の中ではなく独立したブロックに置く。** 筋トレが0日の週は `workout` 自体が省略される仕様(記録が無い週は省略)のため、`workout` の中に比較基準を持たせると**最も見せたい「中断した週」でだけ基準が消える**。歩数側だけ `activity` に入れる案も、2つの比較が別の場所に散るため採らなかった
+  - **歩数と筋トレを別フラグにする。** 取るべき行動(歩く / トレーニングを再開する)が異なり、1つのフラグに寄せると助言が曖昧になるため
+  - **歩数にはデータ品質ゲートを課し、筋トレには課さない。** 歩数はGarminの欠測(時計を着けなかった日)がありうるため、当該週・基準週とも**歩数の値がある日**が5日以上の週だけを比較に使う(`LOW_RECORDING_THRESHOLD_DAYS` と同じ考え方)。**「活動記録の行数」で数えてはならない** — Garmin連携のcronは歩数が取れなかった日も空欄の行を書くため(`scripts/garmin/garmin_to_sheet.py`)、行数で数えるとゲートが素通りし、歩数が1日しか無い週を「活動量が落ちた週」と誤判定する。筋トレはアプリ自身の記録で欠測の概念が無く、「記録が無い=やらなかった」が正しいためゲートを課さない
+  - **歩数と筋トレで基準の週数が異なりうるため、`stepsComparedWeeks`/`comparedWeeks` を別々に持つ。** 1つにまとめると、画面のラベルとAIへの説明が実際に使った基準を偽ることになる
+  - **筋トレの平均は「記録が無い週」も分母に含める。** 記録の無い週を間引くと、隔週でトレーニングする人の平均が1.0(実際は0.5)になり、通常の休養週で `WORKOUT_STOPPED` が誤発火する
+  - **`WORKOUT_STOPPED` は週の経過日数が5日以上のときだけ判定する。** 週次レビューの既定表示は進行中の今週のため、この条件が無いと週明けに「筋トレの記録がありません」が必ず出る(歩数側は品質ゲートが同じ役割を果たすが、筋トレ日数には欠測の概念が無くゲートが効かない)
+  - **変化率(`stepsChangeRatio`)まで算出して渡す。** AIに割り算をさせない原則(5章の制約1)を守るため
+  - 閾値(−20%・基準4週・最低2週・品質ゲート5日)は運用しながら調整する前提の初期値
+  - **`INTAKE_BELOW_BMR` と併発したときの扱いを5章のプロンプトで明示する。** 摂取が基礎代謝を下回り、かつ活動量が落ちている週は、目標カロリー提案がBMRでクランプされる一方で「さらに削れ」としか読めなくなる。この組み合わせでは摂取削減を提案させず、消費側の回復に助言を寄せる(画面側も同じ趣旨の注記を実測TDEEカードに出す)
 - `workout`・`water` は週次レビューへの筋トレ・水分の統合(Issue #103)で追加した週サマリー。activityと同じ扱いで、記録が無い週は省略する(セクション・プロンプトとも従来と変わらない)。水分の平均は「記録がある日」(日別合計が0mlでない日)の平均で、記録の無い日は分母に入れない(食事・活動の平均と同じ考え方)。筋トレ・水分由来の新しい警告フラグは設けない(継続の多寡は安全判定ではなく解釈の領域のため)
 - `bloodPressure` は血圧記録の週集計(フェーズ4、Issue #117)。記録が無い週は省略する。**医療上の線引きが最重要**: アプリは医療機器ではないため、`highReadingDays` は「家庭血圧135/85以上の日が何日」という事実提示のみに使い、コード側も画面側もAIも医学的判断(診断・受診勧奨・薬の提案)をしない。プロンプトでもAIに血圧値の医学的評価を明示的に禁止する(5章)。血圧由来の新しい警告フラグは設けない(高値の判断は医学的評価にあたるため、フラグ化しない)。`weekAvgWeightKg` を併記し、医学的に確立した体重×血圧の関係を並べて見せる(#112のクロス分析の軸を血圧に広げたもの)
 - `diaryEntries` は週内の日記本文の配列(Issue #103でIssue #12を決着)。設定のオプトイン(`Settings.sendDiaryTextToAi`、デフォルトOFF)がONの週だけ含め、本文が空の日記(気分タグのみ)は除く。プロンプトでは「生活背景・気分の文脈として読み、winsやactionsをユーザーの実際の状況に沿ったものにする材料にしてよい。本文をそのまま長く引用しない。日記に書かれた内容から病気の診断・治療の提案をしない」と指示する(7章)
@@ -144,14 +175,19 @@ interface WeeklyDigest {
 
 ```typescript
 interface WeeklyAdvice {
-  verdict: "on_track" | "slightly_behind" | "behind" | "needs_attention";
+  // 減量モード: on_track / slightly_behind / behind / needs_attention
+  // 維持モード(#116): within_range / drifting / out_of_range / needs_attention
+  verdict:
+    | "on_track" | "slightly_behind" | "behind"
+    | "within_range" | "drifting" | "out_of_range"
+    | "needs_attention";
   summary: string;      // 週の総評(2〜3文)
   wins: string[];       // 続けるべき良かった点(1〜2個)
   actions: string[];    // 来週の具体的行動(最大3個。測定可能な形で書かせる)
 }
 ```
 
-- `verdict` はUIでの色分け・アイコン表示に使う(達成演出でない限りaccent色は使わない。デザインガイドの制約)
+- `verdict` はUIでの色分け・アイコン表示に使う(達成演出でない限りaccent色は使わない。デザインガイドの制約)。目標タイプ(#116)ごとに語彙を分け、UIの3色マップは両モードの値を扱う: **teal(順調)= `on_track` / `within_range`**、**amber(やや注意)= `slightly_behind` / `drifting`**、**coral(要注意)= `behind` / `out_of_range` / `needs_attention`**。`digest.goal.goalType` に合った語彙をAIに出させ(減量モードで維持用の値を出させない・その逆もしない)、UI側も同じ対応でラベルを出す
 - スキーマバリデーション(zod等)を通らない出力はエラーとして扱い、リトライ1回 → それでも失敗ならAI欄を「生成に失敗しました(再試行)」表示にする。**AI欄が失敗しても週次レビューの数値表示には影響しない**(分業の利点)
 
 ## 5. プロンプト構造
@@ -160,6 +196,9 @@ interface WeeklyAdvice {
   - 役割: 減量に伴走するパーソナルトレーナー。断定的すぎず、継続を励ますトーン(日本語)
   - 制約: (1) digestに無い数値を出さない・計算しない、(2) `flags` に無い問題を新たに指摘しない、(3) `flags` にある項目は必ず `summary` または `actions` で言及する、(4) 医学的診断・極端な食事制限の提案をしない、(5) 出力はスキーマに従うJSONのみ
   - `verdict` の判定基準: 必要ペースとの乖離・フラグの有無から機械的に選べるよう、条件を列挙して指示する
+  - **目標タイプによる分岐(#116)**: `digest.goal.goalType` で役割・評価軸・`verdict` 語彙を切り替える。
+    - `diet`(減量): 従来どおり。必要ペースへの到達を評価し、`verdict` は `on_track` / `slightly_behind` / `behind` / `needs_attention` から選ぶ
+    - `maintain`(維持): 役割を「目標達成後の体重維持に伴走するトレーナー」に変える。評価軸は「維持レンジ内に収まっているか」で、**維持できていること自体を承認・称賛し**、リバウンドの兆候(`ABOVE_RANGE`)には早めに軽く注意を促す。再度の減量を煽らない・極端な制限を勧めない(下抜け `BELOW_RANGE` はむしろ緩める方向で助言)。必要ペース・着地予測には言及しない(digestにも無い)。`verdict` は `within_range`(レンジ内で安定) / `drifting`(レンジ端で片方向に寄っている) / `out_of_range`(レンジを外れた) / `needs_attention` から選ぶ
   - `crossAnalysis` の扱い(Issue #112): 気づきの材料としてsummary・actionsに使ってよいが、1週間分の少ないデータのため相関・因果を断定しない(「〜の傾向が見られます」程度に留める)。数値の差の計算はさせない。飲酒は記録された事実として扱い、責めるトーンにしない
   - `bloodPressure` の扱い(Issue #117): 測定の継続をwinsの材料にし、体重と血圧を並べて励ます文脈で使ってよい。ただし血圧値の医学的評価・診断・受診勧奨・薬の提案は禁止(`highReadingDays` は事実として触れる程度に留め、「高血圧です」「危険です」と判断しない)。血圧の数値を自分で計算・加工しない
 - **ユーザー入力**: `WeeklyDigest` のJSONそのまま(整形・自然文化はしない)
@@ -210,10 +249,11 @@ interface WeeklyAdvice {
   - `weight`: 記録がある最初/最後の週の週平均・月間変化・平均ペース(kg/週)・必要ペース・**今月のペースを維持した場合の目標日時点の見込み体重**(マイルストーン)
   - `calories`: 月内平均摂取・目標・目標以内の日数・**月窓の実測TDEE**(月内の全有効週の週次逆算値の平均。週単位よりブレが少ない安定値)とその有効週数・最小/最大・基礎代謝
   - `recording`: 記録した日数 / 月の総日数
-  - `flags`: 週次と同じ `DigestFlag` 語彙を月窓の閾値で判定(記録率は総日数の7割未満、データ不足は7日未満)
+  - `flags`: 週次と同じ `DigestFlag` 語彙を月窓の閾値で判定(記録率は総日数の7割未満、データ不足は7日未満)。ただし活動量の低下(`ACTIVITY_DROP`・`WORKOUT_STOPPED`。#174)は「直近4週との比較」という週次固有の判定のため月次では出さない — 型の上でも `MonthlyDigestFlag`(この2つを除いた語彙)として区別し、月次のラベル定義に取りこぼしが出ないようにしている
   - `crossAnalysis`: #112の集計を月窓で再実行(週次と同じ構造。標本数が多い)
   - `bloodPressure`: 血圧の月集計(フェーズ4、Issue #117)。月平均(最高/最低)・記録日数・135/85以上だった日数。週次と同じく事実の提示のみで医学的判断はしない(月次では週平均体重の併記はしない)
-- **出力契約**: 週次と共通の `WeeklyAdvice`(4章)を流用する。`wins` を「今月の良かった変化」、`actions` を「来月の重点」の意味で使う
+- **維持モード(#116)**: `MonthlyDigest.goal` も週次(3章)と同じく `goalType`・`rangeMinKg`/`rangeMaxKg` を持つ。維持モードでは `weight` の必要ペース・マイルストーン(`projectedAtGoalDateKg`)をレンジ内安定度に置き換え、`weeks` の週平均体重の系列に対して各週がレンジ内に収まっているか・複数週にわたる上抜けの継続(リバウンド傾向)を見せる。フラグも維持用(`ABOVE_RANGE`/`BELOW_RANGE`)を月窓の閾値で判定する。維持期は「目標に向かう」局面が終わり月単位の安定監視が主役になるため、月次レビューが維持期の中心的なビューになる
+- **出力契約**: 週次と共通の `WeeklyAdvice`(4章)を流用する。`wins` を「今月の良かった変化」、`actions` を「来月の重点」の意味で使う。`verdict` も週次と同じく目標タイプで語彙を分ける(#116)
 - **プロンプト**: 週次(5章)の月次版。「今月何が変わったか・翌月どこに重点を置くか」の俯瞰で書かせ、`weeks` の系列からペースの加速・減速を読ませる。制約(digestに無い数値を出さない・flagsに無い問題を指摘しない・医療免責)・`verdict` の機械的判定規則は週次と同じ。本文は `worker/monthlyAdvice.ts`(`MONTHLY_ADVICE_SYSTEM_PROMPT`)
 - **実行フロー**: 週次(8章)と同一。`POST /api/monthly-advice` → Workerでstructured output生成 → クライアントで検証(週次と共通の `isWeeklyAdvice`)後 `MonthlyAdviceRecord`(`month` を主キー、1月1件・後勝ち)としてキャッシュ。自動生成はせずユーザーの明示操作でのみ生成する
 - **プライバシー**: 月次digestは体重・食事・活動・気分/飲酒の集計値のみで、日記本文は含めない(週次のオプトインは月次には設けていない)

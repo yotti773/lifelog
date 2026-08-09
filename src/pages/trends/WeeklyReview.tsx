@@ -25,6 +25,7 @@ import { getDiaryRecordsByDateRange } from "@/db/diaryRecords";
 import { getSettings, updateSettings } from "@/db/settings";
 import { formatMonthDay } from "@/lib/date";
 import { suggestCalorieTarget } from "@/lib/nutritionCalc";
+import { ACTIVITY_MIN_RECORDED_DAYS } from "@/lib/weeklyDigest";
 import { fontRounded, tokens } from "@/theme";
 import type { DigestFlag, WeeklyDigest } from "@/types";
 import WeeklyAdviceCard from "./WeeklyAdviceCard";
@@ -51,7 +52,21 @@ const FLAG_LABELS: Record<DigestFlag, { label: string; severity: "coral" | "ambe
   LOW_RECORDING_RATE: { label: "記録した日が5日未満です。まずは記録の再開から", severity: "amber" },
   NO_WEIGHT_DATA: { label: "この週の体重記録がありません", severity: "amber" },
   INSUFFICIENT_DATA: { label: "データが少なく、まだ週の評価には向きません", severity: "amber" },
+  ACTIVITY_DROP: { label: "歩数が直近数週の平均を大きく下回っています。消費が落ちるとペースも落ちます", severity: "amber" },
+  WORKOUT_STOPPED: { label: "この週は筋トレの記録がありません(直近数週は継続できていました)", severity: "amber" },
 };
+
+/**
+ * 摂取を削る余地が無いのに活動量が落ちている週の注記(Issue #174)。
+ * INTAKE_BELOW_BMR と活動量低下が併発すると、目標カロリー提案は基礎代謝で下げ止まる一方で
+ * 画面は「さらに食べる量を削れ」としか読めなくなる。取るべき行動は消費側の回復だと明示する
+ */
+function needsRecoveryOnSpendingSide(flags: DigestFlag[]): boolean {
+  return (
+    flags.includes("INTAKE_BELOW_BMR") &&
+    (flags.includes("ACTIVITY_DROP") || flags.includes("WORKOUT_STOPPED"))
+  );
+}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -92,7 +107,8 @@ const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext }: WeeklyReviewProps) {
   const [adjustApplied, setAdjustApplied] = useState(false);
 
-  const { weight, calories, pfc, recording, flags, activity, workout, water, bloodPressure, crossAnalysis } = digest;
+  const { weight, calories, pfc, recording, flags, activity, activityTrend, workout, water, bloodPressure, crossAnalysis } =
+    digest;
 
   // 週内の日記(Issue #103)。画面表示はオプトインと無関係にローカルの記録をそのまま出す
   // (AIへ送るかどうか(digest.diaryEntries)とは独立。AIコンサルティング設計書7章)
@@ -341,6 +357,59 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
         </Card>
       )}
 
+      {/* 活動量の変化(Issue #174)。実測TDEEが落ちた要因が消費側にあることを示すための、直近数週との並置。
+          比較できる過去週が足りない週・過去に歩数も筋トレも実績が無い週はカードごと出さない */}
+      {activityTrend && (
+        <Card sx={{ p: "18px" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "4px" }}>
+            <Box sx={{ color: "secondary.main", display: "flex" }}>
+              <IconActivity size={15} />
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>
+              活動量の変化(直近{activityTrend.comparedWeeks}週との比較)
+            </Typography>
+            {/* 歩数と筋トレで基準に使った週数が違いうる(歩数は欠測の多い週を基準から外すため)。
+                ラベルにはそれぞれの実際の基準週数を出す */}
+          </Box>
+          {activityTrend.prevWeeksAvgSteps !== null && (
+            <>
+              <StatRow
+                label="平均歩数(今週)"
+                value={activityTrend.weekAvgSteps !== null ? activityTrend.weekAvgSteps.toLocaleString() : "-"}
+                sub="歩/日"
+              />
+              <StatRow
+                label={`平均歩数(直近${activityTrend.stepsComparedWeeks}週)`}
+                value={activityTrend.prevWeeksAvgSteps.toLocaleString()}
+                sub="歩/日"
+              />
+              {activityTrend.stepsChangeRatio !== null && (
+                <StatRow
+                  label="変化"
+                  value={`${activityTrend.stepsChangeRatio > 0 ? "+" : ""}${Math.round(activityTrend.stepsChangeRatio * 100)}`}
+                  sub="%"
+                />
+              )}
+            </>
+          )}
+          {activityTrend.prevWeeksAvgWorkoutDays !== null && activityTrend.prevWeeksAvgWorkoutDays > 0 && (
+            <Box sx={{ borderTop: `1px solid ${tokens.divider}`, mt: "4px", pt: "4px" }}>
+              <StatRow label="筋トレ(今週)" value={`${activityTrend.weekWorkoutDays}`} sub="日" />
+              <StatRow
+                label={`筋トレ(直近${activityTrend.comparedWeeks}週の平均)`}
+                value={activityTrend.prevWeeksAvgWorkoutDays.toFixed(1)}
+                sub="日/週"
+              />
+            </Box>
+          )}
+          {activityTrend.weekAvgSteps === null && activityTrend.prevWeeksAvgSteps !== null && (
+            <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "8px", lineHeight: 1.6 }}>
+              この週は歩数のデータがある日が{ACTIVITY_MIN_RECORDED_DAYS}日未満のため、歩数の比較は行っていません
+            </Typography>
+          )}
+        </Card>
+      )}
+
       {/* 筋トレサマリー(Issue #103)。記録が無い週はカードごと出さない(活動と同じ扱い) */}
       {workout && (
         <Card sx={{ p: "18px" }}>
@@ -478,6 +547,19 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
                     設定に反映する
                   </Button>
                 )}
+              </Box>
+            )}
+            {/* 摂取を削る余地が無いのに活動量が落ちている週(Issue #174)。
+                提案が「さらに食べる量を削れ」と読まれるのを防ぎ、消費側の回復が必要だと明示する */}
+            {needsRecoveryOnSpendingSide(flags) && (
+              <Box sx={{ display: "flex", alignItems: "flex-start", gap: "6px", mt: "12px", bgcolor: tokens.warnBg, borderRadius: "10px", p: "8px 10px" }}>
+                <Box sx={{ color: tokens.warnIcon, display: "flex", mt: "1px", flexShrink: 0 }}>
+                  <IconWarning size={13} />
+                </Box>
+                <Typography sx={{ fontSize: 11, color: tokens.warnText, lineHeight: 1.6 }}>
+                  摂取はすでに基礎代謝を下回っており、これ以上減らす余地はありません。この週は活動量も落ちているため、
+                  食事をさらに削るのではなく、歩数や筋トレを戻して消費を回復させる方が目標に近づきます
+                </Typography>
               </Box>
             )}
           </>

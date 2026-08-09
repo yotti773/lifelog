@@ -1,87 +1,34 @@
-import { useEffect, useState, type SubmitEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, type SubmitEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import FieldLabel from "@/components/FieldLabel";
 import RecordHeader from "@/components/RecordHeader";
+import RecordNotFound from "@/components/RecordNotFound";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconArrow } from "@/components/icons";
 import { db } from "@/db/db";
 import { getWeightRecord, saveWeightRecord } from "@/db/weightRecords";
-import { formatMonthDay, toDatetimeLocalValue, todayDateString } from "@/lib/date";
-import { fontRounded, tokens } from "@/theme";
-
-type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
-
-function FieldLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
-  return (
-    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", mb: "6px", mt: "4px" }}>
-      {children}
-      {optional && (
-        <Box component="span" sx={{ color: tokens.faint2, fontWeight: 400 }}>
-          (任意)
-        </Box>
-      )}
-    </Typography>
-  );
-}
+import { useDailyRecordEditor } from "@/hooks/useDailyRecordEditor";
+import { formatMonthDay } from "@/lib/date";
+import { fontRounded } from "@/theme";
 
 export default function WeightRecordPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  // 履歴確認画面(Trends)の行タップ、またはホーム画面の体重/体脂肪率カードタップから
-  // ?date=YYYY-MM-DD 付きで遷移してきた場合、その日付の既存記録があれば編集モードになる
-  const editDate = searchParams.get("date");
-  // ホームからは当日の日付が渡ってくるが、当日分がまだ未記録のこともあるため、
-  // その場合は「見つかりません」ではなく新規入力として扱う
-  const isTodayParam = editDate === todayDateString();
-  // 履歴確認画面の「記録を追加」から、入れ忘れた過去日を明示的に新規追加する場合に付く(Issue #141)。
-  // これが無いのに未記録日を開いた場合は、タップ後に別端末で削除された可能性があるとみなし「見つかりません」を出す
-  const createParam = searchParams.get("create") === "1";
-  const [loadStatus, setLoadStatus] = useState<LoadStatus>(editDate ? "loading" : "idle");
-  const [dateTime, setDateTime] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [weightKg, setWeightKg] = useState("");
   const [bodyFatPercent, setBodyFatPercent] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!editDate) {
-      setLoadStatus("idle");
-      return;
-    }
-    let cancelled = false;
-    setLoadStatus("loading");
-    void getWeightRecord(editDate).then((record) => {
-      if (cancelled) return;
-      if (!record) {
-        if (!isTodayParam && !createParam) {
-          setLoadStatus("not-found");
-          return;
-        }
-        // 過去日への新規追加は時刻が分からないため正午固定にする(当日は現在時刻のまま)
-        if (!isTodayParam) {
-          setDateTime(toDatetimeLocalValue(new Date(`${editDate}T12:00:00`).toISOString()));
-        }
-        setLoadStatus("idle");
-        return;
-      }
-      setDateTime(toDatetimeLocalValue(record.timestamp));
+  const { editDate, isTodayParam, loadStatus, dateTime, setDateTime, isEditing, selectedDate, navigateAfterSave } =
+    useDailyRecordEditor(getWeightRecord, (record) => {
       setWeightKg(String(record.weightKg));
       setBodyFatPercent(record.bodyFatPercent !== undefined ? String(record.bodyFatPercent) : "");
       setNote(record.note ?? "");
-      setLoadStatus("loaded");
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [editDate]);
 
-  const isEditing = loadStatus === "loaded";
-  const selectedDate = dateTime.slice(0, 10);
   const previous = useLiveQuery(
     () => db.weightRecords.where("date").below(selectedDate).last(),
     [selectedDate],
@@ -110,10 +57,7 @@ export default function WeightRecordPage() {
       note: note.trim() || undefined,
       timestamp: new Date(dateTime).toISOString(),
     });
-    // 履歴確認画面からの編集(今日より前の日付)のみ、保存後は履歴タブに戻す。
-    // ホームからの遷移(当日分の新規/編集)は今まで通りホームに戻る
-    const cameFromHistory = editDate !== null && !isTodayParam;
-    navigate(cameFromHistory ? "/trends" : "/", cameFromHistory ? { state: { viewMode: "history" } } : undefined);
+    navigateAfterSave();
   };
 
   if (loadStatus === "loading") {
@@ -121,24 +65,7 @@ export default function WeightRecordPage() {
   }
 
   if (loadStatus === "not-found") {
-    return (
-      <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "40px" }}>
-        <RecordHeader title="記録が見つかりません" onBack={() => navigate("/trends", { state: { viewMode: "history" } })} />
-        <Card sx={{ p: "16px", mb: "16px" }}>
-          <Typography sx={{ fontSize: 14, color: "text.secondary" }}>
-            指定された日付の体重記録は見つかりませんでした。別の端末で削除された可能性があります。
-          </Typography>
-        </Card>
-        <Button
-          fullWidth
-          variant="contained"
-          onClick={() => navigate("/trends", { state: { viewMode: "history" } })}
-          sx={{ height: 50, borderRadius: "14px", boxShadow: tokens.primaryButtonShadow }}
-        >
-          履歴に戻る
-        </Button>
-      </Box>
-    );
+    return <RecordNotFound recordLabel="体重記録" />;
   }
 
   return (

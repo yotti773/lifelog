@@ -89,6 +89,39 @@ describe("generateWeeklyAdvice", () => {
     await expect(generateWeeklyAdvice(ENV, digestOnTrack, fetchImpl)).rejects.toThrow();
     expect(calls).toHaveLength(2);
   });
+
+  it("5xx(一時的な過負荷)はリトライする(Issue #205)", async () => {
+    const { fetchImpl, calls } = stubFetch([
+      new Response("overloaded", { status: 503 }),
+      geminiResponse(JSON.stringify(VALID_ADVICE)),
+    ]);
+    await expect(generateWeeklyAdvice(ENV, digestOnTrack, fetchImpl)).resolves.toEqual(VALID_ADVICE);
+    expect(calls).toHaveLength(2);
+  });
+
+  it.each([
+    ["レート制限", 429],
+    ["リクエストタイムアウト", 408],
+  ])("一時的な4xxはリトライする: %s (Issue #205)", async (_name, status) => {
+    const { fetchImpl, calls } = stubFetch([
+      new Response("rate limited", { status }),
+      geminiResponse(JSON.stringify(VALID_ADVICE)),
+    ]);
+    await expect(generateWeeklyAdvice(ENV, digestOnTrack, fetchImpl)).resolves.toEqual(VALID_ADVICE);
+    expect(calls).toHaveLength(2);
+  });
+
+  it.each([
+    ["APIキー不正", 400],
+    ["権限なし", 403],
+    ["モデル名不正", 404],
+  ])("恒久的な4xxはリトライせず即座に返す: %s (Issue #205)", async (_name, status) => {
+    const { fetchImpl, calls } = stubFetch([new Response("bad request", { status })]);
+    await expect(generateWeeklyAdvice(ENV, digestOnTrack, fetchImpl)).rejects.toThrow(
+      `Gemini APIエラー (${status})`,
+    );
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe("handleWeeklyAdvice", () => {

@@ -257,7 +257,15 @@ export type DigestFlag =
   | "BEHIND_PACE" // 着地予測が目標体重を上回っている(ペース不足)
   | "LOW_RECORDING_RATE" // 記録した日が5日未満
   | "NO_WEIGHT_DATA" // 当該週に体重記録が無い
-  | "INSUFFICIENT_DATA"; // データが少なく評価に適さない(記録した日が2日未満)
+  | "INSUFFICIENT_DATA" // データが少なく評価に適さない(記録した日が2日未満)
+  | "ACTIVITY_DROP" // 週平均歩数が直近4週平均を大きく下回っている(Issue #174)
+  | "WORKOUT_STOPPED"; // 直近4週は筋トレしていたのに当該週は0日(Issue #174)
+
+/**
+ * 月次レビュー(Issue #114)が判定するフラグ。週次と同じ語彙を月窓の閾値で使うが、
+ * 活動量の週次比較(Issue #174)は「直近4週との比較」という週次固有の判定のため月次では出さない。
+ */
+export type MonthlyDigestFlag = Exclude<DigestFlag, "ACTIVITY_DROP" | "WORKOUT_STOPPED">;
 
 /**
  * AIへの入力契約かつ週次レビュー画面の表示データ(画面とAIが同じ事実を見る)。
@@ -311,6 +319,27 @@ export interface WeeklyDigest {
     avgTotalKcal: number | null; // 週平均総消費カロリー(Garmin計測。逆算TDEEとの突き合わせに使う)
     avgSleepMinutes: number | null; // 平均睡眠時間(分)
     recordedDays: number; // 活動データがある日数(0〜7)
+  };
+  /**
+   * 活動量の週次比較(Issue #174)。実測TDEEの下落が「摂取を削った結果」ではなく
+   * 「消費側の低下」で起きていることを示すための、当該週と直近数週の並置。
+   * `activity`/`workout` と別ブロックにしているのは、**筋トレが0日の週は `workout` 自体が省略される**ため
+   * (中断こそ最も見せたい状態であり、`workout` の中に基準を置くと消えてしまう)。
+   * 比較できる過去週が足りない、または比較対象(歩数・筋トレ)の実績が過去に無い場合は省略。
+   * AIが差を自分で計算しないよう、変化率まで含めて渡す(AIコンサルティング設計書5章の制約1)
+   */
+  activityTrend?: {
+    /**
+     * 当該週の平均歩数。**歩数の値がある日が5日未満の週はnull**(欠測の多い週を「歩数が落ちた週」と
+     * 誤って見せないため)。この場合 `activity.avgSteps` に値があっても、ここはnullになりうる
+     */
+    weekAvgSteps: number | null;
+    prevWeeksAvgSteps: number | null; // 当該週を除く直近4週の平均歩数(データ品質を満たす週のみ)
+    stepsChangeRatio: number | null; // 歩数の変化率(-0.2 = 20%減)。どちらかがnullならnull
+    stepsComparedWeeks: number; // 歩数の基準に実際に使った週数(品質ゲートを通った週のみ)
+    weekWorkoutDays: number; // 当該週に筋トレを記録した日数(記録が無ければ0)
+    prevWeeksAvgWorkoutDays: number | null; // 当該週を除く直近4週の平均筋トレ日数
+    comparedWeeks: number; // 筋トレの基準に使った週数(渡された過去週すべて)
   };
   /** 筋トレの週サマリー(Issue #103)。週内に筋トレ記録が無ければ省略(mood と同じ扱い) */
   workout?: {
@@ -426,7 +455,7 @@ export interface MonthlyDigest {
     totalDays: number; // 期間の総日数(28または35)
   };
   /** 週次と同じフラグ語彙を月窓の閾値で判定する(判定はsrc/lib/monthlyDigest.tsの純関数) */
-  flags: DigestFlag[];
+  flags: MonthlyDigestFlag[];
   /** 月窓のクロス集計(Issue #112の集計を月幅で再実行。週次より標本数が多い) */
   crossAnalysis?: WeeklyDigest["crossAnalysis"];
   /**

@@ -7,7 +7,7 @@ import MonthlyAdviceCard from "./MonthlyAdviceCard";
 import { IconActivity, IconArrow, IconBack, IconChevronRight, IconFlame, IconWarning } from "@/components/icons";
 import { formatMonthDay, formatMonthKey } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
-import type { DigestFlag, MonthlyDigest } from "@/types";
+import type { MonthlyDigest, MonthlyDigestFlag } from "@/types";
 
 /**
  * 月次レビュー画面(Issue #114。画面設計書8.3章)。
@@ -26,7 +26,7 @@ interface MonthlyReviewProps {
 }
 
 /** フラグの文言は週次(WeeklyReview.tsx)と同じ語彙だが、日数の閾値が月窓のため独自に持つ */
-const FLAG_LABELS: Record<DigestFlag, { label: string; severity: "coral" | "amber" }> = {
+const FLAG_LABELS: Record<MonthlyDigestFlag, { label: string; severity: "coral" | "amber" }> = {
   PACE_TOO_AGGRESSIVE: { label: "減量ペースが速すぎます(週あたり体重の1%超)。摂取カロリーの見直しを", severity: "coral" },
   INTAKE_BELOW_BMR: { label: "平均摂取カロリーが基礎代謝を下回っています", severity: "coral" },
   BEHIND_PACE: { label: "今月のペースでは目標日に目標体重へ届かない見込みです", severity: "amber" },

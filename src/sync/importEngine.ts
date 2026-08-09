@@ -41,6 +41,32 @@ export interface RunImportOptions {
 }
 
 /**
+ * 「追加のみ・ローカル優先」で1テーブルへ取り込む共通処理。
+ * ローカルに同じキーの記録がある、または削除トゥームストーンが保留中のキーはスキップし
+ * (未送信の削除が取り込みで復活するのを防ぐ)、取り込んだ記録はシート由来のため
+ * `synced: true` で保存して再送信の対象にしない。
+ */
+async function importNewRecords<T extends object>(
+  table: { get: (key: string) => Promise<unknown>; put: (item: T & { synced: boolean }) => Promise<unknown> },
+  records: T[],
+  keyOf: (record: T) => string,
+  pendingDeletionKeys: Set<string>,
+): Promise<{ imported: number; skipped: number }> {
+  let imported = 0;
+  let skipped = 0;
+  for (const record of records) {
+    const key = keyOf(record);
+    if (pendingDeletionKeys.has(key) || (await table.get(key)) !== undefined) {
+      skipped++;
+      continue;
+    }
+    await table.put({ ...record, synced: true });
+    imported++;
+  }
+  return { imported, skipped };
+}
+
+/**
  * スプレッドシートの全記録と食事マスタ・種目マスタを取り込む(復元・過去データ移行用。Issue #54・#72・#96)。
  * マージは「追加のみ」: ローカルに同じキーの記録があればローカル優先でスキップし、
  * 削除トゥームストーンが保留中のキーもスキップする(未送信の削除が取り込みで復活するのを防ぐ)。
@@ -116,68 +142,19 @@ export async function runImport({
         const pendingHabitMasterSet = new Set(pendingHabitMasterIds);
         const pendingHabitRecordSet = new Set(pendingHabitRecordIds);
 
-        let importedWeightCount = 0;
-        let importedMealCount = 0;
-        let importedWaterCount = 0;
-        let importedWorkoutCount = 0;
-        let importedDiaryCount = 0;
         let importedFoodMasterCount = 0;
         let importedExerciseMasterCount = 0;
-        let importedBloodPressureCount = 0;
-        let importedBodyMeasurementCount = 0;
         let importedHabitMasterCount = 0;
-        let importedHabitRecordCount = 0;
         let importedSettingsCount = 0;
-        let importedAdviceCount = 0;
-        let importedMonthlyAdviceCount = 0;
         let skippedExistingCount = 0;
 
-        for (const record of pulled.weightRecords) {
-          // 体重のトゥームストーンはdate(=ID列の値)をキーにしている(deleteWeightRecord参照)
-          if (pendingWeightSet.has(record.date) || (await db.weightRecords.get(record.date)) !== undefined) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.weightRecords.put({ ...record, synced: true });
-          importedWeightCount++;
-        }
-
-        for (const record of pulled.mealRecords) {
-          if (pendingMealSet.has(record.id) || (await db.mealRecords.get(record.id)) !== undefined) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.mealRecords.put({ ...record, synced: true });
-          importedMealCount++;
-        }
-
-        for (const record of pulled.waterRecords) {
-          if (pendingWaterSet.has(record.id) || (await db.waterRecords.get(record.id)) !== undefined) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.waterRecords.put({ ...record, synced: true });
-          importedWaterCount++;
-        }
-
-        for (const record of pulled.workoutRecords) {
-          if (pendingWorkoutSet.has(record.id) || (await db.workoutRecords.get(record.id)) !== undefined) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.workoutRecords.put({ ...record, synced: true });
-          importedWorkoutCount++;
-        }
-
-        for (const record of pulled.diaryRecords) {
-          // 日記のトゥームストーンはdate(=ID列の値)をキーにしている(deleteDiaryRecord参照)
-          if (pendingDiarySet.has(record.date) || (await db.diaryRecords.get(record.date)) !== undefined) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.diaryRecords.put({ ...record, synced: true });
-          importedDiaryCount++;
-        }
+        // 体重・日記(・血圧・周囲径)のトゥームストーンはdate(=ID列の値)をキーにしている(deleteWeightRecord等参照)
+        const weight = await importNewRecords(db.weightRecords, pulled.weightRecords, (r) => r.date, pendingWeightSet);
+        const meal = await importNewRecords(db.mealRecords, pulled.mealRecords, (r) => r.id, pendingMealSet);
+        const water = await importNewRecords(db.waterRecords, pulled.waterRecords, (r) => r.id, pendingWaterSet);
+        const workout = await importNewRecords(db.workoutRecords, pulled.workoutRecords, (r) => r.id, pendingWorkoutSet);
+        const diary = await importNewRecords(db.diaryRecords, pulled.diaryRecords, (r) => r.date, pendingDiarySet);
+        skippedExistingCount += weight.skipped + meal.skipped + water.skipped + workout.skipped + diary.skipped;
 
         // 活動記録(Garmin由来)は他と違い「追加のみ・ローカル優先」にしない —
         // アプリ内に編集・削除が無く競合しないうえ、Garminのバックフィルによる
@@ -247,49 +224,35 @@ export async function runImport({
         }
 
         // AIコメントも追加のみ・ローカル優先(Issue #164)。手元にあるものはdigest付きなので上書きしない
-        // (シート側にはdigestが無く、上書きすると生成時の証跡を失うため)
-        for (const record of pulled.adviceRecords ?? []) {
-          if ((await db.adviceRecords.get(record.weekStart)) !== undefined) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.adviceRecords.put({ ...record, synced: true });
-          importedAdviceCount++;
-        }
-
-        for (const record of pulled.monthlyAdviceRecords ?? []) {
-          if ((await db.monthlyAdviceRecords.get(record.month)) !== undefined) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.monthlyAdviceRecords.put({ ...record, synced: true });
-          importedMonthlyAdviceCount++;
-        }
+        // (シート側にはdigestが無く、上書きすると生成時の証跡を失うため)。削除UIが無いため保留削除キーも無い
+        const advice = await importNewRecords(
+          db.adviceRecords,
+          pulled.adviceRecords ?? [],
+          (r) => r.weekStart,
+          new Set(),
+        );
+        const monthlyAdvice = await importNewRecords(
+          db.monthlyAdviceRecords,
+          pulled.monthlyAdviceRecords ?? [],
+          (r) => r.month,
+          new Set(),
+        );
 
         // 血圧・周囲径は体重と同じく日付キー・追加のみ・ローカル優先(Issue #117・#118)
-        for (const record of pulled.bloodPressureRecords ?? []) {
-          if (
-            pendingBloodPressureSet.has(record.date) ||
-            (await db.bloodPressureRecords.get(record.date)) !== undefined
-          ) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.bloodPressureRecords.put({ ...record, synced: true });
-          importedBloodPressureCount++;
-        }
-
-        for (const record of pulled.bodyMeasurementRecords ?? []) {
-          if (
-            pendingBodyMeasurementSet.has(record.date) ||
-            (await db.bodyMeasurementRecords.get(record.date)) !== undefined
-          ) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.bodyMeasurementRecords.put({ ...record, synced: true });
-          importedBodyMeasurementCount++;
-        }
+        const bloodPressure = await importNewRecords(
+          db.bloodPressureRecords,
+          pulled.bloodPressureRecords ?? [],
+          (r) => r.date,
+          pendingBloodPressureSet,
+        );
+        const bodyMeasurement = await importNewRecords(
+          db.bodyMeasurementRecords,
+          pulled.bodyMeasurementRecords ?? [],
+          (r) => r.date,
+          pendingBodyMeasurementSet,
+        );
+        skippedExistingCount +=
+          advice.skipped + monthlyAdvice.skipped + bloodPressure.skipped + bodyMeasurement.skipped;
 
         // 習慣マスタはマスタ系と同じくIDに加えて名前でも重複を弾く(Issue #113)。
         // orderが欠けている取り込み行は末尾に採番していく
@@ -312,34 +275,30 @@ export async function runImport({
         }
 
         // 習慣記録は合成キー(id=`${date}_${habitId}`)で追加のみ・ローカル優先(Issue #113)
-        for (const record of pulled.habitRecords ?? []) {
-          if (
-            pendingHabitRecordSet.has(record.id) ||
-            (await db.habitRecords.get(record.id)) !== undefined
-          ) {
-            skippedExistingCount++;
-            continue;
-          }
-          await db.habitRecords.put({ ...record, synced: true });
-          importedHabitRecordCount++;
-        }
+        const habitRecord = await importNewRecords(
+          db.habitRecords,
+          pulled.habitRecords ?? [],
+          (r) => r.id,
+          pendingHabitRecordSet,
+        );
+        skippedExistingCount += habitRecord.skipped;
 
         return {
-          importedWeightCount,
-          importedMealCount,
-          importedWaterCount,
-          importedWorkoutCount,
-          importedDiaryCount,
+          importedWeightCount: weight.imported,
+          importedMealCount: meal.imported,
+          importedWaterCount: water.imported,
+          importedWorkoutCount: workout.imported,
+          importedDiaryCount: diary.imported,
           importedActivityCount,
           importedFoodMasterCount,
           importedExerciseMasterCount,
-          importedBloodPressureCount,
-          importedBodyMeasurementCount,
+          importedBloodPressureCount: bloodPressure.imported,
+          importedBodyMeasurementCount: bodyMeasurement.imported,
           importedHabitMasterCount,
-          importedHabitRecordCount,
+          importedHabitRecordCount: habitRecord.imported,
           importedSettingsCount,
-          importedAdviceCount,
-          importedMonthlyAdviceCount,
+          importedAdviceCount: advice.imported,
+          importedMonthlyAdviceCount: monthlyAdvice.imported,
           skippedExistingCount,
         };
       },

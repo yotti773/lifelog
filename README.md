@@ -24,7 +24,7 @@
 | シート同期 | 同じ Workers 中継から Google Sheets API(サービスアカウント認証) |
 | Garmin連携 | GitHub Actions(cron)+ `python-garminconnect` |
 | ホスティング | Cloudflare Workers(Git 連携、`main` push で自動デプロイ) |
-| テスト | Vitest + fake-indexeddb |
+| テスト | Vitest + fake-indexeddb(ユニット)、Playwright(E2E スモーク) |
 
 採用理由・トレードオフは [要件定義書](./docs/からだログ_要件定義書.md) の 6 章と [意思決定ログ](./docs/からだログ_意思決定ログ.md) を参照。
 
@@ -56,13 +56,17 @@ cp .dev.vars.example .dev.vars   # GEMINI_API_KEY・Google Sheets関連の値を
 ```
 npm run dev              # Vite 開発サーバー起動(localhost:5173)
 npm run build            # tsc -b && vite build(PWA の Service Worker も生成)
-npm run test             # vitest run(全テスト)
+npm run test             # vitest run(ユニットテスト。e2e/ は含まない)
 npx vitest run <path>    # 単一テストファイルのみ実行
+npm run e2e              # playwright test(E2E スモーク。dev サーバーは自動起動)
+npm run typecheck:worker # Worker の型チェック(src/ と独立ビルドのため別途必要)
 npm run preview          # 本番ビルドをローカルで確認(実際の PWA/インストール挙動の確認用)
 npm run worker:dev       # wrangler dev で Worker(/api/* を含む)をローカル実行
 ```
 
 `npm run lint` は package.json に定義されているが ESLint 未導入のため動作しない。
+
+PR 作成時と `main` への push では、`npm run test` / `npm run build` / `npm run typecheck:worker` が CI(`.github/workflows/ci.yml`)でも実行される。**E2E は CI に含めていない**ため、画面・ルーティング・データ層に影響する変更ではローカルで `npm run e2e` を実行すること。CI はデプロイのゲートではない(落ちても自動デプロイは進む)。
 
 ## デプロイ
 

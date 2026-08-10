@@ -131,8 +131,13 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
   // 実測TDEEに基づく目標カロリーの補正提案(Issue #44)。反映はユーザーの明示操作でのみ行う。
   // 計算は設定画面の自動計算パネル(ValueEditorDrawer.tsx)と同じsuggestCalorieTarget()を再利用し、BMR下限クランプと
   // ペース超過警告(要件定義書4.7.1章)の両方のガードレールを常に適用する(画面によって安全性が変わらないように)
+  // 目標体重・目標日が未設定なら必要ペースが定義できないため提案しない(Issue #217)
   const calorieProposal =
-    calories.estimatedTdeeKcal !== null && calories.bmrKcal !== null && weight.paceBaseKg !== null
+    calories.estimatedTdeeKcal !== null &&
+    calories.bmrKcal !== null &&
+    weight.paceBaseKg !== null &&
+    digest.goal.targetWeightKg !== null &&
+    digest.goal.remainingDays !== null
       ? suggestCalorieTarget({
           bmrKcal: calories.bmrKcal,
           tdeeKcal: calories.estimatedTdeeKcal,
@@ -143,7 +148,10 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
         })
       : null;
   const proposedTargetKcal = calorieProposal?.suggestedKcal ?? null;
-  const proposalDiffers = proposedTargetKcal !== null && Math.abs(proposedTargetKcal - calories.targetKcal) >= 10;
+  const proposalDiffers =
+    proposedTargetKcal !== null &&
+    calories.targetKcal !== null &&
+    Math.abs(proposedTargetKcal - calories.targetKcal) >= 10;
 
   const handleApplyProposal = async () => {
     if (proposedTargetKcal === null) return;
@@ -224,17 +232,20 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
               </Typography>
             )}
             <Box sx={{ borderTop: `1px solid ${tokens.divider}`, mt: "8px", pt: "4px" }}>
-              <StatRow
-                label={`必要ペース(残り${digest.goal.remainingDays}日)`}
-                value={
-                  // paceBaseKg===0の場合とrequiredWeeklyPaceKg===0の場合を区別する:
-                  // 基準体重が計算できない(目標日超過・体重記録皆無)ときだけ「-」とし、
-                  // 既に目標体重に到達している場合は「0.00 kg/週」を表示する(「データ無し」との混同を避ける)
-                  digest.goal.remainingDays > 0 && weight.paceBaseKg !== null
-                    ? `${weight.requiredWeeklyPaceKg.toFixed(2)} kg/週`
-                    : "-"
-                }
-              />
+              {/* 目標日が未設定なら残り日数も必要ペースも定義できないため、行ごと出さない(Issue #217) */}
+              {digest.goal.remainingDays !== null && (
+                <StatRow
+                  label={`必要ペース(残り${digest.goal.remainingDays}日)`}
+                  value={
+                    // paceBaseKg===0の場合とrequiredWeeklyPaceKg===0の場合を区別する:
+                    // 基準体重が計算できない(目標日超過・体重記録皆無)ときだけ「-」とし、
+                    // 既に目標体重に到達している場合は「0.00 kg/週」を表示する(「データ無し」との混同を避ける)
+                    digest.goal.remainingDays > 0 && weight.paceBaseKg !== null
+                      ? `${weight.requiredWeeklyPaceKg.toFixed(2)} kg/週`
+                      : "-"
+                  }
+                />
+              )}
               {paceStatus && (
                 <Typography
                   sx={{
@@ -254,7 +265,9 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
                 <StatRow
                   label="現在ペースでの着地予測"
                   value={`${weight.projectedKg.toFixed(1)} kg`}
-                  sub={`/ 目標 ${digest.goal.targetWeightKg.toFixed(1)} kg`}
+                  {...(digest.goal.targetWeightKg !== null && {
+                    sub: `/ 目標 ${digest.goal.targetWeightKg.toFixed(1)} kg`,
+                  })}
                 />
               )}
             </Box>
@@ -270,9 +283,11 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
         <StatRow
           label="平均摂取カロリー"
           value={calories.avgIntakeKcal !== null ? calories.avgIntakeKcal.toLocaleString() : "-"}
-          sub={`/ 目標 ${calories.targetKcal.toLocaleString()} kcal`}
+          {...(calories.targetKcal !== null && { sub: `/ 目標 ${calories.targetKcal.toLocaleString()} kcal` })}
         />
-        <StatRow label="目標カロリー以内の日" value={`${calories.daysOnTarget}`} sub="/ 7日" />
+        {calories.daysOnTarget !== null && (
+          <StatRow label="目標カロリー以内の日" value={`${calories.daysOnTarget}`} sub="/ 7日" />
+        )}
         <StatRow label="食事を記録した日" value={`${calories.recordedDays}`} sub="/ 7日" />
         <Box sx={{ borderTop: `1px solid ${tokens.divider}`, mt: "4px", pt: "4px" }}>
           <StatRow
@@ -510,7 +525,7 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
                 )}
               </Box>
             )}
-            {calorieProposal && proposedTargetKcal !== null && proposalDiffers && (
+            {calorieProposal && proposedTargetKcal !== null && proposalDiffers && calories.targetKcal !== null && (
               <Box sx={{ bgcolor: tokens.secondarySoft, borderRadius: "14px", p: "12px 14px", mt: "12px" }}>
                 <Typography sx={{ fontSize: 12, color: tokens.secondaryDeep, lineHeight: 1.7 }}>
                   目標カロリーを{" "}

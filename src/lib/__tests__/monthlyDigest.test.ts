@@ -194,3 +194,31 @@ describe("buildMonthlyDigest", () => {
     });
   });
 });
+
+/**
+ * 目標未設定(Issue #217)。週次(weeklyDigest.test.ts)と同じ不変条件を月次にも課す —
+ * 以前は週次だけダミー値を弾いていて、月次は0kcal目標のまま「目標以内の日数」を数えていた。
+ */
+describe("目標が未設定の月(Issue #217)", () => {
+  const noGoal = () => baseSource({ goalWeightKg: null, goalDate: null, calorieTargetKcal: null });
+
+  it("目標値をダミーで埋めず、nullのまま返す", () => {
+    const digest = buildMonthlyDigest(noGoal());
+    expect(digest.goal.targetWeightKg).toBeNull();
+    expect(digest.goal.targetDate).toBeNull();
+    expect(digest.goal.remainingDays).toBeNull();
+    expect(digest.calories.targetKcal).toBeNull();
+  });
+
+  it("目標カロリーが無い月は「目標以内の日数」を数えない", () => {
+    // 回帰: 目標に1kcalを充てていた頃、記録の無い日(0kcal)が「目標以内」として積み上がっていた
+    expect(buildMonthlyDigest(noGoal()).calories.daysOnTarget).toBeNull();
+  });
+
+  it("必要ペース・到達見込みは算出せず、BEHIND_PACEも立てない", () => {
+    const digest = buildMonthlyDigest(noGoal());
+    expect(digest.weight.requiredWeeklyPaceKg).toBe(0);
+    expect(digest.weight.projectedAtGoalDateKg).toBeNull();
+    expect(digest.flags).not.toContain("BEHIND_PACE");
+  });
+});

@@ -249,7 +249,9 @@ export default function MonthlyReview({ digest, onPrevMonth, onNextMonth, canGoN
         )}
       </Card>
 
-      {/* 目標へのマイルストーン: 残り期間と、今月のペースを維持した場合の到達見込み */}
+      {/* 目標へのマイルストーン: 残り期間と、今月のペースを維持した場合の到達見込み。
+          目標日が未設定なら全行が定義できないためカードごと出さない(Issue #217) */}
+      {digest.goal.targetDate !== null && digest.goal.remainingDays !== null && (
       <Card sx={{ p: "18px" }}>
         <SectionTitle>目標へのマイルストーン</SectionTitle>
         <StatRow
@@ -271,7 +273,9 @@ export default function MonthlyReview({ digest, onPrevMonth, onNextMonth, canGoN
             <StatRow
               label="今月のペースを維持した場合の見込み"
               value={`${weight.projectedAtGoalDateKg.toFixed(1)}`}
-              sub={`/ 目標 ${digest.goal.targetWeightKg.toFixed(1)} kg`}
+              {...(digest.goal.targetWeightKg !== null && {
+                sub: `/ 目標 ${digest.goal.targetWeightKg.toFixed(1)} kg`,
+              })}
             />
             {paceStatus && (
               <Typography
@@ -297,6 +301,7 @@ export default function MonthlyReview({ digest, onPrevMonth, onNextMonth, canGoN
           </Typography>
         )}
       </Card>
+      )}
 
       {/* 実測消費カロリー(月間推定)。週単位の逆算はブレが大きいため月窓の安定値を出す(Issue #44・#114) */}
       <Card sx={{ p: "18px" }}>
@@ -340,9 +345,11 @@ export default function MonthlyReview({ digest, onPrevMonth, onNextMonth, canGoN
         <StatRow
           label="平均摂取カロリー"
           value={calories.avgIntakeKcal !== null ? calories.avgIntakeKcal.toLocaleString() : "-"}
-          sub={`/ 目標 ${calories.targetKcal.toLocaleString()} kcal`}
+          {...(calories.targetKcal !== null && { sub: `/ 目標 ${calories.targetKcal.toLocaleString()} kcal` })}
         />
-        <StatRow label="目標カロリー以内の日" value={`${calories.daysOnTarget}`} sub={`/ ${recording.totalDays}日`} />
+        {calories.daysOnTarget !== null && (
+          <StatRow label="目標カロリー以内の日" value={`${calories.daysOnTarget}`} sub={`/ ${recording.totalDays}日`} />
+        )}
         <StatRow label="食事を記録した日" value={`${calories.recordedDays}`} sub={`/ ${recording.totalDays}日`} />
         <Box sx={{ borderTop: `1px solid ${tokens.divider}`, mt: "4px", pt: "4px" }}>
           <StatRow

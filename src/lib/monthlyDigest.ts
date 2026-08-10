@@ -30,9 +30,9 @@ export interface MonthlyDigestSource {
    */
   weekSummaries: WeeklyNutritionSummary[];
   today: string;
-  goalWeightKg: number;
-  goalDate: string;
-  calorieTargetKcal: number;
+  goalWeightKg: number | null; // 目標体重(未設定ならnull。Issue #217)
+  goalDate: string | null; // 目標日(未設定ならnull)
+  calorieTargetKcal: number | null; // 目標カロリー(未設定ならnull)
   bmrKcal: number | null;
   /** 全期間の最新体重。月内に記録が無くても必要ペースを計算できるようにするためのフォールバック */
   latestWeightKg: number | null;
@@ -52,7 +52,11 @@ export function buildMonthlyDigest(src: MonthlyDigestSource): MonthlyDigest {
   const periodStart = src.weekStarts[0];
   const periodEnd = addDaysToDateString(src.weekStarts[src.weekStarts.length - 1], 6);
   const totalDays = src.weekStarts.length * 7;
-  const remainingDays = Math.max(0, daysBetween(src.today, src.goalDate));
+  // 目標日が未設定なら残り日数は算出できない(Issue #217)。過ぎている場合は従来どおり0
+  const remainingDays = src.goalDate !== null ? Math.max(0, daysBetween(src.today, src.goalDate)) : null;
+  // コールバック内でも絞り込みを効かせるためローカルに束ねる
+  const goalWeightKg = src.goalWeightKg;
+  const calorieTargetKcal = src.calorieTargetKcal;
   // 記録率の判定に使う「これまでに経過した日数」。進行中の当月は月全体ではなくtodayまでの経過日数で測る
   // (月の序盤に毎日記録していても「7割未満=記録不足」と誤判定しないため)。完了済みの月では総日数と一致する
   const elapsedDays = Math.min(totalDays, Math.max(0, daysBetween(periodStart, src.today) + 1));
@@ -81,16 +85,16 @@ export function buildMonthlyDigest(src: MonthlyDigestSource): MonthlyDigest {
   const avgWeeklyPaceKg =
     monthlyChangeKg !== null && spanWeeks > 0 ? round2(monthlyChangeKg / spanWeeks) : null;
 
-  // 必要ペース(kg/週)。週次と同じ計算(基準体重が無い・目標日超過なら0。フラグ側で状況を伝える)
+  // 必要ペース(kg/週)。週次と同じ計算(目標未設定・基準体重が無い・目標日超過なら0。フラグ側で状況を伝える)
   const paceBaseKg = endWeekAvgKg ?? src.latestWeightKg;
   const requiredWeeklyPaceKg =
-    remainingDays > 0 && paceBaseKg !== null
-      ? round2(-(((paceBaseKg - src.goalWeightKg) / remainingDays) * 7))
+    remainingDays !== null && remainingDays > 0 && paceBaseKg !== null && goalWeightKg !== null
+      ? round2(-(((paceBaseKg - goalWeightKg) / remainingDays) * 7))
       : 0;
 
   // マイルストーン: 今月の平均ペースを維持した場合の目標日時点の見込み体重
   const projectedAtGoalDateKg =
-    avgWeeklyPaceKg !== null && endWeekAvgKg !== null && remainingDays > 0
+    avgWeeklyPaceKg !== null && endWeekAvgKg !== null && remainingDays !== null && remainingDays > 0
       ? round2(endWeekAvgKg + (avgWeeklyPaceKg * remainingDays) / 7)
       : null;
 
@@ -139,7 +143,7 @@ export function buildMonthlyDigest(src: MonthlyDigestSource): MonthlyDigest {
   if (avgIntakeKcal !== null && src.bmrKcal !== null && avgIntakeKcal < src.bmrKcal) {
     flags.push("INTAKE_BELOW_BMR");
   }
-  if (projectedAtGoalDateKg !== null && projectedAtGoalDateKg > src.goalWeightKg) {
+  if (projectedAtGoalDateKg !== null && goalWeightKg !== null && projectedAtGoalDateKg > goalWeightKg) {
     flags.push("BEHIND_PACE");
   }
   // 記録率は経過日数(進行中の当月はtodayまで)に対する割合で判定する。総日数で測ると当月の序盤で常に立つため
@@ -173,8 +177,11 @@ export function buildMonthlyDigest(src: MonthlyDigestSource): MonthlyDigest {
     },
     calories: {
       avgIntakeKcal,
-      targetKcal: src.calorieTargetKcal,
-      daysOnTarget: src.mealDailyTotals.filter((d) => d.kcal <= src.calorieTargetKcal).length,
+      targetKcal: calorieTargetKcal,
+      daysOnTarget:
+        calorieTargetKcal !== null
+          ? src.mealDailyTotals.filter((d) => d.kcal <= calorieTargetKcal).length
+          : null,
       recordedDays: mealDays,
       monthlyTdeeKcal,
       tdeeValidWeeks: weeklyTdees.length,

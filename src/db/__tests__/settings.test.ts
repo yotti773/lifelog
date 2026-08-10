@@ -4,7 +4,9 @@ import {
   getSettings,
   getStoredSettings,
   getUnsyncedSettings,
+  isInitialSetupComplete,
   markSettingsSynced,
+  shouldShowInitialSetup,
   updateSettings,
 } from "@/db/settings";
 
@@ -13,21 +15,19 @@ beforeEach(async () => {
 });
 
 describe("settings", () => {
-  it("returns the requirements-doc defaults when nothing is saved yet", async () => {
+  it("returns empty defaults when nothing is saved yet (Issue #217)", async () => {
     const settings = await getSettings();
-    expect(settings).toEqual({
-      goalWeightKg: 64,
-      goalDate: "2026-10-31",
-      dailyCalorieTarget: 1900,
-    });
+    // DEFAULT_SETTINGSから目標値を削除したため、保存行がなければ何も返らない
+    expect(settings).toEqual({});
   });
 
-  it("persists partial updates merged with the current values", async () => {
+  it("persists partial updates (Issue #217)", async () => {
     await updateSettings({ goalWeightKg: 63 });
 
     const settings = await getSettings();
     expect(settings.goalWeightKg).toBe(63);
-    expect(settings.goalDate).toBe("2026-10-31");
+    // goalDateはもう既定値ではなく、明示的に設定されない限り undefined
+    expect(settings.goalDate).toBeUndefined();
   });
 
   it("persists a baseline date for the progress bar's starting point", async () => {
@@ -40,16 +40,18 @@ describe("settings", () => {
 
 describe("設定のシート同期(Issue #164)", () => {
   it("既定値を保存行に実体化しない(新規端末でAPIトークンだけ入れた状態)", async () => {
-    // 回帰: 以前はupdateSettingsが既定値込みのマージ結果を保存していたため、
-    // 新規端末でAPIトークンを入れた瞬間に goalWeightKg:64 等が「ユーザーが設定した値」になり、
-    // (1) 次の同期で既定値がシートの実値を上書きし、(2) 取り込みも実値を復元しなかった
+    // 回帰(Issue #164): 以前はupdateSettingsが既定値込みのマージ結果を保存していたため、
+    // 新規端末でAPIトークンを入れた瞬間に既定値が「ユーザーが設定した値」になり、
+    // (1) 次の同期で既定値がシートの実値を上書きし、(2) 取り込みも実値を復元しなかった。
+    // Issue #217でDEFAULT_SETTINGSは空になったが、**既定値を保存行に混ぜない**という
+    // getSettings/getStoredSettingsの役割分担そのものはこのテストで守り続ける
     await updateSettings({ apiToken: "secret" });
 
     const stored = await getStoredSettings();
     expect(stored).toEqual({ apiToken: "secret" });
-    // 画面が読む値には既定値が被る(表示は従来どおり)
-    expect((await getSettings()).goalWeightKg).toBe(64);
-    // 同期対象にも既定値は入らない(apiTokenはtoSettingsEntries側で除外される)
+    // 目標値は明示的に設定されていないから undefined
+    expect((await getSettings()).goalWeightKg).toBeUndefined();
+    // 同期対象にも目標値は入らない
     expect(await getUnsyncedSettings()).toEqual({ apiToken: "secret" });
   });
 
@@ -79,5 +81,35 @@ describe("設定のシート同期(Issue #164)", () => {
 
     await updateSettings({ lastSyncedAt: "2026-08-08T10:00:00.000Z" });
     expect(await getUnsyncedSettings()).toBeNull();
+  });
+});
+
+/**
+ * 初回セットアップの完了判定(Issue #217)。**ホームのリダイレクトと画面側の「はじめる」活性が
+ * 同じ関数を見ていること**がここでの肝で、条件が割れると片方だけ満たしたユーザーが
+ * どちらの画面からも抜けられなくなる。
+ */
+describe("初回セットアップの判定(Issue #217)", () => {
+  const goals = { goalWeightKg: 64, goalDate: "2026-10-31", dailyCalorieTarget: 1900 } as const;
+
+  it("目標3項目が揃えば完了。身体プロフィールは条件に含めない", () => {
+    expect(isInitialSetupComplete({})).toBe(false);
+    expect(isInitialSetupComplete({ goalWeightKg: 64, goalDate: "2026-10-31" })).toBe(false);
+    expect(isInitialSetupComplete(goals)).toBe(true);
+    // プロフィール・PFC・水分は任意 — 無くても完了とみなす
+    expect(isInitialSetupComplete({ ...goals, heightCm: undefined, dailyWaterTargetMl: undefined })).toBe(true);
+  });
+
+  it("未設定なら初回セットアップへ誘導する", () => {
+    expect(shouldShowInitialSetup({})).toBe(true);
+    expect(shouldShowInitialSetup({ goalWeightKg: 64 })).toBe(true);
+  });
+
+  it("スキップ済みなら未設定でも誘導しない(移行ユーザーが記録を始められるように)", () => {
+    expect(shouldShowInitialSetup({ initialSetupSkipped: true })).toBe(false);
+  });
+
+  it("完了していれば誘導しない", () => {
+    expect(shouldShowInitialSetup(goals)).toBe(false);
   });
 });

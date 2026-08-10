@@ -35,7 +35,7 @@ export default function PfcEditorDrawer({ open, withSuggestion, settings, latest
       carbs: settings.dailyCarbsTargetG !== undefined ? String(settings.dailyCarbsTargetG) : "",
     });
     setPfcSuggestion(
-      withSuggestion && latestWeightRecord
+      withSuggestion && latestWeightRecord && settings.dailyCalorieTarget !== undefined
         ? suggestPfcTargets(latestWeightRecord.weightKg, settings.dailyCalorieTarget)
         : null,
     );
@@ -43,7 +43,7 @@ export default function PfcEditorDrawer({ open, withSuggestion, settings, latest
 
   // たんぱく質の提案は直近体重を使うため、体重記録が1件も無い場合は自動計算できない(手動入力は可能。Issue #47)
   const handleAutoCalcPfc = () => {
-    if (!latestWeightRecord) return;
+    if (!latestWeightRecord || settings.dailyCalorieTarget === undefined) return;
     setPfcSuggestion(suggestPfcTargets(latestWeightRecord.weightKg, settings.dailyCalorieTarget));
   };
 

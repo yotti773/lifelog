@@ -10,6 +10,8 @@ import type { Settings } from "@/types";
  * **`apiToken` は対象外。** 取り込みAPIの呼び出しに `Authorization: Bearer` としてこの値が要るため、
  * 入力済みでなければ取り込みが始まらない = シートからは原理的に復元できない。
  * **`lastSyncedAt` も対象外**(端末ごとの同期状態であって利用者の設定ではない)。
+ * **`initialSetupSkipped`(Issue #217)も対象外** — 初回セットアップを飛ばしたかどうかは
+ * 端末ごとの状態で、他端末へ持ち回る意味がない(新しい端末では改めて目標入力へ誘導してよい)。
  */
 export type SettingsFieldType = "number" | "date" | "text" | "boolean";
 

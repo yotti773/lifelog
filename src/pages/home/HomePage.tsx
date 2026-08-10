@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
@@ -6,7 +7,7 @@ import { db } from "@/db/db";
 import { getBloodPressureRecord } from "@/db/bloodPressureRecords";
 import { getDiaryRecord } from "@/db/diaryRecords";
 import { getRecordedDateSet } from "@/db/recordedDays";
-import { getSettings } from "@/db/settings";
+import { getSettings, shouldShowInitialSetup } from "@/db/settings";
 import { getWaterRecordsForDate } from "@/db/waterRecords";
 import { getWorkoutRecordsForDate } from "@/db/workoutRecords";
 import { localDateRangeToUtcIso, todayDateString } from "@/lib/date";
@@ -30,6 +31,15 @@ export default function HomePage() {
   const navigate = useNavigate();
   const today = todayDateString();
 
+  const settings = useLiveQuery(() => getSettings(), []);
+
+  // 目標が未設定のまま(かつスキップもしていない)なら初回セットアップへ送る(Issue #217)
+  useEffect(() => {
+    if (settings !== undefined && shouldShowInitialSetup(settings)) {
+      navigate("/setup", { replace: true });
+    }
+  }, [settings, navigate]);
+
   const weight = useLiveQuery(() => db.weightRecords.get(today), [today]);
   // 前回比の基準になる、今日より前の直近の記録。「未解決」と「記録なし」を区別するためnullに正規化する
   const previousWeight = useLiveQuery(
@@ -45,7 +55,6 @@ export default function HomePage() {
         .sortBy("timestamp"),
     [todayStartIso, todayEndIso],
   );
-  const settings = useLiveQuery(() => getSettings(), []);
   const waterRecords = useLiveQuery(() => getWaterRecordsForDate(today), [today]);
   // 「未記録」に正当に解決しうるクエリはnullに正規化する(undefined=ロード中と区別するため。TrendsPage.tsx参照)
   const diary = useLiveQuery(() => getDiaryRecord(today).then((v) => v ?? null), [today]);

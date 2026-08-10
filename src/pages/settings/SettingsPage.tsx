@@ -116,7 +116,7 @@ export default function SettingsPage() {
           iconBg={tokens.secondarySoft}
           iconColor="#2EC4B6"
           label="目標体重"
-          value={`${settings.goalWeightKg.toFixed(1)} kg`}
+          value={settings.goalWeightKg !== undefined ? `${settings.goalWeightKg.toFixed(1)} kg` : "未設定"}
           divider
           onClick={() => setEditTarget("weight")}
         />
@@ -125,7 +125,7 @@ export default function SettingsPage() {
           iconBg={tokens.primarySoft}
           iconColor="#FF6B4A"
           label="目標日"
-          value={formatSlashDate(settings.goalDate)}
+          value={settings.goalDate !== undefined ? formatSlashDate(settings.goalDate) : "未設定"}
           divider
           onClick={() => setEditTarget("goalDate")}
         />
@@ -143,7 +143,7 @@ export default function SettingsPage() {
           iconBg={tokens.primarySoft}
           iconColor="#FF6B4A"
           label="1日の目標カロリー"
-          value={`${settings.dailyCalorieTarget.toLocaleString()} kcal`}
+          value={settings.dailyCalorieTarget !== undefined ? `${settings.dailyCalorieTarget.toLocaleString()} kcal` : "未設定"}
           divider
           onClick={() => setEditTarget("calories")}
         />

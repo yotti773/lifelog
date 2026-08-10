@@ -96,9 +96,10 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
       : null;
 
   // 着地予測は推移画面と同じ計算(起点=基準日の記録、なければ最古の記録。Issue #25)
+  // 目標日が未設定(Issue #217)なら予測しない
   const projectionStart = baselineWeight ?? firstWeight;
   const projectedKg =
-    projectionStart && latestWeight
+    projectionStart && latestWeight && settings.goalDate
       ? projectWeightAtDate(
           { date: projectionStart.date, weightKg: projectionStart.weightKg },
           { date: latestWeight.date, weightKg: latestWeight.weightKg },
@@ -109,9 +110,10 @@ export async function getWeeklyDigest(weekStart: string, today: string = todayDa
   return buildWeeklyDigest({
     weekStart,
     today,
-    goalWeightKg: settings.goalWeightKg,
-    goalDate: settings.goalDate,
-    calorieTargetKcal: settings.dailyCalorieTarget,
+    // 未設定はnullのまま純関数へ渡す(ダミー値を被せない。Issue #217)
+    goalWeightKg: settings.goalWeightKg ?? null,
+    goalDate: settings.goalDate ?? null,
+    calorieTargetKcal: settings.dailyCalorieTarget ?? null,
     pfcTargets:
       settings.dailyProteinTargetG !== undefined &&
       settings.dailyFatTargetG !== undefined &&

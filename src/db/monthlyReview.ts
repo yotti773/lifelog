@@ -58,9 +58,10 @@ export async function getMonthlyDigest(month: string, today: string = todayDateS
     weekStarts,
     weekSummaries,
     today,
-    goalWeightKg: settings.goalWeightKg,
-    goalDate: settings.goalDate,
-    calorieTargetKcal: settings.dailyCalorieTarget,
+    // 未設定はnullのまま純関数へ渡す(ダミー値を被せない。Issue #217)
+    goalWeightKg: settings.goalWeightKg ?? null,
+    goalDate: settings.goalDate ?? null,
+    calorieTargetKcal: settings.dailyCalorieTarget ?? null,
     bmrKcal,
     latestWeightKg: latestWeight?.weightKg ?? null,
     mealDailyTotals,

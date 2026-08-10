@@ -1,6 +1,7 @@
-import { expect, test } from "./fixtures";
+import { expect, skipInitialSetup, test } from "./fixtures";
 
 test("食事を手入力で記録するとホームの摂取カロリー・食事リストに反映される", async ({ page }) => {
+  await skipInitialSetup(page);
   await page.goto("/record/meal?type=lunch");
   await expect(page.getByText("昼食を記録")).toBeVisible();
 

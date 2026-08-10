@@ -3,12 +3,30 @@ import type { Settings } from "@/types";
 
 const SETTINGS_ID = "default" as const;
 
-// 要件定義書の初期値(64kg / 2026-10-31)
-export const DEFAULT_SETTINGS: Settings = {
-  goalWeightKg: 64,
-  goalDate: "2026-10-31",
-  dailyCalorieTarget: 1900,
-};
+// デフォルト値は持たず、ユーザーの明示的な設定を待つ(Issue #217)。
+// 初回セットアップで目標を入力させることで、他人に配るときに開発者本人の目標値が表示されるのを防ぐ
+export const DEFAULT_SETTINGS: Settings = {};
+
+/**
+ * 初回セットアップ(Issue #217)を終えたとみなす条件。**目標の3項目だけを必須とする。**
+ * 身体プロフィール・PFC・水分目標は自動計算や補助表示にしか使わず、無くても記録も進捗表示も成立するため
+ * 任意に留める(必須にすると、入れる気の無い項目のせいで記録が始められなくなる)。
+ *
+ * **ホーム(リダイレクト判定)と初回セットアップ画面(「はじめる」の活性)で必ず同じ関数を使うこと。**
+ * 条件が食い違うと、片方だけを満たしたユーザーがどちらの画面からも解放されない状態が生まれる。
+ */
+export function isInitialSetupComplete(settings: Settings): boolean {
+  return (
+    settings.goalWeightKg !== undefined &&
+    settings.goalDate !== undefined &&
+    settings.dailyCalorieTarget !== undefined
+  );
+}
+
+/** 初回セットアップ画面へ誘導すべきか。スキップ済みなら未設定でも誘導しない(移行ユーザー向け) */
+export function shouldShowInitialSetup(settings: Settings): boolean {
+  return !settings.initialSetupSkipped && !isInitialSetupComplete(settings);
+}
 
 /**
  * **既定値は読み取り時にだけ被せ、保存はしない**(Issue #164)。

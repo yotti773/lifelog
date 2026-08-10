@@ -296,7 +296,7 @@ export default function TrendsPage() {
   // 現在ペースでの着地予測(Issue #25)。起点=基準日の記録(なければ最古の記録)、最新=直近の記録。
   const projectionStart = baselineWeightRecord ?? firstWeightRecord;
   const projectedWeightKg =
-    projectionStart && lastWeightRecord
+    projectionStart && lastWeightRecord && settings.goalDate !== undefined
       ? projectWeightAtDate(
           { date: projectionStart.date, weightKg: projectionStart.weightKg },
           { date: lastWeightRecord.date, weightKg: lastWeightRecord.weightKg },
@@ -368,7 +368,7 @@ export default function TrendsPage() {
 
       {viewMode === "chart" ? (
         <>
-          {lastWeightRecord ? (
+          {lastWeightRecord && settings.goalWeightKg !== undefined && settings.goalDate !== undefined ? (
             <GoalBar
               startWeightKg={startWeightKg ?? lastWeightRecord.weightKg}
               currentWeightKg={lastWeightRecord.weightKg}
@@ -378,8 +378,11 @@ export default function TrendsPage() {
             />
           ) : (
             <Card sx={{ p: 2 }}>
+              {/* 何が足りないかを言い分ける(Issue #217で目標未設定がありうるようになったため) */}
               <Typography sx={{ textAlign: "center", fontSize: 14, color: "text.secondary" }}>
-                体重を記録するとここに進捗バーが表示されます
+                {!lastWeightRecord
+                  ? "体重を記録するとここに進捗バーが表示されます"
+                  : "設定画面で目標体重と目標日を決めると、ここに進捗バーが表示されます"}
               </Typography>
             </Card>
           )}
@@ -392,8 +395,8 @@ export default function TrendsPage() {
             activityDailyTotals={activityDailyTotals}
             bloodPressureChartRecords={bloodPressureChartRecords}
             bodyMeasurementChartRecords={bodyMeasurementChartRecords}
-            goalWeightKg={settings.goalWeightKg}
-            dailyCalorieTarget={settings.dailyCalorieTarget}
+            {...(settings.goalWeightKg !== undefined && { goalWeightKg: settings.goalWeightKg })}
+            dailyCalorieTarget={settings.dailyCalorieTarget ?? null}
             dailyWaterTargetMl={settings.dailyWaterTargetMl ?? null}
           />
         </>

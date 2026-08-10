@@ -61,13 +61,13 @@ export const SEX_OPTIONS: { value: Sex; label: string }[] = [
 function initialDraft(target: EditTarget, settings: Settings): string {
   switch (target) {
     case "weight":
-      return String(settings.goalWeightKg);
+      return settings.goalWeightKg !== undefined ? String(settings.goalWeightKg) : "";
     case "goalDate":
-      return settings.goalDate;
+      return settings.goalDate ?? "";
     case "baseline":
       return settings.baselineDate ?? "";
     case "calories":
-      return String(settings.dailyCalorieTarget);
+      return settings.dailyCalorieTarget !== undefined ? String(settings.dailyCalorieTarget) : "";
     case "waterGoal":
       return settings.dailyWaterTargetMl !== undefined ? String(settings.dailyWaterTargetMl) : "";
     case "height":
@@ -201,17 +201,25 @@ function ValueEditorContent({
     settings.birthYear !== undefined &&
     settings.sex !== undefined &&
     settings.activityLevel !== undefined;
-  const remainingDays = daysBetween(today, settings.goalDate);
+  // 目標日・目標体重は未設定でありうる(Issue #217)。両方揃って初めて必要ペース=自動計算が定義できる
+  const remainingDays = settings.goalDate !== undefined ? daysBetween(today, settings.goalDate) : null;
   const calorieAutoCalcHint = !hasProfile
     ? "「あなたのプロフィール」をすべて入力すると自動計算できます"
     : !latestWeightRecord
       ? "体重を記録すると自動計算できます"
-      : remainingDays <= 0
-        ? "目標日を過ぎているため自動計算できません(目標日を見直してください)"
-        : null;
+      : settings.goalWeightKg === undefined
+        ? "目標体重を設定すると自動計算できます"
+        : remainingDays === null
+          ? "目標日を設定すると自動計算できます"
+          : remainingDays <= 0
+            ? "目標日を過ぎているため自動計算できません(目標日を見直してください)"
+            : null;
 
   const handleAutoCalcCalories = async () => {
-    if (!hasProfile || !latestWeightRecord || remainingDays <= 0) return;
+    // 目標体重が無いまま走らせると「0kgまで減量する」前提の必要ペースが出てしまう(Issue #217)
+    const goalWeightKg = settings.goalWeightKg;
+    if (!hasProfile || !latestWeightRecord || goalWeightKg === undefined) return;
+    if (remainingDays === null || remainingDays <= 0) return;
     const profile = {
       heightCm: settings.heightCm!,
       birthYear: settings.birthYear!,
@@ -225,7 +233,7 @@ function ValueEditorContent({
       tdeeKcal: measuredTdeeKcal ?? calcFormulaTdee(bmrKcal, settings.activityLevel!),
       tdeeSource: measuredTdeeKcal !== null ? "measured" : "formula",
       currentWeightKg: latestWeightRecord.weightKg,
-      goalWeightKg: settings.goalWeightKg,
+      goalWeightKg,
       remainingDays,
     });
     setCalorieSuggestion(suggestion);

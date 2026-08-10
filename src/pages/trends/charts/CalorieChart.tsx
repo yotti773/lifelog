@@ -3,7 +3,7 @@ import DailyBarChart from "./DailyBarChart";
 
 interface CalorieChartProps {
   data: DailyCalorieTotal[];
-  targetKcal: number;
+  targetKcal: number | null; // 未設定なら目標線を引かない(Issue #217)
 }
 
 export default function CalorieChart({ data, targetKcal }: CalorieChartProps) {

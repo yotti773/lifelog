@@ -1,4 +1,4 @@
-import { test as base } from "@playwright/test";
+import { test as base, type Page } from "@playwright/test";
 
 /**
  * E2E共通のテストフィクスチャ(Issue #198)。
@@ -29,3 +29,17 @@ export const test = base.extend<{ blockApi: void }>({
 });
 
 export { expect } from "@playwright/test";
+export type { Page } from "@playwright/test";
+
+/**
+ * 初回セットアップ(Issue #217)を「あとで設定する」で抜けた状態にする。
+ *
+ * 目標が未設定のままホームを開くと `/setup` へ送られる仕様のため、**ホームを経由する
+ * テストはこれを先に呼ぶ**(呼ばないと記録の保存後にホームではなくセットアップ画面へ着く)。
+ * オンボーディング自体の検証は initial-setup.spec.ts が担当する。
+ */
+export async function skipInitialSetup(page: Page) {
+  await page.goto("/setup");
+  await page.getByRole("button", { name: "あとで設定する" }).click();
+  await page.waitForURL("/");
+}

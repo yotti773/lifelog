@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
@@ -17,6 +17,7 @@ import {
   replaceMealRecordsForDateAndType,
   type MealItemInput,
 } from "@/db/mealRecords";
+import { useHistoryBackNavigation } from "@/hooks/useHistoryBackNavigation";
 import { formatMonthDay, nearestMealType, toDatetimeLocalValue, todayDateString } from "@/lib/date";
 import { accent, fontRounded, tokens } from "@/theme";
 import type { FoodMasterItem } from "@/types";
@@ -35,7 +36,6 @@ const SUMMARY_MACROS = [
 ] as const;
 
 export default function MealRecordPage() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const today = todayDateString();
   // ホーム・履歴から ?type=<区分>&date=<日付> 付きで遷移してくる(dateは省略時=当日。筋トレのStrengthRecordPageと同じ考え方)
@@ -46,9 +46,7 @@ export default function MealRecordPage() {
   const mealType = isMealType(typeParam) ? typeParam : nearestMealType();
   const meta = MEAL_TYPE_META[mealType];
 
-  // 過去日を開いたときだけ戻り先を履歴タブ(食事)にする(体重・筋トレ記録画面と同じ考え方)
-  const backTo = () =>
-    isToday ? navigate("/") : navigate("/trends", { state: { viewMode: "history", historyKind: "meal" } });
+  const backTo = useHistoryBackNavigation("meal", isToday);
 
   const [isLoading, setLoading] = useState(true);
   const [dateTime, setDateTime] = useState("");

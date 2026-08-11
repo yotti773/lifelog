@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
@@ -13,6 +13,7 @@ import RecordHeader from "@/components/RecordHeader";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconClose, IconPlus, IconTrash } from "@/components/icons";
 import { getAllExerciseMasterItems } from "@/db/exerciseMaster";
+import { useHistoryBackNavigation } from "@/hooks/useHistoryBackNavigation";
 import { EXERCISE_BODY_PART_LABELS } from "@/lib/exerciseBodyParts";
 import {
   getPreviousWorkoutsByExercise,
@@ -39,16 +40,13 @@ const EMPTY_SET: DraftSet = { weight: "", reps: "" };
 const emptyExercise = (): DraftExercise => ({ name: "", sets: [{ ...EMPTY_SET }] });
 
 export default function StrengthRecordPage() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const today = todayDateString();
   // 履歴確認画面から ?date=YYYY-MM-DD 付きで遷移してきた場合、その日付の記録を開く(Issue #73)
   const dateParam = searchParams.get("date");
   const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
   const isToday = date === today;
-  // 過去日を開いたときだけ、戻り先を履歴タブ(筋トレ)にする(体重記録画面と同じ考え方)
-  const backToHistory = () =>
-    isToday ? navigate("/") : navigate("/trends", { state: { viewMode: "history", historyKind: "strength" } });
+  const backToHistory = useHistoryBackNavigation("strength", isToday);
 
   const [isLoading, setLoading] = useState(true);
   const [exercises, setExercises] = useState<DraftExercise[]>([]);

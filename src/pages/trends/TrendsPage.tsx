@@ -334,28 +334,32 @@ export default function TrendsPage() {
   // 体重・血圧・サイズは日付が主キー(1日1件)のため、未記録日でも新規入力画面として開けるよう
   // create=1 を付けて明示的な新規追加であることを伝える(タップ後に削除された、というエッジケースの
   // 「見つかりません」表示と区別するため)。水分・筋トレ・日記・食事は date だけで新規入力画面が開く。
+  // 履歴確認画面からの遷移は state に `{ from: "history" }` を付け、保存・削除後に履歴タブへ
+  // 戻れるようにする(Issue #120。日付が今日かどうかでは判定できないため、行タップ・追加どちらも明示する)
+  const historyNavState = { state: { from: "history" as const } };
+
   const handleAddHistoryEntry = (date: string, mealType?: MealType) => {
     switch (historyKind) {
       case "weight":
-        navigate(`/record/weight?date=${date}&create=1`);
+        navigate(`/record/weight?date=${date}&create=1`, historyNavState);
         break;
       case "meal":
-        navigate(`/record/meal?type=${mealType}&date=${date}`);
+        navigate(`/record/meal?type=${mealType}&date=${date}`, historyNavState);
         break;
       case "water":
-        navigate(`/record/water?date=${date}`);
+        navigate(`/record/water?date=${date}`, historyNavState);
         break;
       case "strength":
-        navigate(`/record/strength?date=${date}`);
+        navigate(`/record/strength?date=${date}`, historyNavState);
         break;
       case "diary":
-        navigate(`/record/diary?date=${date}`);
+        navigate(`/record/diary?date=${date}`, historyNavState);
         break;
       case "bloodPressure":
-        navigate(`/record/blood-pressure?date=${date}&create=1`);
+        navigate(`/record/blood-pressure?date=${date}&create=1`, historyNavState);
         break;
       case "bodyMeasurement":
-        navigate(`/record/measurement?date=${date}&create=1`);
+        navigate(`/record/measurement?date=${date}&create=1`, historyNavState);
         break;
     }
   };
@@ -488,39 +492,41 @@ export default function TrendsPage() {
             <WeightHistoryList
               records={filteredHistory}
               baselineDate={settings.baselineDate}
-              onSelect={(date) => navigate(`/record/weight?date=${date}`)}
+              onSelect={(date) => navigate(`/record/weight?date=${date}`, historyNavState)}
             />
           ) : historyKind === "meal" ? (
             <MealHistoryList
               records={filteredMealHistory}
-              onSelect={(date, mealType) => navigate(`/record/meal?type=${mealType}&date=${date}`)}
+              onSelect={(date, mealType) =>
+                navigate(`/record/meal?type=${mealType}&date=${date}`, historyNavState)
+              }
             />
           ) : historyKind === "water" ? (
             <WaterHistoryList
               days={filteredWaterDays}
-              onSelect={(date) => navigate(`/record/water?date=${date}`)}
+              onSelect={(date) => navigate(`/record/water?date=${date}`, historyNavState)}
             />
           ) : historyKind === "strength" ? (
             <WorkoutHistoryList
               days={filteredWorkoutDays}
-              onSelect={(date) => navigate(`/record/strength?date=${date}`)}
+              onSelect={(date) => navigate(`/record/strength?date=${date}`, historyNavState)}
             />
           ) : historyKind === "diary" ? (
             <DiaryHistoryList
               records={filteredDiaryHistory}
-              onSelect={(date) => navigate(`/record/diary?date=${date}`)}
+              onSelect={(date) => navigate(`/record/diary?date=${date}`, historyNavState)}
             />
           ) : historyKind === "activity" ? (
             <ActivityHistoryList records={filteredActivityHistory} />
           ) : historyKind === "bloodPressure" ? (
             <BloodPressureHistoryList
               records={filteredBloodPressureHistory}
-              onSelect={(date) => navigate(`/record/blood-pressure?date=${date}`)}
+              onSelect={(date) => navigate(`/record/blood-pressure?date=${date}`, historyNavState)}
             />
           ) : (
             <BodyMeasurementHistoryList
               records={filteredBodyMeasurementHistory}
-              onSelect={(date) => navigate(`/record/measurement?date=${date}`)}
+              onSelect={(date) => navigate(`/record/measurement?date=${date}`, historyNavState)}
             />
           )}
         </>

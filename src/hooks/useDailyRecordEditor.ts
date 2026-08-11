@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toDatetimeLocalValue, todayDateString } from "@/lib/date";
 
 export type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
@@ -19,6 +19,7 @@ export function useDailyRecordEditor<T extends { timestamp: string }>(
   onLoaded: (record: T) => void,
 ) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const editDate = searchParams.get("date");
   const isTodayParam = editDate === todayDateString();
@@ -59,9 +60,12 @@ export function useDailyRecordEditor<T extends { timestamp: string }>(
 
   const isEditing = loadStatus === "loaded";
   const selectedDate = dateTime.slice(0, 10);
-  // 履歴確認画面からの遷移(今日より前の日付)のみ、保存・削除後は履歴タブに戻す。
-  // ホームからの遷移(当日分の新規/編集)は今まで通りホームに戻る
-  const cameFromHistory = editDate !== null && !isTodayParam;
+  // 履歴確認画面からの行タップ・「記録を追加」には state `{ from: "history" }` が付く(TrendsPage参照)。
+  // これがあれば日付に関わらず(今日の記録を履歴経由で開いた場合も含め)保存・削除後は履歴タブに戻す。
+  // stateが失われるページ再読み込み・直接URLアクセスでは、今までどおり今日より前の日付かどうかで判定する
+  const stateFrom = (location.state as { from?: "history" | "home" } | null)?.from;
+  const cameFromHistory =
+    stateFrom !== undefined ? stateFrom === "history" : editDate !== null && !isTodayParam;
 
   const navigateToHistory = (historyKind?: string) =>
     navigate("/trends", { state: { viewMode: "history", ...(historyKind !== undefined && { historyKind }) } });

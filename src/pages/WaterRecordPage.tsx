@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
@@ -10,6 +10,7 @@ import SectionLabel from "@/components/SectionLabel";
 import { IconClose, IconDrop } from "@/components/icons";
 import { addWaterRecord, deleteWaterRecord, getWaterRecordsForDate } from "@/db/waterRecords";
 import { getSettings } from "@/db/settings";
+import { useHistoryBackNavigation } from "@/hooks/useHistoryBackNavigation";
 import { formatMonthDay, formatTime, todayDateString } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 
@@ -17,16 +18,13 @@ import { fontRounded, tokens } from "@/theme";
 const QUICK_AMOUNTS = [200, 300, 500, 2000] as const;
 
 export default function WaterRecordPage() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const today = todayDateString();
   // 履歴確認画面から ?date=YYYY-MM-DD 付きで遷移してきた場合、その日付の記録を開く(Issue #73)
   const dateParam = searchParams.get("date");
   const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
   const isToday = date === today;
-  // 過去日を開いたときだけ、戻り先を履歴タブ(水分)にする(体重記録画面と同じ考え方)
-  const backToHistory = () =>
-    isToday ? navigate("/") : navigate("/trends", { state: { viewMode: "history", historyKind: "water" } });
+  const backToHistory = useHistoryBackNavigation("water", isToday);
 
   const records = useLiveQuery(() => getWaterRecordsForDate(date), [date]);
   const settings = useLiveQuery(() => getSettings(), []);

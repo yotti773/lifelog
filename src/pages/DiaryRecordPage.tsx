@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import TextField from "@mui/material/TextField";
@@ -10,21 +10,19 @@ import RecordHeader from "@/components/RecordHeader";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import SectionLabel from "@/components/SectionLabel";
 import { deleteDiaryRecord, getDiaryRecord, saveDiaryRecord } from "@/db/diaryRecords";
+import { useHistoryBackNavigation } from "@/hooks/useHistoryBackNavigation";
 import { formatMonthDay, todayDateString } from "@/lib/date";
 import { tokens } from "@/theme";
 import type { DiaryMood } from "@/types";
 
 export default function DiaryRecordPage() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const today = todayDateString();
   // 履歴確認画面から ?date=YYYY-MM-DD 付きで遷移してきた場合、その日付の日記を開く(Issue #73)
   const dateParam = searchParams.get("date");
   const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
   const isToday = date === today;
-  // 過去日を開いたときだけ、戻り先を履歴タブ(日記)にする(体重記録画面と同じ考え方)
-  const backToHistory = () =>
-    isToday ? navigate("/") : navigate("/trends", { state: { viewMode: "history", historyKind: "diary" } });
+  const backToHistory = useHistoryBackNavigation("diary", isToday);
 
   const [isLoading, setLoading] = useState(true);
   const [mood, setMood] = useState<DiaryMood | null>(null);

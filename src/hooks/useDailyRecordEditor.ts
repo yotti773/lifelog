@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { resolveCameFromHistory, type RecordScreenOrigin } from "@/lib/historyNavigation";
 import { toDatetimeLocalValue, todayDateString } from "@/lib/date";
 
 export type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
@@ -19,6 +20,7 @@ export function useDailyRecordEditor<T extends { timestamp: string }>(
   onLoaded: (record: T) => void,
 ) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const editDate = searchParams.get("date");
   const isTodayParam = editDate === todayDateString();
@@ -59,9 +61,10 @@ export function useDailyRecordEditor<T extends { timestamp: string }>(
 
   const isEditing = loadStatus === "loaded";
   const selectedDate = dateTime.slice(0, 10);
-  // 履歴確認画面からの遷移(今日より前の日付)のみ、保存・削除後は履歴タブに戻す。
-  // ホームからの遷移(当日分の新規/編集)は今まで通りホームに戻る
-  const cameFromHistory = editDate !== null && !isTodayParam;
+  // 判定ロジック本体は純関数の `resolveCameFromHistory`(`src/lib/historyNavigation.ts`)を参照。
+  // editDateが無い(?date=無しでこの画面を開いた)場合は今日扱いとし、フォールバック判定でホームへ倒す
+  const stateFrom = (location.state as { from?: RecordScreenOrigin } | null)?.from;
+  const cameFromHistory = resolveCameFromHistory(stateFrom, editDate === null || isTodayParam);
 
   const navigateToHistory = (historyKind?: string) =>
     navigate("/trends", { state: { viewMode: "history", ...(historyKind !== undefined && { historyKind }) } });

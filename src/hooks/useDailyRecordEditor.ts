@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { resolveCameFromHistory, type RecordScreenOrigin } from "@/lib/historyNavigation";
 import { toDatetimeLocalValue, todayDateString } from "@/lib/date";
 
 export type LoadStatus = "idle" | "loading" | "loaded" | "not-found";
@@ -60,12 +61,10 @@ export function useDailyRecordEditor<T extends { timestamp: string }>(
 
   const isEditing = loadStatus === "loaded";
   const selectedDate = dateTime.slice(0, 10);
-  // 履歴確認画面からの行タップ・「記録を追加」には state `{ from: "history" }` が付く(TrendsPage参照)。
-  // これがあれば日付に関わらず(今日の記録を履歴経由で開いた場合も含め)保存・削除後は履歴タブに戻す。
-  // stateが失われるページ再読み込み・直接URLアクセスでは、今までどおり今日より前の日付かどうかで判定する
-  const stateFrom = (location.state as { from?: "history" | "home" } | null)?.from;
-  const cameFromHistory =
-    stateFrom !== undefined ? stateFrom === "history" : editDate !== null && !isTodayParam;
+  // 判定ロジック本体は純関数の `resolveCameFromHistory`(`src/lib/historyNavigation.ts`)を参照。
+  // editDateが無い(?date=無しでこの画面を開いた)場合は今日扱いとし、フォールバック判定でホームへ倒す
+  const stateFrom = (location.state as { from?: RecordScreenOrigin } | null)?.from;
+  const cameFromHistory = resolveCameFromHistory(stateFrom, editDate === null || isTodayParam);
 
   const navigateToHistory = (historyKind?: string) =>
     navigate("/trends", { state: { viewMode: "history", ...(historyKind !== undefined && { historyKind }) } });

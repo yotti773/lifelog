@@ -128,10 +128,16 @@ export default function PhotoJudgeCard({
       <TextField
         fullWidth
         size="small"
-        type="text"
+        multiline
+        minRows={2}
+        maxRows={6}
         value={note}
         onChange={(e) => onNoteChange(e.target.value)}
-        placeholder={photos.length > 0 ? "補足(任意): 唐揚げ弁当、ご飯少なめ など" : "例: ゆで卵2個と納豆(テキストだけでも解析できます)"}
+        placeholder={
+          photos.length > 0
+            ? "補足(任意): 唐揚げ弁当、ご飯少なめ など"
+            : "例: ゆで卵2個\n納豆\nご飯(テキストだけでも解析できます)"
+        }
       />
       <Button
         fullWidth

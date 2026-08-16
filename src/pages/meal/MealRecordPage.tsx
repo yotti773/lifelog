@@ -60,8 +60,8 @@ export default function MealRecordPage() {
   const [note, setNote] = useState("");
   const [isJudging, setJudging] = useState(false);
   const [judgeError, setJudgeError] = useState<string | null>(null);
-  // 直近の解析結果の情報(反映件数・自信の低さ)。写真解析後の確認表示に使う
-  const [judgeInfo, setJudgeInfo] = useState<{ count: number; uncertain: boolean } | null>(null);
+  // 直近の解析結果の情報(反映件数・自信の低さ・写真の有無)。解析後の確認表示に使う
+  const [judgeInfo, setJudgeInfo] = useState<{ count: number; uncertain: boolean; hadPhoto: boolean } | null>(null);
 
   const foodMasterItems = useLiveQuery(() => getAllFoodMasterItems(), []);
 
@@ -134,8 +134,12 @@ export default function MealRecordPage() {
     setJudgeError(null);
   };
 
+  // 写真・テキスト(備考欄)のどちらか一方でもあれば解析できる(Issue #159)
+  const canJudge = photos.length > 0 || note.trim() !== "";
+
   const handleJudge = async () => {
-    if (photos.length === 0) return;
+    if (!canJudge) return;
+    const hadPhoto = photos.length > 0;
     setJudging(true);
     setJudgeError(null);
     try {
@@ -157,9 +161,11 @@ export default function MealRecordPage() {
           },
         })),
       );
-      setJudgeInfo({ count: result.items.length, uncertain: result.isUncertain });
-      // 同じ写真を再解析して二重に反映されないよう、解析後は選択をクリアする(備考は残す)
+      setJudgeInfo({ count: result.items.length, uncertain: result.isUncertain, hadPhoto });
+      // 同じ内容を再解析して二重に反映されないよう、解析後は写真・備考ともクリアする
+      // (備考がテキスト判定の主役になったため、以前の「備考は残す」動作だと再解析ボタンで二重登録になる)
       setPhotos([]);
+      setNote("");
     } catch (err) {
       setJudgeError(err instanceof Error ? err.message : "食事の判定に失敗しました");
     } finally {
@@ -335,7 +341,7 @@ export default function MealRecordPage() {
                 <IconSparkle />
               </Box>
               <Typography sx={{ fontSize: 12, fontWeight: 500, color: tokens.secondaryDeep }}>
-                写真AIが{judgeInfo.count}件を品目に反映しました。内容を確認して修正できます
+                {judgeInfo.hadPhoto ? "写真AI" : "AI"}が{judgeInfo.count}件を品目に反映しました。内容を確認して修正できます
               </Typography>
             </Box>
           )}

@@ -55,4 +55,33 @@ describe("judgeMealPhoto", () => {
 
     await expect(judgeMealPhoto([photo], "lunch")).rejects.toThrow("写真から料理を判定できませんでした");
   });
+
+  it("写真0枚・テキストのみでも送信できる(Issue #159)", async () => {
+    const result = {
+      items: [{ dishName: "ゆで卵", kcal: 71, proteinG: 6, fatG: 5, carbsG: 0 }],
+      isUncertain: false,
+    };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(result), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(judgeMealPhoto([], "breakfast", "ゆで卵2個と納豆")).resolves.toEqual(result);
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      images: [],
+      mealType: "breakfast",
+      note: "ゆで卵2個と納豆",
+    });
+  });
+
+  it("写真0枚でitemsが空の応答は「テキストから判定できませんでした」として投げる", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ items: [], isUncertain: false }), { status: 200 })),
+    );
+
+    await expect(judgeMealPhoto([], "breakfast", "よくわからないもの")).rejects.toThrow(
+      "テキストから料理を判定できませんでした",
+    );
+  });
 });

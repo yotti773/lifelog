@@ -60,6 +60,11 @@ interface WeeklyDigest {
   pfc: {
     avgProteinG: number | null; avgFatG: number | null; avgCarbsG: number | null;
     targetProteinG: number | null; targetFatG: number | null; targetCarbsG: number | null;
+    mostOffTargetNutrient?: {                    // 目標から最も外れた栄養素(Issue #210)。対象が1つも無ければ省略
+      nutrient: "protein" | "fat" | "carbs";
+      direction: "over" | "under";                // over=目標超過、under=目標未達
+      deviationRatio: number;                      // (実績-目標)/目標
+    };
   };
   recording: {
     recordedDays: number;                        // 「記録した日」の数(0〜7。Issue #46の定義に従う)
@@ -139,6 +144,8 @@ interface WeeklyDigest {
 | `INSUFFICIENT_DATA` | 両方 | 記録した日が2日未満(利用開始直後など、評価に適さない週) |
 | `ACTIVITY_DROP` | 両方 | 週平均歩数が直近4週の平均を20%以上下回っている(週次のみ。#174。当該週・基準週とも**歩数の値がある日**が5日以上ある週だけを比較に使い、基準にできる過去週が2週未満なら判定しない) |
 | `WORKOUT_STOPPED` | 両方 | 直近4週の平均筋トレ日数が週1日以上あるのに、当該週は0日(週次のみ。#174。もともと筋トレの習慣が無い場合は判定しない。進行中の週での誤発火を防ぐため、週の経過日数が5日未満なら判定しない) |
+| `INTAKE_OVER_TARGET` | 両方 | 週平均摂取カロリーが目標を10%以上超過し、かつ目標以内に収まった日が2日以下(週次のみ。#210。目標カロリー未設定の週は判定しない) |
+| `FAT_OVER_TARGET` | 両方 | 週平均脂質が目標を30%以上超過している(週次のみ。#210。脂質目標未設定の週は判定しない) |
 
 「適用モード」は目標タイプ(#116)ごとの判定対象を表す。減量専用フラグ(`PACE_TOO_AGGRESSIVE`・`BEHIND_PACE`)は維持モードでは判定せず、維持専用フラグ(`ABOVE_RANGE`・`BELOW_RANGE`)は減量モードでは判定しない。維持期のリバウンドは、単週の `ABOVE_RANGE` に加え、月次(#114。10章)で複数週にわたる上抜けの継続として捉える(週次より安定した信号になる)。
 
@@ -167,6 +174,13 @@ interface WeeklyDigest {
   - 飲酒×食事の「翌日」は週内(月〜日)に収まる日だけを分母にする(日曜の飲酒の翌日は翌週のdigestの範囲のため含めない)。digestを週単位で自己完結させ、画面とAIが同じ事実を見る原則を保つ
   - 飲酒タグは`DiaryRecord.alcohol`(画面設計書6章)。未設定は「記録なし」であり「飲酒なし」ではないため、「それ以外の日」はタグの無い日全体として集計・表現する
   - crossAnalysis由来の新しい警告フラグは設けない(掛け合わせの多寡は安全判定ではなく解釈の領域のため。activity・workout・waterと同じ判断)
+- `pfc.mostOffTargetNutrient` は目標から最も外れている栄養素(Issue #210)。目標・実績とも値がある栄養素のうち `(実績-目標)/目標` の絶対値が最大のものを1つ選ぶ(`aggregatePfcDeviation()`、`src/lib/weeklyDigest.ts`)。`INTAKE_OVER_TARGET`・`FAT_OVER_TARGET` とは独立に、目標が設定されていれば常に計算する(超過が無い週でも「たんぱく質が最も不足している」のような事実提示に使える)。**摂取が目標を超えた週(`INTAKE_OVER_TARGET`)の背景を具体的に示すための項目**で、実例(2026-08-09、8/3週)は総超過258kcalが脂質+32g(288kcal)でほぼ説明がつく週だった。判定条件:
+  - `INTAKE_OVER_TARGET` は週平均摂取が目標を10%以上超過し、**かつ**目標以内に収まった日が2日以下、の両方を条件にする。2条件のANDにするのは、たまたま1日大きく食べただけの週(平均は上がるが他の日は守れている)と、週を通して超え続けた週を区別するため
+  - `FAT_OVER_TARGET` は脂質だけを独立して判定する。総カロリーの超過は目標比の相対値では栄養素間の重みが分かりにくいため、「脂質を減らす」という具体的な行動に直結する項目を単独でフラグ化した
+  - どちらも `LOW_RECORDING_RATE`/`INSUFFICIENT_DATA` のような追加の記録日数ゲートは設けない(記録の少なさそのものはその2フラグが別途担う)
+  - 閾値(10%・2日以下・脂質30%)は運用しながら調整する前提の初期値(#174の閾値群と同じ扱い)
+  - **`INTAKE_OVER_TARGET` とたんぱく質不足(`pfc.avgProteinG < pfc.targetProteinG`)が同時にある週の扱いを5章のプロンプトで明示する。** 実例では、たんぱく質不足の事実だけを見たAIが「摂取量を高めて」と提案し、1日258kcal超過している週への助言として字面が矛盾していた。正しくは「脂質を減らしてたんぱく質に置き換える」で、この組み合わせでは量を増やす提案をさせない(週次レビュー画面にも同趣旨の注記を出す。`WeeklyReview.tsx` の `needsProteinForFatSwap`)
+  - MonthlyDigestは `pfc` を持たないため、月次レビューへの適用(`FAT_OVER_TARGET` の判定材料が無い)は本Issueでは見送り、別途判断する(`MonthlyDigestFlag` から明示的に除外)
 - `paceBaseKg` は `requiredWeeklyPaceKg` の計算に使った基準体重(週平均、無ければ全期間の最新体重)をそのまま持つ。UI側で「必要ペース0.00kg/週(既に目標体重付近)」と「計算不能(体重記録が無い・目標日超過)」を区別するために使う。週次レビュー画面のTDEE補正提案(実測消費カロリー節)でも、設定画面の自動計算(#43。`src/pages/settings/ValueEditorDrawer.tsx`)と同じ `suggestCalorieTarget()` の入力(現在体重)として再利用し、ガードレール(基礎代謝クランプ・ペース超過警告)を画面間で一貫させている
 
 ## 4. データ契約(2): WeeklyAdvice(出力)

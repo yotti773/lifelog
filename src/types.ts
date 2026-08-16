@@ -266,13 +266,20 @@ export type DigestFlag =
   | "NO_WEIGHT_DATA" // 当該週に体重記録が無い
   | "INSUFFICIENT_DATA" // データが少なく評価に適さない(記録した日が2日未満)
   | "ACTIVITY_DROP" // 週平均歩数が直近4週平均を大きく下回っている(Issue #174)
-  | "WORKOUT_STOPPED"; // 直近4週は筋トレしていたのに当該週は0日(Issue #174)
+  | "WORKOUT_STOPPED" // 直近4週は筋トレしていたのに当該週は0日(Issue #174)
+  | "INTAKE_OVER_TARGET" // 週平均摂取が目標を10%以上超過し、かつ目標以内の日が2日以下(Issue #210)
+  | "FAT_OVER_TARGET"; // 週平均脂質が目標を大幅に超過している(Issue #210)
 
 /**
  * 月次レビュー(Issue #114)が判定するフラグ。週次と同じ語彙を月窓の閾値で使うが、
  * 活動量の週次比較(Issue #174)は「直近4週との比較」という週次固有の判定のため月次では出さない。
+ * 摂取超過・PFCの偏り(Issue #210)も、MonthlyDigestがまだpfcを持たない(FAT_OVER_TARGETの判定材料が無い)ため
+ * 月次で判定するかは別途判断するとしてIssue #210で見送った(意思決定ログ参照)。
  */
-export type MonthlyDigestFlag = Exclude<DigestFlag, "ACTIVITY_DROP" | "WORKOUT_STOPPED">;
+export type MonthlyDigestFlag = Exclude<
+  DigestFlag,
+  "ACTIVITY_DROP" | "WORKOUT_STOPPED" | "INTAKE_OVER_TARGET" | "FAT_OVER_TARGET"
+>;
 
 /**
  * AIへの入力契約かつ週次レビュー画面の表示データ(画面とAIが同じ事実を見る)。
@@ -309,6 +316,16 @@ export interface WeeklyDigest {
     targetProteinG: number | null;
     targetFatG: number | null;
     targetCarbsG: number | null;
+    /**
+     * 目標から最も外れている栄養素(Issue #210)。超過側・不足側を問わず絶対値が最大のものを1つ選ぶ。
+     * 目標・実績とも値がある栄養素が1つも無ければundefined。「超過の中身」を具体的に示すための項目で、
+     * flagsとは独立(FAT_OVER_TARGETが立っていなくても、目標が設定されていれば常に計算する)
+     */
+    mostOffTargetNutrient?: {
+      nutrient: "protein" | "fat" | "carbs";
+      direction: "over" | "under"; // over=目標超過、under=目標未達
+      deviationRatio: number; // (実績-目標)/目標。overなら正、underなら負
+    };
   };
   recording: {
     recordedDays: number; // 「記録した日」(食事1件以上または体重記録あり)の数(0〜7。Issue #46)

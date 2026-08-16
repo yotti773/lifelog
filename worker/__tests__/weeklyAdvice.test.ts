@@ -158,7 +158,7 @@ describe("システムプロンプトの契約(設計書5章)", () => {
     for (const verdict of ["on_track", "slightly_behind", "behind", "needs_attention"]) {
       expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain(verdict);
     }
-    for (const flag of ["PACE_TOO_AGGRESSIVE", "INTAKE_BELOW_BMR", "BEHIND_PACE", "LOW_RECORDING_RATE", "NO_WEIGHT_DATA", "INSUFFICIENT_DATA"]) {
+    for (const flag of ["PACE_TOO_AGGRESSIVE", "INTAKE_BELOW_BMR", "BEHIND_PACE", "LOW_RECORDING_RATE", "NO_WEIGHT_DATA", "INSUFFICIENT_DATA", "INTAKE_OVER_TARGET", "FAT_OVER_TARGET"]) {
       expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain(flag);
     }
   });
@@ -166,6 +166,11 @@ describe("システムプロンプトの契約(設計書5章)", () => {
   it("「flagsに無い問題を指摘しない」「数値を出さない」制約を含む", () => {
     expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("flagsに無い問題を新たに指摘しない");
     expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("入力JSONに無い数値を出さない");
+  });
+
+  it("摂取超過+たんぱく質不足の週に「摂取量を増やして」とだけ言わせない制約を含む(Issue #210)", () => {
+    expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("INTAKE_OVER_TARGET");
+    expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("脂質を減らして、その分をたんぱく質に置き換える");
   });
 
   it("全フィクスチャがJSONとして送信可能な形をしている", () => {

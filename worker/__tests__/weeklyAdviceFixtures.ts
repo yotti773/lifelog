@@ -114,10 +114,32 @@ export const digestInsufficientData = {
   mood: undefined,
 };
 
+/**
+ * 摂取超過週(Issue #210の実例。2026-08-09、8/3週): 平均1988kcal/目標1730kcal(+14.9%)・
+ * 目標以内の日1/7、脂質80g/目標48g(+67%)、たんぱく質94g/目標143g(不足) → needs_attention想定。
+ * 「摂取量を増やして」とだけ言わせない制約(たんぱく質不足との併発)の回帰確認に使う
+ */
+export const digestIntakeOverTarget = {
+  ...structuredClone(base),
+  weight: { ...base.weight, weekAvgKg: 71.44, weeklyChangeKg: 0.04, projectedKg: 65.0 },
+  calories: { ...base.calories, avgIntakeKcal: 1988, targetKcal: 1730, daysOnTarget: 1 },
+  pfc: {
+    avgProteinG: 94,
+    avgFatG: 80,
+    avgCarbsG: 210,
+    targetProteinG: 143,
+    targetFatG: 48,
+    targetCarbsG: 179,
+    mostOffTargetNutrient: { nutrient: "fat", direction: "over", deviationRatio: 0.67 },
+  },
+  flags: ["INTAKE_OVER_TARGET", "FAT_OVER_TARGET"],
+};
+
 export const allDigestFixtures = {
   digestOnTrack,
   digestStalled,
   digestLowRecording,
   digestTooAggressive,
   digestInsufficientData,
+  digestIntakeOverTarget,
 };

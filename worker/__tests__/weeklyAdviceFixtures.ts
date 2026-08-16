@@ -116,8 +116,8 @@ export const digestInsufficientData = {
 
 /**
  * 摂取超過週(Issue #210の実例。2026-08-09、8/3週): 平均1988kcal/目標1730kcal(+14.9%)・
- * 目標以内の日1/7、脂質80g/目標48g(+67%)、たんぱく質94g/目標143g(不足) → needs_attention想定。
- * 「摂取量を増やして」とだけ言わせない制約(たんぱく質不足との併発)の回帰確認に使う
+ * 目標以内の日1/7、脂質80g/目標48g(+67%)、たんぱく質94g/目標143g(−34%) → needs_attention想定。
+ * 「摂取量を増やして」とだけ言わせない制約(INTAKE_OVER_TARGET × PROTEIN_UNDER_TARGET)の回帰確認に使う
  */
 export const digestIntakeOverTarget = {
   ...structuredClone(base),
@@ -132,7 +132,23 @@ export const digestIntakeOverTarget = {
     targetCarbsG: 179,
     mostOffTargetNutrient: { nutrient: "fat", direction: "over", deviationRatio: 0.67 },
   },
-  flags: ["INTAKE_OVER_TARGET", "FAT_OVER_TARGET"],
+  flags: ["INTAKE_OVER_TARGET", "FAT_OVER_TARGET", "PROTEIN_UNDER_TARGET"],
+};
+
+/**
+ * たんぱく質不足だけの週(Issue #210): 摂取カロリーは目標以内に収まっているが、
+ * たんぱく質95g/目標130g(−27%)→ slightly_behind想定。
+ * 摂取超過を伴わない単独のたんぱく質不足でもAIが触れることの確認に使う
+ */
+export const digestProteinUnderTarget = {
+  ...structuredClone(base),
+  calories: { ...base.calories, avgIntakeKcal: 1820, daysOnTarget: 6 },
+  pfc: {
+    ...structuredClone(base).pfc,
+    avgProteinG: 95,
+    mostOffTargetNutrient: { nutrient: "protein", direction: "under", deviationRatio: -0.27 },
+  },
+  flags: ["PROTEIN_UNDER_TARGET"],
 };
 
 export const allDigestFixtures = {
@@ -142,4 +158,5 @@ export const allDigestFixtures = {
   digestTooAggressive,
   digestInsufficientData,
   digestIntakeOverTarget,
+  digestProteinUnderTarget,
 };

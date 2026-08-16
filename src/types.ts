@@ -268,17 +268,22 @@ export type DigestFlag =
   | "ACTIVITY_DROP" // 週平均歩数が直近4週平均を大きく下回っている(Issue #174)
   | "WORKOUT_STOPPED" // 直近4週は筋トレしていたのに当該週は0日(Issue #174)
   | "INTAKE_OVER_TARGET" // 週平均摂取が目標を10%以上超過し、かつ目標以内の日が2日以下(Issue #210)
-  | "FAT_OVER_TARGET"; // 週平均脂質が目標を大幅に超過している(Issue #210)
+  | "FAT_OVER_TARGET" // 週平均脂質が目標を大幅に超過している(Issue #210)
+  | "PROTEIN_UNDER_TARGET"; // 週平均たんぱく質が目標を大きく下回っている(Issue #210)
 
 /**
  * 月次レビュー(Issue #114)が判定するフラグ。週次と同じ語彙を月窓の閾値で使うが、
  * 活動量の週次比較(Issue #174)は「直近4週との比較」という週次固有の判定のため月次では出さない。
- * 摂取超過・PFCの偏り(Issue #210)も、MonthlyDigestがまだpfcを持たない(FAT_OVER_TARGETの判定材料が無い)ため
- * 月次で判定するかは別途判断するとしてIssue #210で見送った(意思決定ログ参照)。
+ * 摂取超過・PFCの偏り(Issue #210)も、MonthlyDigestがまだpfcを持たない(FAT_OVER_TARGET・
+ * PROTEIN_UNDER_TARGETの判定材料が無い)ため月次で判定するかは別途判断するとして見送った(意思決定ログ参照)。
  */
 export type MonthlyDigestFlag = Exclude<
   DigestFlag,
-  "ACTIVITY_DROP" | "WORKOUT_STOPPED" | "INTAKE_OVER_TARGET" | "FAT_OVER_TARGET"
+  | "ACTIVITY_DROP"
+  | "WORKOUT_STOPPED"
+  | "INTAKE_OVER_TARGET"
+  | "FAT_OVER_TARGET"
+  | "PROTEIN_UNDER_TARGET"
 >;
 
 /**

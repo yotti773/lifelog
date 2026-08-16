@@ -298,6 +298,25 @@ describe("buildWeeklyDigest: 摂取側の判定(Issue #210)", () => {
     expect(digest.flags).not.toContain("INTAKE_OVER_TARGET");
   });
 
+  it("食事記録が5日未満の週ではINTAKE_OVER_TARGETを判定しない(データが少ない週を要注意にしない)", () => {
+    const src = overTargetSource();
+    // 2日だけ記録し、どちらも超過。ゲートが無いとdaysOnTarget=0で「週を通した超過」と誤判定する
+    src.mealDailyTotals = src.mealDailyTotals.slice(0, 2);
+    src.recordedDays = 2;
+    const digest = buildWeeklyDigest(src);
+    expect(digest.calories.daysOnTarget).toBe(0);
+    expect(digest.calories.recordedDays).toBe(2);
+    expect(digest.flags).not.toContain("INTAKE_OVER_TARGET");
+    // 記録の少なさ自体はこちらのフラグが担う(プロンプトのverdict規則でも要注意より軽い扱いになる)
+    expect(digest.flags).toContain("LOW_RECORDING_RATE");
+  });
+
+  it("食事記録が5日あればINTAKE_OVER_TARGETを判定する(ゲートの境界)", () => {
+    const src = overTargetSource();
+    src.mealDailyTotals = src.mealDailyTotals.slice(0, 5);
+    expect(buildWeeklyDigest(src).flags).toContain("INTAKE_OVER_TARGET");
+  });
+
   it("目標カロリー未設定の週ではINTAKE_OVER_TARGETを判定しない", () => {
     const src = overTargetSource();
     src.calorieTargetKcal = null;
@@ -312,6 +331,38 @@ describe("buildWeeklyDigest: 摂取側の判定(Issue #210)", () => {
     const digest = buildWeeklyDigest(src);
     expect(digest.flags).not.toContain("FAT_OVER_TARGET");
     expect(digest.pfc.mostOffTargetNutrient).toBeUndefined();
+  });
+
+  it("たんぱく質が目標を20%以上下回るとPROTEIN_UNDER_TARGETが立つ", () => {
+    // 実例と同じ 94g / 目標143g(−34%)
+    expect(buildWeeklyDigest(overTargetSource()).flags).toContain("PROTEIN_UNDER_TARGET");
+  });
+
+  it("摂取が目標内に収まっている週でも、たんぱく質不足は単独で立つ", () => {
+    const src = goodWeekSource();
+    // 摂取は目標(1900kcal)以内のままたんぱく質だけ落とす(100g / 目標130g = −23%)
+    src.mealDailyTotals = src.mealDailyTotals.map((d) => ({ ...d, kcal: 1800, proteinG: 100 }));
+    const digest = buildWeeklyDigest(src);
+    expect(digest.flags).not.toContain("INTAKE_OVER_TARGET");
+    expect(digest.flags).toContain("PROTEIN_UNDER_TARGET");
+  });
+
+  it("不足が閾値未満(−15%)ならPROTEIN_UNDER_TARGETは立たない", () => {
+    const src = goodWeekSource();
+    src.mealDailyTotals = src.mealDailyTotals.map((d) => ({ ...d, proteinG: 111 })); // 130×0.85
+    expect(buildWeeklyDigest(src).flags).not.toContain("PROTEIN_UNDER_TARGET");
+  });
+
+  it("たんぱく質が目標を超過していてもフラグは立たない(不足側だけを見る)", () => {
+    const src = goodWeekSource();
+    src.mealDailyTotals = src.mealDailyTotals.map((d) => ({ ...d, proteinG: 200 }));
+    expect(buildWeeklyDigest(src).flags).not.toContain("PROTEIN_UNDER_TARGET");
+  });
+
+  it("たんぱく質目標未設定の週ではPROTEIN_UNDER_TARGETを判定しない", () => {
+    const src = overTargetSource();
+    src.pfcTargets = null;
+    expect(buildWeeklyDigest(src).flags).not.toContain("PROTEIN_UNDER_TARGET");
   });
 });
 

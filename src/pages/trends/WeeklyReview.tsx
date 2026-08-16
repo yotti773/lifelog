@@ -56,20 +56,24 @@ const FLAG_LABELS: Record<DigestFlag, { label: string; severity: "coral" | "ambe
   WORKOUT_STOPPED: { label: "この週は筋トレの記録がありません(直近数週は継続できていました)", severity: "amber" },
   INTAKE_OVER_TARGET: { label: "平均摂取カロリーが目標を超過しています。目標以内に収まった日もわずかでした", severity: "coral" },
   FAT_OVER_TARGET: { label: "脂質の摂取量が目標を大幅に超過しています", severity: "amber" },
+  PROTEIN_UNDER_TARGET: { label: "たんぱく質が目標を下回っています。減量中は筋肉の維持のために不足させたくない栄養素です", severity: "amber" },
 };
 
 /**
  * 総カロリーが目標超過でも、たんぱく質は目標未達な週の注記(Issue #210)。
- * INTAKE_OVER_TARGETとたんぱく質不足が併発すると、「たんぱく質を増やす」提案だけでは
- * カロリー超過をさらに悪化させる字面になる。脂質を減らしてたんぱく質に置き換える方向を明示する
+ * この2つが併発すると、「たんぱく質を増やす」提案だけではカロリー超過をさらに悪化させる
+ * 字面になるため、置き換えの方向を明示する
+ * (#174の INTAKE_BELOW_BMR × ACTIVITY_DROP と同じ、フラグの組み合わせによる注記)。
+ *
+ * **「脂質を減らして」と言えるのは脂質が実際に超過している週だけ。** 炭水化物主導の超過で
+ * 脂質が目標未満の週にこの文言を出すと、目標を下回っている栄養素を削れと言うことになり、
+ * すぐ上のPFCバー(脂質が目標未満)と矛盾して見える
  */
-function needsProteinForFatSwap(flags: DigestFlag[], pfc: WeeklyDigest["pfc"]): boolean {
-  return (
-    flags.includes("INTAKE_OVER_TARGET") &&
-    pfc.avgProteinG !== null &&
-    pfc.targetProteinG !== null &&
-    pfc.avgProteinG < pfc.targetProteinG
-  );
+function proteinSwapNote(flags: DigestFlag[]): string | null {
+  if (!flags.includes("INTAKE_OVER_TARGET") || !flags.includes("PROTEIN_UNDER_TARGET")) return null;
+  return flags.includes("FAT_OVER_TARGET")
+    ? "カロリーは超過している一方でたんぱく質は目標未達です。単純に食べる量を増やすのではなく、脂質を減らしてその分をたんぱく質に置き換えましょう"
+    : "カロリーは超過している一方でたんぱく質は目標未達です。単純に食べる量を増やすのではなく、他の栄養素を減らしてその分をたんぱく質に置き換えましょう";
 }
 
 /**
@@ -358,14 +362,13 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
           )}
           {/* 総カロリーが目標超過でもたんぱく質は目標未達な週(Issue #210)。
               「たんぱく質を増やして」だけの提案がカロリー超過を悪化させる字面にならないよう明示する */}
-          {needsProteinForFatSwap(flags, pfc) && (
+          {proteinSwapNote(flags) && (
             <Box sx={{ display: "flex", alignItems: "flex-start", gap: "6px", mt: "10px", bgcolor: tokens.warnBg, borderRadius: "10px", p: "8px 10px" }}>
               <Box sx={{ color: tokens.warnIcon, display: "flex", mt: "1px", flexShrink: 0 }}>
                 <IconWarning size={13} />
               </Box>
               <Typography sx={{ fontSize: 11, color: tokens.warnText, lineHeight: 1.6 }}>
-                カロリーは超過している一方でたんぱく質は目標未達です。単純に食べる量を増やすのではなく、
-                脂質を減らしてその分をたんぱく質に置き換えましょう
+                {proteinSwapNote(flags)}
               </Typography>
             </Box>
           )}

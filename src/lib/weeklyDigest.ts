@@ -46,12 +46,28 @@ export const ACTIVITY_DROP_RATIO = 0.2;
 export const INTAKE_OVER_TARGET_RATIO = 0.1;
 /**
  * INTAKE_OVER_TARGET: 目標カロリー以内に収まった日数がこの日数以下なら「たまたま1日食べ過ぎただけ」
- * ではなく週を通した超過とみなす。daysOnTargetは食事記録がある日を分母にした値(LOW_RECORDING_RATE/
- * INSUFFICIENT_DATAが記録の少なさそのものを別途担うため、ここでは追加の記録日数ゲートは設けない)
+ * ではなく週を通した超過とみなす。
  */
 export const INTAKE_OVER_TARGET_MAX_DAYS_ON_TARGET = 2;
+/**
+ * INTAKE_OVER_TARGET: 食事記録がこの日数未満の週は判定しない(データ品質ゲート。#174の歩数と同じ考え方)。
+ *
+ * `daysOnTarget` は**食事記録がある日**を分母にした値のため、ゲートが無いと記録2日・両日とも超過の週で
+ * `daysOnTarget=0` となり「週を通して超え続けた」と誤判定する。しかもこのフラグはプロンプトのverdict規則で
+ * 先頭(needs_attention)にあり、`INSUFFICIENT_DATA`(slightly_behind)を**上書きしてしまう** —
+ * 「データが少ない週は評価に適さない」という既存の防御を突き破るため、フラグ側でも記録日数を要求する。
+ * 閾値は `LOW_RECORDING_THRESHOLD_DAYS` と同じ5日(「この週はちゃんと記録できている」の基準を揃える)
+ */
+export const INTAKE_OVER_TARGET_MIN_RECORDED_DAYS = LOW_RECORDING_THRESHOLD_DAYS;
 /** FAT_OVER_TARGET: 週平均脂質が目標をこの割合以上超過したら「大幅超過」とみなす */
 export const FAT_OVER_TARGET_RATIO = 0.3;
+/**
+ * PROTEIN_UNDER_TARGET: 週平均たんぱく質が目標をこの割合以上下回ったら不足とみなす。
+ * 減量中のたんぱく質は筋量維持に直結するため、超過側ではなく**不足側だけ**を判定する
+ * (多い分には実害が乏しい)。目標が体重1kgあたり2.0g前後で設定される前提だと、−20%は
+ * 減量中の推奨下限(1.6g/kg)にあたる
+ */
+export const PROTEIN_UNDER_TARGET_RATIO = 0.2;
 
 /** 食事の日別合計(食事記録がある日のみ)。src/db/weeklyNutrition.tsのMealDailyTotalと同形 */
 export interface DigestMealDailyTotal {
@@ -518,11 +534,13 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   }
   // 摂取が目標を超えた週(Issue #210)。平均超過率とdaysOnTargetの両方を条件にするのは、
   // たまたま1日大きく食べただけの週(平均は上がるが他の日は守れている)と、
-  // 週を通して超え続けた週を区別するため
+  // 週を通して超え続けた週を区別するため。
+  // 記録日数のゲートは、記録が数日しかない週を「週を通した超過」と誤判定しないため(定数の注釈を参照)
   if (
     calorieTargetKcal !== null &&
     avgIntakeKcal !== null &&
     daysOnTarget !== null &&
+    mealDays >= INTAKE_OVER_TARGET_MIN_RECORDED_DAYS &&
     avgIntakeKcal > calorieTargetKcal * (1 + INTAKE_OVER_TARGET_RATIO) &&
     daysOnTarget <= INTAKE_OVER_TARGET_MAX_DAYS_ON_TARGET
   ) {
@@ -531,6 +549,16 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   // 脂質の大幅超過(Issue #210)。総カロリー超過の中身を具体的に示し、行動を「脂質を減らす」に絞り込むためのフラグ
   if (targetFatG !== null && avgFatG !== null && avgFatG > targetFatG * (1 + FAT_OVER_TARGET_RATIO)) {
     flags.push("FAT_OVER_TARGET");
+  }
+  // たんぱく質の不足(Issue #210)。減量中の筋量維持に直結し、取るべき行動も明確なためフラグ化する。
+  // 炭水化物・脂質の不足側をフラグにしないのは、意図的な低炭水化物運用がありえて「不足=問題」と
+  // 断定できないため(事実提示はpfc.mostOffTargetNutrientが担う)
+  if (
+    targetProteinG !== null &&
+    avgProteinG !== null &&
+    avgProteinG < targetProteinG * (1 - PROTEIN_UNDER_TARGET_RATIO)
+  ) {
+    flags.push("PROTEIN_UNDER_TARGET");
   }
 
   return {

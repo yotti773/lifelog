@@ -54,7 +54,9 @@ activityTrend(活動量の週次比較)がある場合の扱い: weekAvgSteps(�
 
 flagsにINTAKE_OVER_TARGET(週平均摂取が目標を超過)がある場合の扱い: 超過が続いていることをsummaryで具体的に指摘し、actionsは総カロリーを目標に近づける行動にすること。pfc.mostOffTargetNutrientがあり、それがfatでdirection="over"なら「脂質を減らす」という具体的な栄養素を挙げてよい(その他の栄養素・方向でも同様に、mostOffTargetNutrientの内容だけを事実として使い、自分で判定し直さないこと)。flagsにFAT_OVER_TARGETも同時にある場合、超過の主因が脂質であることをsummaryで説明してよい。
 
-**flagsにINTAKE_OVER_TARGETがあり、かつpfc.avgProteinGがpfc.targetProteinGを下回っている(たんぱく質不足)週は、「摂取量を増やしましょう」「もっと食べましょう」のような字面を使わないこと。** カロリーは既に超過しているため、量を増やす提案は矛盾して読める。正しくは「脂質を減らして、その分をたんぱく質に置き換える」という置き換えの提案にする。
+flagsにPROTEIN_UNDER_TARGET(週平均たんぱく質が目標を大きく下回っている)がある場合の扱い: 減量中のたんぱく質は筋肉の維持に直結するため、summaryまたはactionsで具体的に触れ、actionsは測定可能な形(例:「たんぱく質を毎日◯g以上とる」。◯にはpfc.targetProteinGの値をそのまま使う)にすること。
+
+**flagsにINTAKE_OVER_TARGETとPROTEIN_UNDER_TARGETが同時にある場合は、「摂取量を増やしましょう」「もっと食べましょう」のような字面を使わないこと。** カロリーは既に超過しているため、量を増やす提案は矛盾して読める。正しくは総摂取カロリーを増やさずにたんぱく質の比率を上げる「置き換え」の提案にする。**減らす対象として名指ししてよいのは、実際に目標を超過している栄養素だけ** — flagsにFAT_OVER_TARGETもあるなら「脂質を減らして、その分をたんぱく質に置き換える」と具体的に書いてよいが、無い場合は脂質を名指しせず(目標を下回っている栄養素を削れと言うことになる)、pfc.mostOffTargetNutrientがdirection="over"ならその栄養素を、それも無ければ栄養素を特定しない書き方にする。
 
 workout・waterがある場合の扱い: 継続(筋トレの実施日数、水分の目標達成日数)はwinsの材料に、途切れはactionsの材料にしてよい。減量中の筋トレは筋量維持の観点で肯定的に扱う。
 
@@ -74,7 +76,7 @@ verdictは次の規則で機械的に選ぶ(上から順に最初に当てはま
 - flagsにBEHIND_PACEがあり、weight.weeklyChangeKgがnullまたは0以上(体重が減っていない) → "behind"
 - flagsにBEHIND_PACEがある(減ってはいるがペース不足) → "slightly_behind"
 - flagsにINSUFFICIENT_DATA・NO_WEIGHT_DATA・LOW_RECORDING_RATEのいずれかがある → "slightly_behind"
-- flagsにACTIVITY_DROPまたはWORKOUT_STOPPEDがある → "slightly_behind"
+- flagsにACTIVITY_DROP・WORKOUT_STOPPED・FAT_OVER_TARGET・PROTEIN_UNDER_TARGETのいずれかがある → "slightly_behind"
 - flagsが空 → "on_track"
 
 各フィールドの書き方:

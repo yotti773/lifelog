@@ -18,7 +18,10 @@ export interface MealJudgmentResult {
 /** 1回の判定に添付できる写真の上限(Issue #110)。Worker側のworker/index.tsと合わせる */
 export const MAX_MEAL_PHOTOS = 4;
 
-/** 写真(複数可)をリサイズしてCloudflare Worker経由でGemini Vision判定を依頼する */
+/**
+ * 写真(複数可・0枚可)とテキスト(note)をCloudflare Worker経由でGemini判定に投げる(Issue #159)。
+ * filesが空配列でもnoteがあればテキストのみの判定として成立する(Worker側でその両方が空のときのみ弾く)。
+ */
 export async function judgeMealPhoto(
   files: File[],
   mealType: MealType,
@@ -39,7 +42,7 @@ export async function judgeMealPhoto(
   });
 
   if (!Array.isArray(result.items) || result.items.length === 0) {
-    throw new Error("写真から料理を判定できませんでした");
+    throw new Error(files.length > 0 ? "写真から料理を判定できませんでした" : "テキストから料理を判定できませんでした");
   }
   return result;
 }

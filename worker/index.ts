@@ -49,7 +49,7 @@ async function judgeMeal(
   mealType: string,
   note: string | undefined,
 ): Promise<MealJudgmentResult & LegacyMealJudgmentFields> {
-  const model = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = env.GEMINI_MODEL || "gemini-3.1-flash";
   const mealLabel = MEAL_TYPE_LABELS[mealType] ?? mealType;
   const prompt = buildMealJudgmentPrompt(mealLabel, note, images.length);
 
@@ -131,11 +131,15 @@ export default {
           : body.imageBase64 && body.mimeType
             ? [{ imageBase64: body.imageBase64, mimeType: body.mimeType }]
             : [];
-        if (images.length === 0 || images.some((image) => !image?.imageBase64 || !image?.mimeType)) {
-          return Response.json({ error: "imageBase64とmimeTypeを含む写真が1枚以上必要です" }, { status: 400 });
+        if (images.some((image) => !image?.imageBase64 || !image?.mimeType)) {
+          return Response.json({ error: "imageBase64とmimeTypeを含む写真の形式が不正です" }, { status: 400 });
         }
         if (images.length > MAX_MEAL_PHOTOS) {
           return Response.json({ error: `写真は最大${MAX_MEAL_PHOTOS}枚までです` }, { status: 400 });
+        }
+        // 写真0枚でもテキスト(note)があれば通す(Issue #159)。両方無い場合のみ弾く
+        if (images.length === 0 && !body.note?.trim()) {
+          return Response.json({ error: "写真かテキストのどちらかが必要です" }, { status: 400 });
         }
         const judgment = await judgeMeal(env, images, body.mealType ?? "", body.note);
         return Response.json(judgment);

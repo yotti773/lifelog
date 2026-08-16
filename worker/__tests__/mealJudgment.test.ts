@@ -101,6 +101,23 @@ describe("buildMealJudgmentPrompt", () => {
     expect(prompt).toContain("重複させず1品として1回だけ数える");
   });
 
+  it("写真0枚(テキストのみ)ならテキスト前提の文言に切り替わる(Issue #159)", () => {
+    const prompt = buildMealJudgmentPrompt("朝食", "ゆで卵2個と納豆", 0);
+    expect(prompt).toContain("次のテキストは朝食の内容です");
+    expect(prompt).toContain("## 記録されたテキスト");
+    expect(prompt).toContain("「ゆで卵2個と納豆」");
+    expect(prompt).not.toContain("写真");
+    expect(prompt).not.toContain("補足情報");
+  });
+
+  it("写真0枚でも手順・分量アンカー・整合性チェックは維持される", () => {
+    const prompt = buildMealJudgmentPrompt("昼食", "唐揚げ弁当", 0);
+    expect(prompt).toContain("## 手順");
+    expect(prompt).toContain("## 分量の目安");
+    expect(prompt).toContain("estimatedWeightG");
+    expect(prompt).toContain("たんぱく質(g)×4 + 脂質(g)×9 + 炭水化物(g)×4");
+  });
+
   it("プロンプトの出力例はレスポンススキーマの必須フィールドと整合している", () => {
     const prompt = buildMealJudgmentPrompt("間食");
     const exampleLine = prompt.split("\n").find((line) => line.startsWith('{"items"'));

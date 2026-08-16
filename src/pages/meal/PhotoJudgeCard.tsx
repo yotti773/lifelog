@@ -24,10 +24,11 @@ interface PhotoJudgeCardProps {
 }
 
 /**
- * 食事記録画面の「写真から記録する」カード。
- * 写真を選ぶ→備考を入力→「AIで解析する」ボタンで実行、の流れ(Issue #71)。
+ * 食事記録画面の「写真・テキストから記録する」カード。
+ * 写真を選ぶ・テキストを書く(どちらか一方でも可)→「AIで解析する」ボタンで実行、の流れ(Issue #71)。
  * 以前は写真選択と同時に解析していたが、備考を解析に反映できるよう分離した。
- * 写真は複数枚(最大MAX_MEAL_PHOTOS枚)添付でき、1回の解析にまとめて送られる(Issue #110)
+ * 写真は複数枚(最大MAX_MEAL_PHOTOS枚)添付でき、1回の解析にまとめて送られる(Issue #110)。
+ * 写真が無くてもテキスト欄(note)だけで解析できる(Issue #159。この場合noteは「補足」ではなく判定対象そのもの)
  */
 export default function PhotoJudgeCard({
   isJudging,
@@ -57,7 +58,7 @@ export default function PhotoJudgeCard({
         <Box component="span" sx={{ color: "primary.main", display: "flex" }}>
           <IconCamera size={16} />
         </Box>
-        写真から記録する
+        写真・テキストから記録する
       </Typography>
       <Box sx={{ display: "flex", gap: "8px", mb: "10px" }}>
         <Button
@@ -127,14 +128,20 @@ export default function PhotoJudgeCard({
       <TextField
         fullWidth
         size="small"
-        type="text"
+        multiline
+        minRows={2}
+        maxRows={6}
         value={note}
         onChange={(e) => onNoteChange(e.target.value)}
-        placeholder="補足(任意): 唐揚げ弁当、ご飯少なめ など"
+        placeholder={
+          photos.length > 0
+            ? "補足(任意): 唐揚げ弁当、ご飯少なめ など"
+            : "例: ゆで卵2個\n納豆\nご飯(テキストだけでも解析できます)"
+        }
       />
       <Button
         fullWidth
-        disabled={photos.length === 0 || isJudging}
+        disabled={(photos.length === 0 && note.trim() === "") || isJudging}
         onClick={onJudge}
         startIcon={<IconSparkle />}
         sx={{
@@ -151,9 +158,9 @@ export default function PhotoJudgeCard({
       >
         {isJudging ? "解析中..." : "AIで解析する"}
       </Button>
-      {photos.length === 0 && (
+      {photos.length === 0 && note.trim() === "" && (
         <Typography sx={{ mt: "7px", fontSize: 10, color: tokens.faint, textAlign: "center" }}>
-          写真を選ぶと解析できます(最大{MAX_MEAL_PHOTOS}枚)
+          写真を選ぶか、テキストを入力すると解析できます(写真は最大{MAX_MEAL_PHOTOS}枚)
         </Typography>
       )}
       {judgeError && <Typography sx={{ mt: "10px", fontSize: 12, color: "primary.main" }}>{judgeError}</Typography>}

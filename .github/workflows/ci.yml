@@ -11,10 +11,14 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
-  # マージ後にmainが壊れていないかの事後シグナル(デプロイのゲートではない)
+    # epic/** は、複数Issueをまとめてからmainへ入れる長命ブランチ(例: epic/distribution = 配布版 #213)。
+    # 子IssueのPRはmainではなくエピックへ向くため、ここに含めないとその間だけCIが一切走らなくなる。
+    # pull_request のトリガー判定は**ベースブランチ側**のこのファイルで行われるため、
+    # エピックブランチにこの設定が入っていれば、そこへ向かう子PRでCIが回る
+    branches: [main, "epic/**"]
+  # マージ後にブランチが壊れていないかの事後シグナル(デプロイのゲートではない)
   push:
-    branches: [main]
+    branches: [main, "epic/**"]
 
 # PRに連続pushしたときは古い実行を打ち切る。mainへのpushは打ち切らない —
 # 連続マージのときに先のコミットの結果が消え、このワークフローの目的である

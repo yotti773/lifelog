@@ -29,6 +29,32 @@ export function shouldShowInitialSetup(settings: Settings): boolean {
 }
 
 /**
+ * AI機能(Gemini APIへの送信)に同意済みか(Issue #219)。**未設定=未同意**。
+ * 記録・同期は同意の有無に関わらず使えるため、この判定はAI機能の入口だけで使う。
+ */
+export function hasAiConsent(settings: Settings): boolean {
+  return settings.aiConsentAgreedAt !== undefined;
+}
+
+/** AI機能への同意を記録する。同意日時は記録として残すため上書きしない(再同意は初回の日時を保つ) */
+export async function agreeToAiConsent(): Promise<Settings> {
+  const stored = await getStoredSettings();
+  if (stored.aiConsentAgreedAt !== undefined) return getSettings();
+  return updateSettings({ aiConsentAgreedAt: new Date().toISOString() });
+}
+
+/**
+ * AI機能への同意を撤回する。**項目自体を保存行から取り除く**(未設定=未同意に戻す)。
+ * `updateSettings` に undefined を渡してもキーは残るため、ここで明示的に除いた行を書き戻す。
+ */
+export async function withdrawAiConsent(): Promise<Settings> {
+  const stored = await getStoredSettings();
+  const { aiConsentAgreedAt: _removed, ...rest } = stored;
+  await db.settings.put({ id: SETTINGS_ID, ...rest, synced: false });
+  return { ...DEFAULT_SETTINGS, ...rest };
+}
+
+/**
  * **既定値は読み取り時にだけ被せ、保存はしない**(Issue #164)。
  *
  * 以前は `updateSettings` が `getSettings()` のマージ結果(既定値込み)をそのまま保存していた。

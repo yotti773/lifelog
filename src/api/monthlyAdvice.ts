@@ -1,3 +1,4 @@
+import { assertAiConsent } from "@/api/aiConsent";
 import { AI_REQUEST_TIMEOUT_MS, requestApi } from "@/api/request";
 import { isWeeklyAdvice } from "@/lib/weeklyAdviceValidation";
 import type { MonthlyDigest, WeeklyAdvice } from "@/types";
@@ -8,6 +9,7 @@ import type { MonthlyDigest, WeeklyAdvice } from "@/types";
  * 出力契約は週次と共通のため、検証もisWeeklyAdviceを流用する。
  */
 export async function requestMonthlyAdvice(digest: MonthlyDigest): Promise<WeeklyAdvice> {
+  await assertAiConsent();
   const advice = await requestApi<unknown>("/api/monthly-advice", {
     method: "POST",
     body: { digest },

@@ -7,7 +7,31 @@ import {
   handleWeeklyAdvice,
   parseWeeklyAdvice,
 } from "../weeklyAdvice";
+import type { DigestFlag } from "../../src/types";
 import { allDigestFixtures, digestOnTrack } from "./weeklyAdviceFixtures";
+
+/**
+ * `DigestFlag` の全値。**`Record<DigestFlag, true>` にしているのが肝で、フラグを増やして
+ * ここに足し忘れるとコンパイルエラーになる** — 手書きの配列にすると、下の網羅テストが防ぎたい
+ * 「フラグ追加時の更新漏れ」と同じ漏れが番人自身に起きてテストが素通りしてしまう。
+ *
+ * Workerがクライアントのコードをimportしない方針はバンドルの独立性を保つためのもので、
+ * ここは(a)テスト専用で本番バンドルに入らない (b)型のみのimportで実行時コードを生まない、
+ * の2点から対象外とする。
+ */
+const ALL_DIGEST_FLAGS: Record<DigestFlag, true> = {
+  PACE_TOO_AGGRESSIVE: true,
+  INTAKE_BELOW_BMR: true,
+  BEHIND_PACE: true,
+  LOW_RECORDING_RATE: true,
+  NO_WEIGHT_DATA: true,
+  INSUFFICIENT_DATA: true,
+  ACTIVITY_DROP: true,
+  WORKOUT_STOPPED: true,
+  INTAKE_OVER_TARGET: true,
+  FAT_OVER_TARGET: true,
+  PROTEIN_UNDER_TARGET: true,
+};
 
 const VALID_ADVICE = {
   verdict: "on_track",
@@ -158,7 +182,7 @@ describe("システムプロンプトの契約(設計書5章)", () => {
     for (const verdict of ["on_track", "slightly_behind", "behind", "needs_attention"]) {
       expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain(verdict);
     }
-    for (const flag of ["PACE_TOO_AGGRESSIVE", "INTAKE_BELOW_BMR", "BEHIND_PACE", "LOW_RECORDING_RATE", "NO_WEIGHT_DATA", "INSUFFICIENT_DATA"]) {
+    for (const flag of ["PACE_TOO_AGGRESSIVE", "INTAKE_BELOW_BMR", "BEHIND_PACE", "LOW_RECORDING_RATE", "NO_WEIGHT_DATA", "INSUFFICIENT_DATA", "INTAKE_OVER_TARGET", "FAT_OVER_TARGET", "PROTEIN_UNDER_TARGET"]) {
       expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain(flag);
     }
   });
@@ -166,6 +190,23 @@ describe("システムプロンプトの契約(設計書5章)", () => {
   it("「flagsに無い問題を指摘しない」「数値を出さない」制約を含む", () => {
     expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("flagsに無い問題を新たに指摘しない");
     expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("入力JSONに無い数値を出さない");
+  });
+
+  it("摂取超過+たんぱく質不足の週に「摂取量を増やして」とだけ言わせない制約を含む(Issue #210)", () => {
+    expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("INTAKE_OVER_TARGET");
+    expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("PROTEIN_UNDER_TARGET");
+    expect(WEEKLY_ADVICE_SYSTEM_PROMPT).toContain("脂質を減らして、その分をたんぱく質に置き換える");
+  });
+
+  it("verdictの判定規則がDigestFlagの全値を網羅している(どのフラグ単独でも規則に当てはまる)", () => {
+    // 判定規則は上から順に最初に当てはまったものを選ぶ形式のため、どこにも現れないフラグが
+    // 単独で立った週は「flagsが空 → on_track」にも当てはまらず、verdictが決まらなくなる
+    const verdictRules = WEEKLY_ADVICE_SYSTEM_PROMPT.slice(
+      WEEKLY_ADVICE_SYSTEM_PROMPT.indexOf("verdictは次の規則で機械的に選ぶ"),
+    );
+    for (const flag of Object.keys(ALL_DIGEST_FLAGS)) {
+      expect(verdictRules, flag).toContain(flag);
+    }
   });
 
   it("全フィクスチャがJSONとして送信可能な形をしている", () => {

@@ -3,6 +3,7 @@ import {
   aggregateActivity,
   aggregateActivityTrend,
   aggregateMoodCounts,
+  aggregatePfcDeviation,
   aggregateWater,
   aggregateWorkout,
   buildCrossAnalysis,
@@ -231,6 +232,191 @@ describe("buildWeeklyDigest", () => {
     const digest = buildWeeklyDigest(src);
     expect(digest.pfc.targetProteinG).toBeNull();
     expect(digest.pfc.avgProteinG).not.toBeNull();
+  });
+});
+
+describe("buildWeeklyDigest: 摂取側の判定(Issue #210)", () => {
+  /** Issue #210の実例(8/3週)相当: 平均1988kcal/目標1730kcal(+14.9%)、脂質80g/目標48g(+67%) */
+  function overTargetSource(): WeeklyDigestSource {
+    const src = goodWeekSource();
+    src.calorieTargetKcal = 1730;
+    src.pfcTargets = { proteinG: 143, fatG: 48, carbsG: 179 };
+    src.mealDailyTotals = src.mealDailyTotals.map((d) => ({
+      ...d,
+      kcal: 1988,
+      proteinG: 94,
+      fatG: 80,
+      carbsG: 210,
+    }));
+    return src;
+  }
+
+  it("平均超過10%以上・目標以内の日が2日以下ならINTAKE_OVER_TARGETが立つ", () => {
+    const digest = buildWeeklyDigest(overTargetSource());
+    expect(digest.calories.avgIntakeKcal).toBe(1988);
+    expect(digest.calories.daysOnTarget).toBe(0);
+    expect(digest.flags).toContain("INTAKE_OVER_TARGET");
+  });
+
+  it("脂質が目標を30%以上超過するとFAT_OVER_TARGETが立つ", () => {
+    expect(buildWeeklyDigest(overTargetSource()).flags).toContain("FAT_OVER_TARGET");
+  });
+
+  it("最も目標から外れた栄養素(脂質・超過側)をpfcに載せる", () => {
+    const digest = buildWeeklyDigest(overTargetSource());
+    // fat: (80-48)/48≈+0.667が最大(protein −0.343、carbs +0.173より大きい)
+    expect(digest.pfc.mostOffTargetNutrient).toEqual({
+      nutrient: "fat",
+      direction: "over",
+      deviationRatio: 0.67,
+    });
+  });
+
+  it("平均超過が10%未満ならdaysOnTargetが少なくてもINTAKE_OVER_TARGETは立たない", () => {
+    const src = goodWeekSource();
+    src.calorieTargetKcal = 1900; // avgIntakeKcal=1850は超過ですらない
+    const digest = buildWeeklyDigest(src);
+    expect(digest.flags).not.toContain("INTAKE_OVER_TARGET");
+  });
+
+  it("平均は10%超過でも目標以内の日が3日以上あれば立たない(たまたま1日食べ過ぎただけの週を区別)", () => {
+    const src = overTargetSource();
+    // 3日を目標ちょうど(daysOnTargetの対象)に、残り4日をさらに高くして
+    // 平均は超過率10%を大きく上回ったまま(=平均側の条件は満たす)daysOnTargetだけを3に引き上げる
+    src.mealDailyTotals[0] = { ...src.mealDailyTotals[0], kcal: 1730 };
+    src.mealDailyTotals[1] = { ...src.mealDailyTotals[1], kcal: 1730 };
+    src.mealDailyTotals[2] = { ...src.mealDailyTotals[2], kcal: 1730 };
+    src.mealDailyTotals[3] = { ...src.mealDailyTotals[3], kcal: 2100 };
+    src.mealDailyTotals[4] = { ...src.mealDailyTotals[4], kcal: 2100 };
+    src.mealDailyTotals[5] = { ...src.mealDailyTotals[5], kcal: 2100 };
+    src.mealDailyTotals[6] = { ...src.mealDailyTotals[6], kcal: 2100 };
+    const digest = buildWeeklyDigest(src);
+    expect(digest.calories.daysOnTarget).toBe(3);
+    // 平均側の条件(目標の110%超)はまだ満たしていることを確認したうえで、daysOnTarget側のゲートで
+    // 立たないことを検証する(平均が目標以内に落ちて偶然フラグが立たないケースと区別するため)
+    expect(digest.calories.avgIntakeKcal).toBeGreaterThan(1730 * 1.1);
+    expect(digest.flags).not.toContain("INTAKE_OVER_TARGET");
+  });
+
+  it("食事記録が5日未満の週ではINTAKE_OVER_TARGETを判定しない(データが少ない週を要注意にしない)", () => {
+    const src = overTargetSource();
+    // 2日だけ記録し、どちらも超過。ゲートが無いとdaysOnTarget=0で「週を通した超過」と誤判定する
+    src.mealDailyTotals = src.mealDailyTotals.slice(0, 2);
+    src.recordedDays = 2;
+    const digest = buildWeeklyDigest(src);
+    expect(digest.calories.daysOnTarget).toBe(0);
+    expect(digest.calories.recordedDays).toBe(2);
+    expect(digest.flags).not.toContain("INTAKE_OVER_TARGET");
+    // 記録の少なさ自体はこちらのフラグが担う(プロンプトのverdict規則でも要注意より軽い扱いになる)
+    expect(digest.flags).toContain("LOW_RECORDING_RATE");
+  });
+
+  it("食事記録が5日あればINTAKE_OVER_TARGETを判定する(ゲートの境界)", () => {
+    const src = overTargetSource();
+    src.mealDailyTotals = src.mealDailyTotals.slice(0, 5);
+    expect(buildWeeklyDigest(src).flags).toContain("INTAKE_OVER_TARGET");
+  });
+
+  it("目標カロリー未設定の週ではINTAKE_OVER_TARGETを判定しない", () => {
+    const src = overTargetSource();
+    src.calorieTargetKcal = null;
+    const digest = buildWeeklyDigest(src);
+    expect(digest.calories.daysOnTarget).toBeNull();
+    expect(digest.flags).not.toContain("INTAKE_OVER_TARGET");
+  });
+
+  it("脂質目標未設定の週ではFAT_OVER_TARGETを判定しない", () => {
+    const src = overTargetSource();
+    src.pfcTargets = null;
+    const digest = buildWeeklyDigest(src);
+    expect(digest.flags).not.toContain("FAT_OVER_TARGET");
+    expect(digest.pfc.mostOffTargetNutrient).toBeUndefined();
+  });
+
+  it("たんぱく質が目標を20%以上下回るとPROTEIN_UNDER_TARGETが立つ", () => {
+    // 実例と同じ 94g / 目標143g(−34%)
+    expect(buildWeeklyDigest(overTargetSource()).flags).toContain("PROTEIN_UNDER_TARGET");
+  });
+
+  it("摂取が目標内に収まっている週でも、たんぱく質不足は単独で立つ", () => {
+    const src = goodWeekSource();
+    // 摂取は目標(1900kcal)以内のままたんぱく質だけ落とす(100g / 目標130g = −23%)
+    src.mealDailyTotals = src.mealDailyTotals.map((d) => ({ ...d, kcal: 1800, proteinG: 100 }));
+    const digest = buildWeeklyDigest(src);
+    expect(digest.flags).not.toContain("INTAKE_OVER_TARGET");
+    expect(digest.flags).toContain("PROTEIN_UNDER_TARGET");
+  });
+
+  it("不足が閾値未満(−15%)ならPROTEIN_UNDER_TARGETは立たない", () => {
+    const src = goodWeekSource();
+    src.mealDailyTotals = src.mealDailyTotals.map((d) => ({ ...d, proteinG: 111 })); // 130×0.85
+    expect(buildWeeklyDigest(src).flags).not.toContain("PROTEIN_UNDER_TARGET");
+  });
+
+  it("たんぱく質が目標を超過していてもフラグは立たない(不足側だけを見る)", () => {
+    const src = goodWeekSource();
+    src.mealDailyTotals = src.mealDailyTotals.map((d) => ({ ...d, proteinG: 200 }));
+    expect(buildWeeklyDigest(src).flags).not.toContain("PROTEIN_UNDER_TARGET");
+  });
+
+  it("たんぱく質目標未設定の週ではPROTEIN_UNDER_TARGETを判定しない", () => {
+    const src = overTargetSource();
+    src.pfcTargets = null;
+    expect(buildWeeklyDigest(src).flags).not.toContain("PROTEIN_UNDER_TARGET");
+  });
+});
+
+describe("aggregatePfcDeviation", () => {
+  it("超過側・不足側を問わず絶対値が最大の栄養素を1つ返す", () => {
+    expect(
+      aggregatePfcDeviation({
+        avgProteinG: 94,
+        avgFatG: 80,
+        avgCarbsG: 210,
+        targetProteinG: 143,
+        targetFatG: 48,
+        targetCarbsG: 179,
+      }),
+    ).toEqual({ nutrient: "fat", direction: "over", deviationRatio: 0.67 });
+  });
+
+  it("不足側が最大ならdirection=under・ratioは負", () => {
+    expect(
+      aggregatePfcDeviation({
+        avgProteinG: 80,
+        avgFatG: 50,
+        avgCarbsG: 200,
+        targetProteinG: 140,
+        targetFatG: 53,
+        targetCarbsG: 210,
+      }),
+    ).toEqual({ nutrient: "protein", direction: "under", deviationRatio: -0.43 });
+  });
+
+  it("目標・実績とも値がある栄養素が1つも無ければundefined", () => {
+    expect(
+      aggregatePfcDeviation({
+        avgProteinG: null,
+        avgFatG: null,
+        avgCarbsG: null,
+        targetProteinG: 140,
+        targetFatG: 53,
+        targetCarbsG: 210,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("一部の栄養素だけ目標が設定されていても、その中で最大のものを返す", () => {
+    expect(
+      aggregatePfcDeviation({
+        avgProteinG: 100,
+        avgFatG: 80,
+        avgCarbsG: null,
+        targetProteinG: 140,
+        targetFatG: null,
+        targetCarbsG: null,
+      }),
+    ).toEqual({ nutrient: "protein", direction: "under", deviationRatio: -0.29 });
   });
 });
 

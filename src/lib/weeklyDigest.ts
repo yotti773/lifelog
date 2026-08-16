@@ -37,6 +37,38 @@ export const ACTIVITY_BASELINE_MIN_WEEKS = 2;
 /** ACTIVITY_DROP: 週平均歩数が基準をこの割合以上下回ったら低下とみなす */
 export const ACTIVITY_DROP_RATIO = 0.2;
 
+/**
+ * 摂取側の判定(Issue #210)の閾値。運用しながら調整する前提の初期値(#174の閾値群と同じ扱い)。
+ * 「摂取が目標超過」と「脂質が目標超過」を別フラグにしているのは、同じ超過でも取るべき行動
+ * (総カロリーを見直す / 脂質を減らしてたんぱく質に置き換える)が異なるため。
+ */
+/** INTAKE_OVER_TARGET: 週平均摂取が目標をこの割合以上超過したら判定対象にする */
+export const INTAKE_OVER_TARGET_RATIO = 0.1;
+/**
+ * INTAKE_OVER_TARGET: 目標カロリー以内に収まった日数がこの日数以下なら「たまたま1日食べ過ぎただけ」
+ * ではなく週を通した超過とみなす。
+ */
+export const INTAKE_OVER_TARGET_MAX_DAYS_ON_TARGET = 2;
+/**
+ * INTAKE_OVER_TARGET: 食事記録がこの日数未満の週は判定しない(データ品質ゲート。#174の歩数と同じ考え方)。
+ *
+ * `daysOnTarget` は**食事記録がある日**を分母にした値のため、ゲートが無いと記録2日・両日とも超過の週で
+ * `daysOnTarget=0` となり「週を通して超え続けた」と誤判定する。しかもこのフラグはプロンプトのverdict規則で
+ * 先頭(needs_attention)にあり、`INSUFFICIENT_DATA`(slightly_behind)を**上書きしてしまう** —
+ * 「データが少ない週は評価に適さない」という既存の防御を突き破るため、フラグ側でも記録日数を要求する。
+ * 閾値は `LOW_RECORDING_THRESHOLD_DAYS` と同じ5日(「この週はちゃんと記録できている」の基準を揃える)
+ */
+export const INTAKE_OVER_TARGET_MIN_RECORDED_DAYS = LOW_RECORDING_THRESHOLD_DAYS;
+/** FAT_OVER_TARGET: 週平均脂質が目標をこの割合以上超過したら「大幅超過」とみなす */
+export const FAT_OVER_TARGET_RATIO = 0.3;
+/**
+ * PROTEIN_UNDER_TARGET: 週平均たんぱく質が目標をこの割合以上下回ったら不足とみなす。
+ * 減量中のたんぱく質は筋量維持に直結するため、超過側ではなく**不足側だけ**を判定する
+ * (多い分には実害が乏しい)。目標が体重1kgあたり2.0g前後で設定される前提だと、−20%は
+ * 減量中の推奨下限(1.6g/kg)にあたる
+ */
+export const PROTEIN_UNDER_TARGET_RATIO = 0.2;
+
 /** 食事の日別合計(食事記録がある日のみ)。src/db/weeklyNutrition.tsのMealDailyTotalと同形 */
 export interface DigestMealDailyTotal {
   date: string;
@@ -235,6 +267,40 @@ export function aggregateBloodPressure(
   };
 }
 
+/**
+ * 目標から最も外れているPFC栄養素を求める(Issue #210)。
+ * 目標・実績とも値がある栄養素だけを候補にし、(実績-目標)/目標の絶対値が最大のものを1つ返す。
+ * 候補が1つも無ければundefined(digestからmostOffTargetNutrientを省く)。
+ */
+export function aggregatePfcDeviation(pfc: {
+  avgProteinG: number | null;
+  avgFatG: number | null;
+  avgCarbsG: number | null;
+  targetProteinG: number | null;
+  targetFatG: number | null;
+  targetCarbsG: number | null;
+}): WeeklyDigest["pfc"]["mostOffTargetNutrient"] {
+  const candidates: { nutrient: "protein" | "fat" | "carbs"; avg: number; target: number }[] = [];
+  if (pfc.avgProteinG !== null && pfc.targetProteinG !== null && pfc.targetProteinG > 0) {
+    candidates.push({ nutrient: "protein", avg: pfc.avgProteinG, target: pfc.targetProteinG });
+  }
+  if (pfc.avgFatG !== null && pfc.targetFatG !== null && pfc.targetFatG > 0) {
+    candidates.push({ nutrient: "fat", avg: pfc.avgFatG, target: pfc.targetFatG });
+  }
+  if (pfc.avgCarbsG !== null && pfc.targetCarbsG !== null && pfc.targetCarbsG > 0) {
+    candidates.push({ nutrient: "carbs", avg: pfc.avgCarbsG, target: pfc.targetCarbsG });
+  }
+  if (candidates.length === 0) return undefined;
+
+  const deviations = candidates.map((c) => ({ nutrient: c.nutrient, ratio: (c.avg - c.target) / c.target }));
+  const most = deviations.reduce((a, b) => (Math.abs(b.ratio) > Math.abs(a.ratio) ? b : a));
+  return {
+    nutrient: most.nutrient,
+    direction: most.ratio >= 0 ? "over" : "under",
+    deviationRatio: round2(most.ratio),
+  };
+}
+
 /** クロス分析(Issue #112)で「睡眠不足」とみなす閾値(6時間)。Garminの睡眠時間(分)と比較する */
 export const SHORT_SLEEP_THRESHOLD_MINUTES = 360;
 
@@ -377,6 +443,23 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     mealDays > 0 ? Math.round(src.mealDailyTotals.reduce((s, d) => s + d.kcal, 0) / mealDays) : null;
   const avgOf = (pick: (d: DigestMealDailyTotal) => number) =>
     mealDays > 0 ? round1(src.mealDailyTotals.reduce((s, d) => s + pick(d), 0) / mealDays) : null;
+  // 目標カロリー以内に収まった日数(INTAKE_OVER_TARGETの判定にも使うため、返却オブジェクト側と共有する)
+  const daysOnTarget =
+    calorieTargetKcal !== null ? src.mealDailyTotals.filter((d) => d.kcal <= calorieTargetKcal).length : null;
+  const avgProteinG = avgOf((d) => d.proteinG);
+  const avgFatG = avgOf((d) => d.fatG);
+  const avgCarbsG = avgOf((d) => d.carbsG);
+  const targetProteinG = src.pfcTargets?.proteinG ?? null;
+  const targetFatG = src.pfcTargets?.fatG ?? null;
+  const targetCarbsG = src.pfcTargets?.carbsG ?? null;
+  const mostOffTargetNutrient = aggregatePfcDeviation({
+    avgProteinG,
+    avgFatG,
+    avgCarbsG,
+    targetProteinG,
+    targetFatG,
+    targetCarbsG,
+  });
 
   const mood = aggregateMoodCounts(
     src.diaryDays.map((d) => d.mood).filter((m): m is DiaryMood => m !== undefined),
@@ -449,6 +532,34 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
   ) {
     flags.push("WORKOUT_STOPPED");
   }
+  // 摂取が目標を超えた週(Issue #210)。平均超過率とdaysOnTargetの両方を条件にするのは、
+  // たまたま1日大きく食べただけの週(平均は上がるが他の日は守れている)と、
+  // 週を通して超え続けた週を区別するため。
+  // 記録日数のゲートは、記録が数日しかない週を「週を通した超過」と誤判定しないため(定数の注釈を参照)
+  if (
+    calorieTargetKcal !== null &&
+    avgIntakeKcal !== null &&
+    daysOnTarget !== null &&
+    mealDays >= INTAKE_OVER_TARGET_MIN_RECORDED_DAYS &&
+    avgIntakeKcal > calorieTargetKcal * (1 + INTAKE_OVER_TARGET_RATIO) &&
+    daysOnTarget <= INTAKE_OVER_TARGET_MAX_DAYS_ON_TARGET
+  ) {
+    flags.push("INTAKE_OVER_TARGET");
+  }
+  // 脂質の大幅超過(Issue #210)。総カロリー超過の中身を具体的に示し、行動を「脂質を減らす」に絞り込むためのフラグ
+  if (targetFatG !== null && avgFatG !== null && avgFatG > targetFatG * (1 + FAT_OVER_TARGET_RATIO)) {
+    flags.push("FAT_OVER_TARGET");
+  }
+  // たんぱく質の不足(Issue #210)。減量中の筋量維持に直結し、取るべき行動も明確なためフラグ化する。
+  // 炭水化物・脂質の不足側をフラグにしないのは、意図的な低炭水化物運用がありえて「不足=問題」と
+  // 断定できないため(事実提示はpfc.mostOffTargetNutrientが担う)
+  if (
+    targetProteinG !== null &&
+    avgProteinG !== null &&
+    avgProteinG < targetProteinG * (1 - PROTEIN_UNDER_TARGET_RATIO)
+  ) {
+    flags.push("PROTEIN_UNDER_TARGET");
+  }
 
   return {
     period: { start: src.weekStart, end: weekEnd },
@@ -468,21 +579,19 @@ export function buildWeeklyDigest(src: WeeklyDigestSource): WeeklyDigest {
     calories: {
       avgIntakeKcal,
       targetKcal: calorieTargetKcal,
-      daysOnTarget:
-        calorieTargetKcal !== null
-          ? src.mealDailyTotals.filter((d) => d.kcal <= calorieTargetKcal).length
-          : null,
+      daysOnTarget,
       recordedDays: mealDays,
       estimatedTdeeKcal: src.estimatedTdeeKcal,
       bmrKcal: src.bmrKcal,
     },
     pfc: {
-      avgProteinG: avgOf((d) => d.proteinG),
-      avgFatG: avgOf((d) => d.fatG),
-      avgCarbsG: avgOf((d) => d.carbsG),
-      targetProteinG: src.pfcTargets?.proteinG ?? null,
-      targetFatG: src.pfcTargets?.fatG ?? null,
-      targetCarbsG: src.pfcTargets?.carbsG ?? null,
+      avgProteinG,
+      avgFatG,
+      avgCarbsG,
+      targetProteinG,
+      targetFatG,
+      targetCarbsG,
+      ...(mostOffTargetNutrient !== undefined ? { mostOffTargetNutrient } : {}),
     },
     recording: {
       recordedDays: src.recordedDays,

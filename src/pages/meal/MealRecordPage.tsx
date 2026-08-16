@@ -7,6 +7,7 @@ import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import { judgeMealPhoto, MAX_MEAL_PHOTOS } from "@/api/judgeMeal";
+import AiConsentDialog from "@/components/AiConsentDialog";
 import RecordHeader from "@/components/RecordHeader";
 import RecordSaveFooter from "@/components/RecordSaveFooter";
 import { IconNoMeal, IconPlus, IconSparkle } from "@/components/icons";
@@ -17,6 +18,7 @@ import {
   replaceMealRecordsForDateAndType,
   type MealItemInput,
 } from "@/db/mealRecords";
+import { getSettings, hasAiConsent } from "@/db/settings";
 import { useHistoryBackNavigation } from "@/hooks/useHistoryBackNavigation";
 import { formatMonthDay, nearestMealType, toDatetimeLocalValue, todayDateString } from "@/lib/date";
 import { accent, fontRounded, tokens } from "@/theme";
@@ -64,6 +66,9 @@ export default function MealRecordPage() {
   const [judgeInfo, setJudgeInfo] = useState<{ count: number; uncertain: boolean; hadPhoto: boolean } | null>(null);
 
   const foodMasterItems = useLiveQuery(() => getAllFoodMasterItems(), []);
+  // AI送信への同意(Issue #219)。undefined=ロード中は未同意側に倒し、同意ダイアログを先に出す
+  const aiAgreed = useLiveQuery(() => getSettings().then(hasAiConsent), []);
+  const [consentOpen, setConsentOpen] = useState(false);
 
   // その日のその区分の記録を下書きとして読み込む(新規/編集で画面を分けない。画面設計書4章)
   useEffect(() => {
@@ -134,8 +139,20 @@ export default function MealRecordPage() {
     setJudgeError(null);
   };
 
-  // 写真・テキスト(備考欄)のどちらか一方でもあれば解析できる(Issue #159)
-  const canJudge = photos.length > 0 || note.trim() !== "";
+  // 写真・テキスト(備考欄)のどちらか一方でもあれば解析できる(Issue #159)。
+  // 同意状態がロード中(undefined)の間は押せなくする — 未同意と決めつけると、
+  // 同意済みの人が解決前に押したときにダイアログを出してしまうため(Issue #219)
+  const canJudge = (photos.length > 0 || note.trim() !== "") && aiAgreed !== undefined;
+
+  // 未同意なら送信せず、まず同意ダイアログを出す(Issue #219)。同意したらそのまま解析へ進む
+  const handleJudgeRequested = () => {
+    if (!canJudge) return;
+    if (!aiAgreed) {
+      setConsentOpen(true);
+      return;
+    }
+    void handleJudge();
+  };
 
   const handleJudge = async () => {
     if (!canJudge) return;
@@ -330,9 +347,16 @@ export default function MealRecordPage() {
             onNoteChange={setNote}
             onPhotosSelected={handlePhotosSelected}
             onRemovePhoto={(index) => setPhotos((prev) => prev.filter((_, i) => i !== index))}
-            onJudge={handleJudge}
+            onJudge={handleJudgeRequested}
             judgeError={judgeError}
             showUncertainWarning={judgeInfo?.uncertain === true}
+          />
+
+          <AiConsentDialog
+            open={consentOpen}
+            agreed={aiAgreed === true}
+            onClose={() => setConsentOpen(false)}
+            onAgreed={() => void handleJudge()}
           />
 
           {judgeInfo && (

@@ -1,3 +1,4 @@
+import { assertAiConsent } from "@/api/aiConsent";
 import { AI_REQUEST_TIMEOUT_MS, requestApi } from "@/api/request";
 import { isWeeklyAdvice } from "@/lib/weeklyAdviceValidation";
 import type { WeeklyAdvice, WeeklyDigest } from "@/types";
@@ -7,6 +8,7 @@ import type { WeeklyAdvice, WeeklyDigest } from "@/types";
  * digestはコード側で計算済みのWeeklyDigestをそのまま送る(生レコードは送らない)。
  */
 export async function requestWeeklyAdvice(digest: WeeklyDigest): Promise<WeeklyAdvice> {
+  await assertAiConsent();
   const advice = await requestApi<unknown>("/api/weekly-advice", {
     method: "POST",
     body: { digest },

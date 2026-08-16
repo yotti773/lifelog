@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 import { isApiConnectionError } from "@/api/request";
+import AiConsentDialog from "@/components/AiConsentDialog";
 import { IconCheck, IconSparkle, IconWarning } from "@/components/icons";
+import { getSettings, hasAiConsent } from "@/db/settings";
 import { formatDateTime } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
 import type { WeeklyAdvice } from "@/types";
@@ -52,12 +55,11 @@ export default function AdviceCard({
 }: AdviceCardProps) {
   const [isGenerating, setGenerating] = useState(false);
   const [adviceError, setAdviceError] = useState<AdviceError | null>(null);
+  const [consentOpen, setConsentOpen] = useState(false);
+  // 同意状態(Issue #219)。undefined=ロード中は未同意側に倒し、同意ダイアログを先に出す
+  const agreed = useLiveQuery(() => getSettings().then(hasAiConsent), []);
 
-  const handleGenerateAdvice = async () => {
-    if (!navigator.onLine) {
-      setAdviceError({ message: "オフラインのため生成できません", selfContained: true });
-      return;
-    }
+  const runGenerate = async () => {
     setGenerating(true);
     setAdviceError(null);
     try {
@@ -73,6 +75,22 @@ export default function AdviceCard({
     }
   };
 
+  // 未同意なら送信せず、まず同意ダイアログを出す(Issue #219)。同意したらそのまま生成へ進む。
+  // ロード中(undefined)は「未同意」と決めつけない — 同意済みの人にダイアログを出してしまうため、
+  // 解決するまでボタン自体を押せなくする
+  const handleGenerateAdvice = () => {
+    if (agreed === undefined) return;
+    if (!navigator.onLine) {
+      setAdviceError({ message: "オフラインのため生成できません", selfContained: true });
+      return;
+    }
+    if (!agreed) {
+      setConsentOpen(true);
+      return;
+    }
+    void runGenerate();
+  };
+
   return (
     <Card sx={{ p: "18px" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mb: "12px" }}>
@@ -85,6 +103,7 @@ export default function AdviceCard({
         {cached && !isGenerating && (
           <Button
             size="small"
+            disabled={agreed === undefined}
             onClick={handleGenerateAdvice}
             sx={{ fontSize: 11, color: "text.secondary", minWidth: 0, p: "2px 8px" }}
           >
@@ -173,6 +192,7 @@ export default function AdviceCard({
           <Button
             fullWidth
             variant="contained"
+            disabled={agreed === undefined}
             onClick={handleGenerateAdvice}
             startIcon={<IconSparkle />}
             sx={{ height: 44, borderRadius: "13px", fontSize: 13, boxShadow: tokens.primaryButtonShadow }}
@@ -199,6 +219,13 @@ export default function AdviceCard({
       <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "14px", pt: "10px", borderTop: `1px solid ${tokens.divider}`, lineHeight: 1.6 }}>
         AIによる参考情報であり、医学的助言ではありません
       </Typography>
+
+      <AiConsentDialog
+        open={consentOpen}
+        agreed={agreed === true}
+        onClose={() => setConsentOpen(false)}
+        onAgreed={() => void runGenerate()}
+      />
     </Card>
   );
 }

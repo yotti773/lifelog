@@ -15,8 +15,10 @@ import {
   IconKey,
   IconPerson,
   IconRuler,
+  IconSparkle,
   IconSun,
 } from "@/components/icons";
+import AiConsentDialog from "@/components/AiConsentDialog";
 import { db } from "@/db/db";
 import { getSettings, updateSettings } from "@/db/settings";
 import { activityLevelLabel } from "@/lib/nutritionCalc";
@@ -44,6 +46,8 @@ export default function SettingsPage() {
   );
 
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  // AI送信への同意の確認・撤回(Issue #219)。AI機能の入口と同じダイアログを使う
+  const [consentOpen, setConsentOpen] = useState(false);
   // PFC目標の編集シート(3項目セットのため単一値の編集シートとは別に持つ。Issue #47)
   const [pfcEditor, setPfcEditor] = useState({ open: false, withSuggestion: false });
   // 目標カロリー変更後にPFC目標の再計算を提案するバナー(自動では上書きしない。Issue #47)
@@ -211,6 +215,16 @@ export default function SettingsPage() {
 
       <SectionLabel>AIコーチング</SectionLabel>
       <Card sx={{ overflow: "hidden", mb: "8px" }}>
+        {/* AI送信への同意(Issue #219)。AI機能全体の前提のため、この節の先頭に置く */}
+        <SettingRow
+          icon={<IconSparkle size={18} />}
+          iconBg={tokens.primarySoft}
+          iconColor="#FF6B4A"
+          label="AIへのデータ送信"
+          value={settings.aiConsentAgreedAt !== undefined ? "同意済み" : "未同意"}
+          divider
+          onClick={() => setConsentOpen(true)}
+        />
         {/* 日記本文のAI送信オプトイン(Issue #103でIssue #12を決着)。デフォルトOFF */}
         <Box sx={{ display: "flex", alignItems: "center", gap: "13px", p: "9px 16px 9px 16px" }}>
           <Box
@@ -238,7 +252,8 @@ export default function SettingsPage() {
         </Box>
       </Card>
       <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
-        ONにすると、週次レビューのAIコメント生成時にその週の日記本文がGoogle Gemini APIへ送信されます。OFFの間は気分タグの件数集計だけが送られます
+        未同意の間、AIコメントの生成と食事のAI判定は使えません(記録・グラフ・同期は同意なしで使えます)。
+        日記本文のトグルをONにすると、週次レビューのAIコメント生成時にその週の日記本文もGoogle Gemini APIへ送信されます。OFFの間は気分タグの件数集計だけが送られます
       </Typography>
 
       <MasterDataSections />
@@ -257,6 +272,12 @@ export default function SettingsPage() {
         settings={settings}
         latestWeightRecord={latestWeightRecord}
         onClose={() => setPfcEditor((prev) => ({ ...prev, open: false }))}
+      />
+
+      <AiConsentDialog
+        open={consentOpen}
+        agreed={settings.aiConsentAgreedAt !== undefined}
+        onClose={() => setConsentOpen(false)}
       />
     </Box>
   );

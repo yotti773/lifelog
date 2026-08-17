@@ -6,3 +6,16 @@ GOOGLE_SHEETS_SPREADSHEET_ID=your-spreadsheet-id-here
 # APIの共有トークン(Issue #87)。本番はwrangler secret putで登録し、アプリの設定画面に同じ値を入力する。
 # 未設定の場合は認証を要求しない(ローカル開発用)
 API_AUTH_TOKEN=your-random-token-here
+
+# ユーザー自身のGoogle認可(Issue #214)。Google Cloud Console の「APIとサービス → 認証情報」で
+# OAuth 2.0 クライアントID(種類: ウェブアプリケーション)を作って設定する。
+#
+# 「承認済みのリダイレクトURI」に次の2つを登録すること(パスは /oauth/callback 固定):
+#   https://lifelog.n1lab.workers.dev/oauth/callback
+#   http://localhost:5173/oauth/callback   ← ローカル開発用
+#
+# スコープは drive.file のみ。同意画面の公開ステータスは「本番」にする
+# (テストのままだと refresh token が7日で失効する)。
+# CLIENT_ID は認可URLに載る公開値、CLIENT_SECRET はWorkerだけが持つ。
+GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-oauth-client-secret

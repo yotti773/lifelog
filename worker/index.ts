@@ -49,7 +49,7 @@ async function judgeMeal(
   mealType: string,
   note: string | undefined,
 ): Promise<MealJudgmentResult & LegacyMealJudgmentFields> {
-  const model = env.GEMINI_MODEL || "gemini-3.1-flash";
+  const model = env.GEMINI_MODEL || "gemini-3.6-flash";
   const mealLabel = MEAL_TYPE_LABELS[mealType] ?? mealType;
   const prompt = buildMealJudgmentPrompt(mealLabel, note, images.length);
 

@@ -22,6 +22,7 @@ import { getSettings, updateSettings } from "@/db/settings";
 import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { fontRounded, tokens } from "@/theme";
 import AppResetCard from "./AppResetCard";
+import GoogleConnectionCard from "./GoogleConnectionCard";
 import LocalBackupCard from "./LocalBackupCard";
 import MasterDataSections from "./MasterDataSections";
 import PfcEditorDrawer from "./PfcEditorDrawer";
@@ -184,6 +185,9 @@ export default function SettingsPage() {
           </Button>
         </Box>
       )}
+
+      <SectionLabel>Googleとの連携</SectionLabel>
+      <GoogleConnectionCard />
 
       <SectionLabel>データ同期・バックアップ(スプレッドシート)</SectionLabel>
       <SheetsSyncCard lastSyncedAt={settings.lastSyncedAt} />

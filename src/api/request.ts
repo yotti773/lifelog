@@ -46,6 +46,22 @@ export function isApiConnectionError(error: unknown): error is ApiConnectionErro
   return error instanceof ApiConnectionError;
 }
 
+/**
+ * サーバーがエラーを返した(到達はしている)ことを表すエラー。
+ * **`Error` を継承しているため、`message` だけを見る既存の呼び出し元は変更不要。**
+ * ステータスで分岐したい場合(Googleの認可失効=401を再連携の合図にするなど。Issue #214)に
+ * `status` を見る。文言でエラー種別を判定すると、メッセージを変えた瞬間に壊れるため。
+ */
+export class ApiStatusError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiStatusError";
+  }
+}
+
 export interface ApiRequestOptions {
   method?: "GET" | "POST";
   /** JSONとして送るリクエストボディ。省略時はボディ無し(GET) */
@@ -80,7 +96,7 @@ export async function requestApi<T>(path: string, options: ApiRequestOptions): P
 
   if (!res.ok) {
     const errorBody = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(errorBody?.error ?? fallbackErrorMessage(res.status));
+    throw new ApiStatusError(res.status, errorBody?.error ?? fallbackErrorMessage(res.status));
   }
 
   try {

@@ -1,4 +1,5 @@
 import { isAuthorized, unauthorizedResponse } from "./auth";
+import { handleGoogleOAuthConfig, handleGoogleOAuthToken } from "./googleOAuth";
 import {
   buildMealJudgmentPrompt,
   MEAL_JUDGMENT_RESPONSE_SCHEMA,
@@ -23,6 +24,9 @@ export interface Env {
   GOOGLE_SERVICE_ACCOUNT_EMAIL: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
+  /** ユーザー自身のGoogle認可(Issue #214)。clientIdは公開値、clientSecretはWorkerのみが持つ */
+  GOOGLE_OAUTH_CLIENT_ID?: string;
+  GOOGLE_OAUTH_CLIENT_SECRET?: string;
 }
 
 /** 1回の判定に添付できる写真の上限(Issue #110)。クライアント側のsrc/api/judgeMeal.tsと合わせる */
@@ -100,6 +104,17 @@ export default {
     // 全APIエンドポイントを共有トークンで保護する(Issue #87)。静的アセット配信は対象外
     if (url.pathname.startsWith("/api/") && !isAuthorized(request.headers.get("authorization"), env.API_AUTH_TOKEN)) {
       return unauthorizedResponse();
+    }
+
+    // Googleの認可(Issue #214)。**必ず上の共有トークン認証の内側**に置くこと —
+    // このエンドポイントは client_secret の代行窓口で、認証の外に出すと
+    // refresh token を盗んだ相手が代行させられる(検討メモ12.8)
+    if (url.pathname === "/api/google-oauth/config" && request.method === "GET") {
+      return handleGoogleOAuthConfig(env);
+    }
+
+    if (url.pathname === "/api/google-oauth/token" && request.method === "POST") {
+      return handleGoogleOAuthToken(request, env);
     }
 
     if (url.pathname === "/api/sync-sheets" && request.method === "POST") {

@@ -110,6 +110,17 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 
 **同期先はアプリのデータモデル専用に新規作成したスプレッドシートであり、今使っている手動運用の既存スプレッドシートではない。** タブの一覧・タブ名・ID列・列の並びは `worker/sheetsSync.ts`(`*_CONFIG`・`*_HEADER`・`*ToRow`)が正で、ここには再掲しない。**フェーズ1〜2の記録5タブ(体重・食事・水分・筋トレ・日記)だけが手動作成前提で、それ以外は後付けのため同期時にタブが無ければWorkerが見出し行付きで自動作成する。** 検討の結果、既存の手動運用シートは「1日1行、その日の食事の合計カロリー/PFC」という集計形式で、アプリの `MealRecord`(1食事=1レコード、1日に複数件記録しうる)とは粒度が異なることが分かった。既存シートに合わせるには「日付で行を検索→既存の値と合算→上書き」という集計取り込みロジックが必要になり、「レコード単位で一方向に反映する(1レコード=1行、ID列で upsert・削除)」という現在の設計と相性が悪いため、新規スプレッドシートを採用した(Issue #3)。
 
+### ユーザー自身のGoogle認可(`worker/googleOAuth.ts`・`src/api/googleOAuth.ts`、Issue #214)
+
+配布版(#213)に向けて、同期先スプレッドシートを**各ユーザー自身のDrive**に置くための認可。サービスアカウント1つで全員分を書く現状(全員のデータが1枚のシートに混ざる)を置き換える。方式は検討メモ12.8の**案A**(Sheets APIはクライアント直・refresh tokenもクライアント保持)。
+
+- **要求スコープは `drive.file` だけ。`spreadsheets` を足さないこと** — `drive.file` は非機微(non-sensitive)でGoogleのアプリ検証が必須にならないが、`spreadsheets` を足した瞬間に sensitive に落ちる。`worker/googleOAuth.ts` の `GOOGLE_OAUTH_SCOPE` が正で、テストが `spreadsheets` の混入を検出する
+- **Workerが担うのはトークン交換だけで、健康データには触れない。** Googleは refresh token の発行・使用の両方で `client_secret` を要求し、PKCEでは代替できないため、client_secret を持つサーバ側の口が1つだけ必要になる。**refresh token は保存しない**(ステートレスな中継)
+- **`/api/google-oauth/token` は実質「client_secret の代行窓口」。必ず共有トークン認証の内側に置く**(`worker/index.ts` のルーティング順)。認証の外に出すと、refresh token を盗んだ相手がここを叩いて代行させられる
+- **refresh token は `googleAuth` テーブル(1行)に置き、シート同期にもバックアップにも載せない**(`BACKUP_EXCLUDED_TABLES`)。`Settings` に相乗りさせると同期先シートとバックアップJSONの両方へ流出する。access token は短命なため永続化せず、`src/api/googleOAuth.ts` がメモリで保持して期限切れ時に作り直す
+- **失効は正常系として扱う**(6ヶ月未使用・ユーザーによる解除・認可の上限超過)。Workerが401を返し、クライアントは保存済みトークンを捨てて未連携に戻す。**一時障害(502等)ではトークンを捨てない** — 捨てると一時的な不調で連携が失われる
+- **配信URLを変えると、Google Cloud Consoleの「承認済みのリダイレクトURI」の更新も要る**(`/oauth/callback`)。IndexedDBがオリジン単位である件と同じ紐付きが認可にも及ぶ
+
 ### Garmin連携(`scripts/garmin/`、`.github/workflows/garmin-sync.yml`)
 
 GitHub Actionsのcron(毎日3:00 JST)が `python-garminconnect`(非公式API)で前日の活動データ(歩数・消費カロリー・睡眠・安静時心拍など)を取得し、同期用スプレッドシートの「活動記録」タブへ日付キーでupsertする。アプリ・Workerのコードとは独立しており、認証情報はGitHub Secrets(GarminトークンはActionsキャッシュで持ち回り)。列構成・セットアップ・トークン運用は `scripts/garmin/README.md` が正。経緯はIssue #11(検討)・#80(実装)、アプリ側への取り込みは #81・#82。

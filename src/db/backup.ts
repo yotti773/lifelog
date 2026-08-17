@@ -53,14 +53,26 @@ export interface BackupTables {
 export type BackupTableName = keyof BackupTables;
 
 /**
+ * バックアップに**含めない**テーブルと、その理由。
+ *
+ * テーブルを追加したら `BACKUP_TABLES` かこちらのどちらかに必ず入れること
+ * (どちらにも無いと `backup.test.ts` が落ちる)。「入れ忘れ」と「意図的に外した」を
+ * 区別できる形にしてあり、除外にはここに理由を書く。
+ *
+ * - `syncDeletions`: 「シートのこの行を消す」という同期の途中状態(トゥームストーン)であって
+ *   利用者のデータではない。復元先へ持ち込むと、復元したレコードがまだ載っているシートの行を
+ *   消しにいく恐れがある。退避前に「今すぐ同期」を済ませておけば保留中の削除は反映済みになる
+ * - `googleAuth`: Googleのrefresh token(Issue #214)。**認証情報を持ち出せるファイルにしない**
+ *   という判断で、#164 で `apiToken` をシート同期から外したのと同じ線(検討メモ12.8の制約3)。
+ *   復元後はGoogleと連携し直す
+ */
+export const BACKUP_EXCLUDED_TABLES = ["syncDeletions", "googleAuth"] as const;
+
+/**
  * バックアップ対象のテーブル。
  *
- * **`syncDeletions` は意図的に含めない。** これは「シートのこの行を消す」という同期の途中状態
- * (トゥームストーン)であって利用者のデータではない。復元先へ持ち込むと、復元したレコードが
- * まだ載っているシートの行を消しにいく恐れがある。退避前に「今すぐ同期」を済ませておけば
- * 保留中の削除はシートへ反映済みになる。
- *
  * テーブルを追加したらここにも足すこと(漏れは `backup.test.ts` が検出する)。
+ * 意図的に外す場合は `BACKUP_EXCLUDED_TABLES` に理由付きで入れる。
  */
 export const BACKUP_TABLES: BackupTableName[] = [
   "weightRecords",

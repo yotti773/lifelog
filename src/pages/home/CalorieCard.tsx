@@ -5,6 +5,8 @@ import Typography from "@mui/material/Typography";
 import { accent, fontRounded, tokens } from "@/theme";
 
 interface CalorieCardProps {
+  /** 表示日が今日かどうか(過去日を振り返る場合は見出しを変える。Issue #226) */
+  isToday: boolean;
   consumedKcal: number;
   targetKcal?: number; // 1日の目標カロリー。未設定時は実績のみ表示する(Issue #217)
   proteinG: number;
@@ -21,7 +23,7 @@ const PFC_ROWS = [
   { label: "C", color: "#2EC4B6" },
 ] as const;
 
-export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, carbsG, pfcTargets }: CalorieCardProps) {
+export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, carbsG, pfcTargets, isToday }: CalorieCardProps) {
   const hasTarget = targetKcal !== undefined && targetKcal > 0;
   const pct = hasTarget ? Math.min(100, (consumedKcal / targetKcal) * 100) : 0;
   const over = hasTarget && consumedKcal > targetKcal;
@@ -34,7 +36,9 @@ export default function CalorieCard({ consumedKcal, targetKcal, proteinG, fatG, 
   return (
     <Card sx={{ p: "20px" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px" }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary" }}>今日の摂取カロリー</Typography>
+        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary" }}>
+          {isToday ? "今日の摂取カロリー" : "この日の摂取カロリー"}
+        </Typography>
         {hasTarget && (
           <Typography
             sx={{

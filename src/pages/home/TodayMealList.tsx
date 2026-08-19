@@ -8,16 +8,19 @@ import { fontRounded, tokens } from "@/theme";
 import type { MealRecord, MealType } from "@/types";
 
 interface TodayMealListProps {
-  /** 今日の食事記録(時刻昇順) */
+  /** 表示日の食事記録(時刻昇順) */
   meals: MealRecord[];
   totalKcal: number;
+  /** 表示中の日付(YYYY-MM-DD)。記録画面へそのまま引き継ぐ(Issue #226) */
+  date: string;
+  isToday: boolean;
 }
 
 /**
  * ホーム画面の「今日の食事」セクション。区分ごとに1つの入り口を出し、
  * 記録済みは品数・料理名プレビュー・区分合計を表示する。タップでその区分の記録画面へ(Issue #126)
  */
-export default function TodayMealList({ meals, totalKcal }: TodayMealListProps) {
+export default function TodayMealList({ meals, totalKcal, date, isToday }: TodayMealListProps) {
   const navigate = useNavigate();
 
   const mealsByType = new Map<MealType, MealRecord[]>();
@@ -30,7 +33,7 @@ export default function TodayMealList({ meals, totalKcal }: TodayMealListProps) 
   return (
     <>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: "12px", px: "2px" }}>
-        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>今日の食事</Typography>
+        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>{isToday ? "今日の食事" : "この日の食事"}</Typography>
         <Typography sx={{ fontSize: 12, fontWeight: 500, color: "text.secondary" }}>
           合計 {totalKcal.toLocaleString()} kcal
         </Typography>
@@ -39,7 +42,7 @@ export default function TodayMealList({ meals, totalKcal }: TodayMealListProps) 
         {MEAL_TYPE_ORDER.map((mealType) => {
           const { label, Icon, iconBg, iconColor } = MEAL_TYPE_META[mealType];
           const items = mealsByType.get(mealType);
-          const openMeal = () => navigate(`/record/meal?type=${mealType}`);
+          const openMeal = () => navigate(`/record/meal?type=${mealType}&date=${date}`);
 
           if (!items) {
             return (

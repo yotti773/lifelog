@@ -203,6 +203,34 @@ describe("buildDailyShareCard", () => {
   });
 });
 
+describe("過去日の日次カード(Issue #226)", () => {
+  it("表示日が今日でなければ「今日の」と言わない", () => {
+    const card = buildDailyShareCard(dailySource({ date: "2026-08-18" }), { today: "2026-08-19" });
+
+    expect(card.title).toBe("この日の記録");
+    expect(card.headline?.caption).toBe("この日の体重");
+    expect(card.period).toBe("8月18日(火)");
+    expect(card.fileDate).toBe("2026-08-18");
+  });
+
+  it("体重が無い過去日は摂取カロリーを主数値にし、数値欄では繰り返さない", () => {
+    const card = buildDailyShareCard(
+      dailySource({ date: "2026-08-18", weightKg: null, previousWeightKg: null }),
+      { today: "2026-08-19" },
+    );
+
+    expect(card.headline).toEqual({ caption: "この日の摂取", value: "1,820", unit: "kcal" });
+    expect(card.stats.map((stat) => stat.label)).not.toContain("摂取カロリー");
+  });
+
+  it("表示日が今日なら従来どおりの文言", () => {
+    const card = buildDailyShareCard(dailySource(), { today: "2026-08-19" });
+
+    expect(card.title).toBe("今日の記録");
+    expect(card.headline?.caption).toBe("今日の体重");
+  });
+});
+
 describe("筋トレの明細(日次)", () => {
   /** 種目名・重量・回数から、セット数分のレコードを作る */
   function sets(

@@ -15,18 +15,29 @@ export function buildRecordedDateSet(weightDates: Iterable<string>, mealDates: I
 }
 
 /**
- * 今日時点の連続記録日数。
- * 「切れた」判定に当日は含めない: 今日まだ記録していなくても、昨日まで連続していれば継続中として数える。
+ * 指定日で終わる連続記録日数(その日を含めて過去へさかのぼる)。
+ * **その日が未記録なら0** — 過去日を振り返るとき(Issue #226)は「その日時点で何日続いていたか」を
+ * そのまま出すため、未記録の日に前日までの連続日数を出さない。
  */
-export function currentStreakDays(recordedDates: ReadonlySet<string>, today: string): number {
-  // 起点は今日(記録済みなら)または昨日。どちらも未記録なら連続は切れている
-  let cursor = recordedDates.has(today) ? today : addDaysToDateString(today, -1);
+export function streakDaysEndingOn(recordedDates: ReadonlySet<string>, date: string): number {
+  let cursor = date;
   let streak = 0;
   while (recordedDates.has(cursor)) {
     streak += 1;
     cursor = addDaysToDateString(cursor, -1);
   }
   return streak;
+}
+
+/**
+ * 今日時点の連続記録日数。
+ * 「切れた」判定に当日は含めない: 今日まだ記録していなくても、昨日まで連続していれば継続中として数える。
+ * この猶予は**当日にだけ認める** — 過去日にはstreakDaysEndingOn()を使う(Issue #226)。
+ */
+export function currentStreakDays(recordedDates: ReadonlySet<string>, today: string): number {
+  // 起点は今日(記録済みなら)または昨日。どちらも未記録なら連続は切れている
+  const from = recordedDates.has(today) ? today : addDaysToDateString(today, -1);
+  return streakDaysEndingOn(recordedDates, from);
 }
 
 /** 指定範囲(両端含む)の「記録した日」の数。週次レビューの記録率(◯/7日)に使う */

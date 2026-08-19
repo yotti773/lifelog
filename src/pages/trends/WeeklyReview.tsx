@@ -26,7 +26,7 @@ import { getDiaryRecordsByDateRange } from "@/db/diaryRecords";
 import { getSettings, updateSettings } from "@/db/settings";
 import { formatMonthDay } from "@/lib/date";
 import { suggestCalorieTarget } from "@/lib/nutritionCalc";
-import { buildWeeklyShareCard } from "@/lib/shareCard";
+import { buildWeeklyShareCard, hasShareCardContent } from "@/lib/shareCard";
 import { ACTIVITY_MIN_RECORDED_DAYS } from "@/lib/weeklyDigest";
 import { fontRounded, tokens } from "@/theme";
 import type { DigestFlag, WeeklyDigest } from "@/types";
@@ -184,7 +184,7 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
   const hasPfcData = pfc.avgProteinG !== null || pfc.targetProteinG !== null;
 
   // SNS共有カード(Issue #235)。載せる数字が1つも無い週は導線ごと出さない
-  const shareCardHasContent = buildWeeklyShareCard(digest).headline !== null;
+  const shareCardHasContent = hasShareCardContent(buildWeeklyShareCard(digest));
 
   return (
     <>

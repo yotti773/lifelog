@@ -53,6 +53,16 @@ export interface ShareCardOptions {
   hideWeightValue?: boolean;
 }
 
+/**
+ * カードに1つでも載せられる数字があるか。共有導線を出すかどうかの判定に使う。
+ * **`headline`だけを見てはいけない** — 主数値(体重・摂取カロリーなど)が無い日でも
+ * 水分・歩数・筋トレだけは記録している、ということがありうる。要件は「載せる数字が
+ * 1つも無ければ非表示」であって「主数値が無ければ非表示」ではない
+ */
+export function hasShareCardContent(model: ShareCardModel): boolean {
+  return model.headline !== null || model.stats.length > 0;
+}
+
 /** 1,850 のように3桁区切りにする(toLocaleStringはロケール依存のため使わない) */
 function formatInt(n: number): string {
   const rounded = Math.round(n);

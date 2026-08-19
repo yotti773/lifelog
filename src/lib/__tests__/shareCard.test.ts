@@ -3,6 +3,7 @@ import {
   MAX_SHARE_CARD_STATS,
   buildDailyShareCard,
   buildWeeklyShareCard,
+  hasShareCardContent,
   type DailyShareSource,
 } from "../shareCard";
 import type { WeeklyDigest } from "@/types";
@@ -193,5 +194,46 @@ describe("buildDailyShareCard", () => {
 
     expect(card.headline).toBeNull();
     expect(card.stats).toEqual([]);
+  });
+});
+
+describe("hasShareCardContent", () => {
+  it("主数値(体重・摂取カロリー等)が無くても、水分や歩数だけの記録があれば導線を出す", () => {
+    // 体重も食事も未記録で、水分と歩数だけ記録した日(headlineはnullになるが、共有すべき数字はある)
+    const card = buildDailyShareCard(
+      dailySource({
+        weightKg: null,
+        previousWeightKg: null,
+        intakeKcal: null,
+        proteinG: null,
+        fatG: null,
+        carbsG: null,
+        workoutExercises: 0,
+        streakDays: 0,
+      }),
+    );
+
+    expect(card.headline).toBeNull();
+    expect(card.stats.length).toBeGreaterThan(0);
+    expect(hasShareCardContent(card)).toBe(true);
+  });
+
+  it("何も記録が無ければ導線を出さない", () => {
+    const card = buildDailyShareCard(
+      dailySource({
+        weightKg: null,
+        previousWeightKg: null,
+        intakeKcal: null,
+        proteinG: null,
+        fatG: null,
+        carbsG: null,
+        waterMl: null,
+        steps: null,
+        workoutExercises: 0,
+        streakDays: 0,
+      }),
+    );
+
+    expect(hasShareCardContent(card)).toBe(false);
   });
 });

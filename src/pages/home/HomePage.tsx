@@ -13,7 +13,7 @@ import { getWaterRecordsForDate } from "@/db/waterRecords";
 import { getWorkoutRecordsForDate } from "@/db/workoutRecords";
 import { localDateRangeToUtcIso, todayDateString } from "@/lib/date";
 import { currentStreakDays } from "@/lib/recording";
-import { buildDailyShareCard, type DailyShareSource } from "@/lib/shareCard";
+import { buildDailyShareCard, hasShareCardContent, type DailyShareSource } from "@/lib/shareCard";
 import { fontRounded, tokens } from "@/theme";
 import BodyMetricsCards from "./BodyMetricsCards";
 import CalorieCard from "./CalorieCard";
@@ -112,7 +112,7 @@ export default function HomePage() {
     workoutExercises: new Set(workoutRecords.map((record) => record.exerciseName)).size,
     streakDays: streakDays ?? 0,
   };
-  const shareCardHasContent = buildDailyShareCard(shareSource).headline !== null;
+  const shareCardHasContent = hasShareCardContent(buildDailyShareCard(shareSource));
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "130px" }}>

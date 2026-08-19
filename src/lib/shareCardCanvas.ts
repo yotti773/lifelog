@@ -43,12 +43,12 @@ const REQUIRED_FONTS = [
 ];
 
 /**
- * フッターに置くアプリアイコン。**PWAアイコンのマスター(docs/icon/icon_master.svg)のコピーを
+ * 署名に置くアプリアイコン。**PWAアイコンのマスター(docs/icon/icon_master.svg)のコピーを
  * そのまま読み込む** — canvasに手で描き写すと、マスターを直したときに画像だけ古い絵が残るため。
  * 同一オリジンのSVGなのでcanvasは汚染されず、書き出し(toBlob)もそのまま通る。
  */
 const APP_ICON_SRC = "/icons/icon.svg";
-const FOOTER_ICON_SIZE = 38;
+const SIGNATURE_ICON_SIZE = 38;
 
 let appIconPromise: Promise<HTMLImageElement | null> | null = null;
 
@@ -115,11 +115,28 @@ function badgeColors(tone: ShareCardBadge["tone"]) {
   return { bg: tokens.beigeSoft, fg: SUB };
 }
 
+/**
+ * 縦の配置(すべてベースラインのY座標)。カードの内側は40〜635で、
+ * **フッターを持たない代わりに上下の余白を揃えている** — 見出しの上が約56px空くのに合わせ、
+ * 最下段(数値欄)の下も同じくらい残るよう各段を配る。ここを動かすときは
+ * 「明細の最終行」と「数値欄のラベル」が重ならないことを必ず確認する(下の対応表を参照)
+ */
+const TITLE_Y = 124;
+const PERIOD_Y = 168;
+/** 見出し行の右端に置く署名(アイコン + アプリ名)もタイトルと同じベースライン */
+const SIGNATURE_Y = TITLE_Y;
+const HEADLINE_CAPTION_Y = 274;
+const HEADLINE_VALUE_Y = 384;
+const STAT_LABEL_Y = 505;
+const STAT_VALUE_Y = 563;
+const STAT_SUB_Y = 595;
+
 /** 明細ブロック(筋トレの内訳)の左端。主数値の右の空き領域に置く */
 const DETAIL_LEFT = 636;
-/** 明細の1行目のベースラインと行間 */
-const DETAIL_FIRST_ROW_Y = 312;
-const DETAIL_ROW_HEIGHT = 40;
+/** 明細の見出し・1行目のベースラインと行間。最終行(4行目 or 注記)は462で、数値欄のラベル(505)と重ならない */
+const DETAIL_TITLE_Y = HEADLINE_CAPTION_Y;
+const DETAIL_FIRST_ROW_Y = 336;
+const DETAIL_ROW_HEIGHT = 42;
 const DETAIL_FONT_SIZE = 21;
 
 /** 収まらない文字列を末尾「…」で切り詰める(種目名が長い場合の保険) */
@@ -142,9 +159,12 @@ function drawDetails(ctx: CanvasRenderingContext2D, details: ShareCardModel["det
   // 右半分に置くときと同じ列幅に揃える
   const right = Math.min(CONTENT_RIGHT, left + (CONTENT_RIGHT - DETAIL_LEFT));
 
-  const titleWidth = drawText(ctx, details.title, left, 262, { font: `700 24px ${fontRounded}`, color: INK });
+  const titleWidth = drawText(ctx, details.title, left, DETAIL_TITLE_Y, { font: `700 24px ${fontRounded}`, color: INK });
   if (details.subtitle !== undefined) {
-    drawText(ctx, details.subtitle, left + titleWidth + 14, 262, { font: `400 20px ${fontBody}`, color: tokens.faint });
+    drawText(ctx, details.subtitle, left + titleWidth + 14, DETAIL_TITLE_Y, {
+      font: `400 20px ${fontBody}`,
+      color: tokens.faint,
+    });
   }
 
   details.rows.forEach((row, i) => {
@@ -187,7 +207,7 @@ function fitScale(ctx: CanvasRenderingContext2D, stat: ShareCardModel["stats"][n
 
 /**
  * モデルの内容をcanvasへ描く。canvasのサイズもここで設定する(呼び出し側は空の<canvas>を渡す)。
- * brandはフッターの署名(アプリアイコン + アプリ名)。
+ * brandは見出し行の右端に置く署名(アプリアイコン + アプリ名)。
  */
 export async function drawShareCard(
   canvas: HTMLCanvasElement,
@@ -224,22 +244,36 @@ export async function drawShareCard(
   ctx.restore();
 
   // 見出し(何の記録か)と期間
-  drawText(ctx, model.title, CONTENT_LEFT, 124, { font: `700 36px ${fontRounded}`, color: INK });
-  drawText(ctx, model.period, CONTENT_LEFT, 168, { font: `400 24px ${fontBody}`, color: SUB });
+  drawText(ctx, model.title, CONTENT_LEFT, TITLE_Y, { font: `700 36px ${fontRounded}`, color: INK });
+  drawText(ctx, model.period, CONTENT_LEFT, PERIOD_Y, { font: `400 24px ${fontBody}`, color: SUB });
+
+  // 署名(アプリアイコン + アプリ名)。見出しの右端に置き、フッターは持たない
+  const icon = await iconPromise;
+  ctx.font = `700 26px ${fontRounded}`;
+  const appNameWidth = ctx.measureText(brand.appName).width;
+  drawText(ctx, brand.appName, CONTENT_RIGHT, SIGNATURE_Y, {
+    font: `700 26px ${fontRounded}`,
+    color: PRIMARY,
+    align: "right",
+  });
+  if (icon !== null) {
+    const iconX = CONTENT_RIGHT - appNameWidth - 14 - SIGNATURE_ICON_SIZE;
+    ctx.drawImage(icon, iconX, SIGNATURE_Y - SIGNATURE_ICON_SIZE + 8, SIGNATURE_ICON_SIZE, SIGNATURE_ICON_SIZE);
+  }
 
   // 主数値。明細ブロックがある日はカードの右半分を明細に譲るため、バッジを見出し行へ移す
   // (バッジを数値の右に置いたままだと、長いバッジが明細の列に重なる)
   const hasDetails = model.details !== null;
   if (model.headline !== null) {
-    const captionWidth = drawText(ctx, model.headline.caption, CONTENT_LEFT, 262, {
+    const captionWidth = drawText(ctx, model.headline.caption, CONTENT_LEFT, HEADLINE_CAPTION_Y, {
       font: `400 22px ${fontBody}`,
       color: tokens.faint,
     });
-    const valueWidth = drawText(ctx, model.headline.value, CONTENT_LEFT, 372, {
+    const valueWidth = drawText(ctx, model.headline.value, CONTENT_LEFT, HEADLINE_VALUE_Y, {
       font: `800 112px ${fontRounded}`,
       color: INK,
     });
-    const unitWidth = drawText(ctx, model.headline.unit, CONTENT_LEFT + valueWidth + 10, 372, {
+    const unitWidth = drawText(ctx, model.headline.unit, CONTENT_LEFT + valueWidth + 10, HEADLINE_VALUE_Y, {
       font: `700 34px ${fontRounded}`,
       color: SUB,
     });
@@ -252,7 +286,7 @@ export async function drawShareCard(
       const textWidth = ctx.measureText(model.badge.text).width;
       const padX = hasDetails ? 22 : 28;
       const badgeX = hasDetails ? CONTENT_LEFT + captionWidth + 20 : CONTENT_LEFT + valueWidth + unitWidth + 40;
-      const badgeY = hasDetails ? 262 - 16 - badgeH / 2 : 372 - 34 - badgeH / 2;
+      const badgeY = hasDetails ? HEADLINE_CAPTION_Y - 16 - badgeH / 2 : HEADLINE_VALUE_Y - 34 - badgeH / 2;
       ctx.fillStyle = bg;
       roundRectPath(ctx, badgeX, badgeY, textWidth + padX * 2, badgeH, badgeH / 2);
       ctx.fill();
@@ -273,39 +307,23 @@ export async function drawShareCard(
     const columnWidth = (CONTENT_RIGHT - CONTENT_LEFT) / model.stats.length;
     model.stats.forEach((stat, i) => {
       const x = CONTENT_LEFT + columnWidth * i;
-      drawText(ctx, stat.label, x, 470, { font: `400 20px ${fontBody}`, color: SUB });
+      drawText(ctx, stat.label, x, STAT_LABEL_Y, { font: `400 20px ${fontBody}`, color: SUB });
       // 桁数の多い値(PFCの「180/120/450」など)が隣の列に食い込まないよう、収まる大きさまで縮める
       const scale = fitScale(ctx, stat, columnWidth - STAT_GUTTER);
       const valueFont = `700 ${Math.round(STAT_VALUE_SIZE * scale)}px ${fontRounded}`;
-      const valueWidth = drawText(ctx, stat.value, x, 528, { font: valueFont, color: INK });
+      const valueWidth = drawText(ctx, stat.value, x, STAT_VALUE_Y, { font: valueFont, color: INK });
       if (stat.unit !== undefined) {
-        drawText(ctx, stat.unit, x + valueWidth + 6, 528, {
+        drawText(ctx, stat.unit, x + valueWidth + 6, STAT_VALUE_Y, {
           font: `700 ${Math.round(STAT_UNIT_SIZE * scale)}px ${fontRounded}`,
           color: SUB,
         });
       }
       if (stat.sub !== undefined) {
-        drawText(ctx, stat.sub, x, 560, { font: `400 19px ${fontBody}`, color: tokens.faint });
+        drawText(ctx, stat.sub, x, STAT_SUB_Y, { font: `400 19px ${fontBody}`, color: tokens.faint });
       }
     });
   }
 
-  // フッターの署名(アプリアイコン + アプリ名)。URLは載せない —
-  // 投稿本文側にリンクを置く運用で、画像の中の生のホスト名は読み手の役に立たないため
-  ctx.strokeStyle = tokens.divider;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(CONTENT_LEFT, 586);
-  ctx.lineTo(CONTENT_RIGHT, 586);
-  ctx.stroke();
-
-  const icon = await iconPromise;
-  let signatureX = CONTENT_LEFT;
-  if (icon !== null) {
-    ctx.drawImage(icon, signatureX, 620 - FOOTER_ICON_SIZE + 8, FOOTER_ICON_SIZE, FOOTER_ICON_SIZE);
-    signatureX += FOOTER_ICON_SIZE + 14;
-  }
-  drawText(ctx, brand.appName, signatureX, 620, { font: `700 26px ${fontRounded}`, color: PRIMARY });
 }
 
 export function shareCardToBlob(canvas: HTMLCanvasElement): Promise<Blob> {

@@ -151,7 +151,18 @@ export default function HomePage() {
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "130px" }}>
       {/* ヘッダー。日付ナビで過去日を振り返れる(Issue #226) */}
       <Box sx={{ mb: "20px" }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", mb: "3px" }}>
+        {/* 「今日へ」ボタン(ピル型)の有無で行の高さが変わると、日付が上下にずれて見える。
+            当日・過去日のどちらでも同じ高さになるよう固定する */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "8px",
+            mb: "3px",
+            minHeight: "24px",
+          }}
+        >
           <Typography sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary" }}>
             {isToday ? greeting(now.getHours()) : pastDayLabel(daysAgo)}
           </Typography>
@@ -184,7 +195,18 @@ export default function HomePage() {
             >
               <IconBack size={12} />
             </ButtonBase>
-            <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 22, letterSpacing: ".01em", whiteSpace: "nowrap" }}>
+            <Typography
+              sx={{
+                fontFamily: fontRounded,
+                fontWeight: 700,
+                fontSize: 22,
+                letterSpacing: ".01em",
+                whiteSpace: "nowrap",
+                // 日付の桁数(8月9日 / 12月28日)で幅が変わると「次の日」ボタンが左右に動く。
+                // 最長の日付に合わせた最小幅を確保して、ナビの位置を固定する
+                minWidth: "150px",
+              }}
+            >
               {Number(date.slice(5, 7))}月{Number(date.slice(8, 10))}日
               <Box component="span" sx={{ fontSize: 15, color: "text.secondary", ml: "6px", fontWeight: 500 }}>
                 {WEEKDAY_LABELS[new Date(`${date}T00:00:00`).getDay()]}曜日

@@ -28,6 +28,21 @@ export interface ShareCardBadge {
   tone: "down" | "up" | "flat";
 }
 
+/**
+ * 明細ブロック(日次の筋トレ内訳。Issue #235)。数値欄の1マスでは表せない
+ * 「種目ごとの重量・回数・セット数」を、主数値の横の空き領域に一覧で置くためのもの
+ */
+export interface ShareCardDetails {
+  title: string; // 「筋トレ」
+  subtitle?: string; // 「3種目・9セット」
+  rows: { label: string; value: string }[];
+  /** 行数の上限で入り切らなかった分の注記(「ほか2種目」) */
+  note?: string;
+}
+
+/** 明細ブロックに並べる行の上限。これ以上は縮小表示で読めなくなる */
+export const MAX_SHARE_CARD_DETAIL_ROWS = 4;
+
 export interface ShareCardModel {
   kind: "weekly" | "daily";
   title: string;
@@ -36,6 +51,8 @@ export interface ShareCardModel {
   headline: { caption: string; value: string; unit: string } | null;
   badge: ShareCardBadge | null;
   stats: ShareCardStat[];
+  /** 主数値の横に置く明細(日次の筋トレ内訳)。無ければnull */
+  details: ShareCardDetails | null;
   /**
    * 伏せる前のカードが体重の実数を含むかどうか。
    * 「体重の数値を隠す」トグルを出すかの判定に使う(hideWeightValueの値に関わらず同じ結果になる)
@@ -60,7 +77,7 @@ export interface ShareCardOptions {
  * 1つも無ければ非表示」であって「主数値が無ければ非表示」ではない
  */
 export function hasShareCardContent(model: ShareCardModel): boolean {
-  return model.headline !== null || model.stats.length > 0;
+  return model.headline !== null || model.stats.length > 0 || model.details !== null;
 }
 
 /** 1,850 のように3桁区切りにする(toLocaleStringはロケール依存のため使わない) */
@@ -81,6 +98,91 @@ function weightTone(changeKg: number): ShareCardBadge["tone"] {
   if (changeKg < 0) return "down";
   if (changeKg > 0) return "up";
   return "flat";
+}
+
+/** 60 → 「60」、62.5 → 「62.5」(重量の末尾の .0 を出さない) */
+function formatWeight(kg: number): string {
+  return String(Math.round(kg * 10) / 10);
+}
+
+/** 種目ごとにまとめた筋トレの内訳(1種目=1行) */
+export interface WorkoutSummaryRow {
+  exerciseName: string;
+  setCount: number;
+  /** 「60kg×8回」「50〜60kg×8〜10回」「自重×10回」 */
+  loadText: string;
+}
+
+/**
+ * その日の筋トレのセットを種目ごとにまとめる(Issue #235)。
+ *
+ * **種目の区切りは名前ではなく `exerciseOrder`** — 同じ種目名を別カードとして2回記録できる仕様のため
+ * (履歴確認画面の `groupWorkoutHistoryDays` と同じ数え方に揃えている)。
+ * 重量・回数はセットごとに違いうるので、全セット同じならその値、違えば範囲で示す
+ * (「トップセットだけ」のような選び方をすると、実際にやった内容と食い違って見えるため)。
+ */
+export function summarizeWorkoutSets(sets: DailyWorkoutSet[]): WorkoutSummaryRow[] {
+  const sorted = [...sets].sort((a, b) => a.exerciseOrder - b.exerciseOrder || a.setNumber - b.setNumber);
+  const rows: WorkoutSummaryRow[] = [];
+  let currentOrder: number | null = null;
+  let current: DailyWorkoutSet[] = [];
+
+  const flush = () => {
+    if (current.length === 0) return;
+    const weights = current.map((s) => s.weightKg);
+    const reps = current.map((s) => s.reps);
+    const minWeight = Math.min(...weights);
+    const maxWeight = Math.max(...weights);
+    const minReps = Math.min(...reps);
+    const maxReps = Math.max(...reps);
+    // 重量0は自重トレーニング(スクワット・腕立てなど)の記録として扱う
+    const weightText =
+      minWeight === maxWeight
+        ? minWeight === 0
+          ? "自重"
+          : `${formatWeight(minWeight)}kg`
+        : `${formatWeight(minWeight)}〜${formatWeight(maxWeight)}kg`;
+    const repsText = minReps === maxReps ? `${minReps}回` : `${minReps}〜${maxReps}回`;
+    rows.push({
+      exerciseName: current[0].exerciseName,
+      setCount: current.length,
+      loadText: `${weightText}×${repsText}`,
+    });
+    current = [];
+  };
+
+  for (const set of sorted) {
+    if (set.exerciseOrder !== currentOrder) {
+      flush();
+      currentOrder = set.exerciseOrder;
+    }
+    current.push(set);
+  }
+  flush();
+  return rows;
+}
+
+/** 種目一覧を明細ブロックに整形する。行数の上限を超えたら「ほか◯種目」にまとめる */
+function buildWorkoutDetails(sets: DailyWorkoutSet[]): ShareCardDetails | null {
+  const summaries = summarizeWorkoutSets(sets);
+  if (summaries.length === 0) return null;
+
+  // 上限ちょうどなら全部載る。超える場合は最後の1行を「ほか◯種目」に譲る
+  const visible =
+    summaries.length <= MAX_SHARE_CARD_DETAIL_ROWS
+      ? summaries
+      : summaries.slice(0, MAX_SHARE_CARD_DETAIL_ROWS - 1);
+  const hidden = summaries.length - visible.length;
+
+  return {
+    title: "筋トレ",
+    subtitle: `${summaries.length}種目・${sets.length}セット`,
+    rows: visible.map((row) => ({
+      label: row.exerciseName,
+      value: `${row.loadText} ${row.setCount}セット`,
+    })),
+    note: hidden > 0 ? `ほか${hidden}種目` : undefined,
+  };
 }
 
 /** YYYY-MM-DD → 「8月19日(火)」 */
@@ -149,9 +251,21 @@ export function buildWeeklyShareCard(digest: WeeklyDigest, options: ShareCardOpt
     headline,
     badge,
     stats: stats.slice(0, MAX_SHARE_CARD_STATS),
+    // 週次は種目ごとの内訳を持たない(WeeklyDigest.workoutは日数・種目数・総セット数の集計のみ)
+    details: null,
     hasWeightValue: weight.weekAvgKg !== null,
     fileDate: digest.period.start,
   };
+}
+
+/** 筋トレのセット1件(1セット=1レコード)。WorkoutRecordのうちカードに要る項目だけ */
+export interface DailyWorkoutSet {
+  exerciseName: string;
+  /** 画面上で何番目の種目カードか。同名を別種目として扱うための区切りに使う */
+  exerciseOrder: number;
+  setNumber: number;
+  weightKg: number;
+  reps: number;
 }
 
 /**
@@ -173,8 +287,8 @@ export interface DailyShareSource {
   waterMl: number | null;
   /** Garmin計測の歩数(当日分はまだ取り込まれていないことが多い) */
   steps: number | null;
-  /** その日に記録した筋トレの種目数 */
-  workoutExercises: number;
+  /** その日に記録した筋トレのセット(空配列なら未記録)。種目ごとにまとめて明細に出す */
+  workoutSets: DailyWorkoutSet[];
   streakDays: number;
 }
 
@@ -222,9 +336,6 @@ export function buildDailyShareCard(src: DailyShareSource, options: ShareCardOpt
   if (src.steps !== null) {
     stats.push({ label: "歩数", value: formatInt(src.steps), unit: "歩" });
   }
-  if (src.workoutExercises > 0) {
-    stats.push({ label: "筋トレ", value: String(src.workoutExercises), unit: "種目" });
-  }
   if (src.streakDays > 0) {
     stats.push({ label: "連続記録", value: String(src.streakDays), unit: "日" });
   }
@@ -236,6 +347,9 @@ export function buildDailyShareCard(src: DailyShareSource, options: ShareCardOpt
     headline,
     badge,
     stats: stats.slice(0, MAX_SHARE_CARD_STATS),
+    // 筋トレは「◯種目」という数だけでは中身が伝わらないため、数値欄ではなく
+    // 種目ごとの明細(重量×回数・セット数)として出す
+    details: buildWorkoutDetails(src.workoutSets),
     hasWeightValue: src.weightKg !== null,
     fileDate: src.date,
   };

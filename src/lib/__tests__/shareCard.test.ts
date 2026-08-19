@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_SHARE_CARD_DETAIL_ROWS,
   MAX_SHARE_CARD_STATS,
   buildDailyShareCard,
   buildWeeklyShareCard,
   hasShareCardContent,
+  summarizeWorkoutSets,
   type DailyShareSource,
+  type DailyWorkoutSet,
 } from "../shareCard";
 import type { WeeklyDigest } from "@/types";
 
@@ -55,7 +58,10 @@ function dailySource(overrides: Partial<DailyShareSource> = {}): DailyShareSourc
     carbsG: 203.2,
     waterMl: 1600,
     steps: 8231,
-    workoutExercises: 3,
+    workoutSets: [
+      ...[1, 2, 3].map((setNumber) => ({ exerciseName: "ベンチプレス", exerciseOrder: 1, setNumber, weightKg: 60, reps: 8 })),
+      ...[1, 2, 3].map((setNumber) => ({ exerciseName: "スクワット", exerciseOrder: 2, setNumber, weightKg: 80, reps: 5 })),
+    ],
     streakDays: 97,
     ...overrides,
   };
@@ -170,7 +176,7 @@ describe("buildDailyShareCard", () => {
 
   it("記録の無い項目は数値欄に出さない", () => {
     const card = buildDailyShareCard(
-      dailySource({ waterMl: null, steps: null, workoutExercises: 0, streakDays: 0 }),
+      dailySource({ waterMl: null, steps: null, workoutSets: [], streakDays: 0 }),
     );
 
     expect(card.stats.map((stat) => stat.label)).toEqual(["摂取カロリー", "PFC"]);
@@ -187,13 +193,111 @@ describe("buildDailyShareCard", () => {
         carbsG: null,
         waterMl: null,
         steps: null,
-        workoutExercises: 0,
+        workoutSets: [],
         streakDays: 0,
       }),
     );
 
     expect(card.headline).toBeNull();
     expect(card.stats).toEqual([]);
+  });
+});
+
+describe("筋トレの明細(日次)", () => {
+  /** 種目名・重量・回数から、セット数分のレコードを作る */
+  function sets(
+    exerciseName: string,
+    exerciseOrder: number,
+    load: { weightKg: number; reps: number }[],
+  ): DailyWorkoutSet[] {
+    return load.map((l, i) => ({ exerciseName, exerciseOrder, setNumber: i + 1, ...l }));
+  }
+
+  it("種目ごとに重量×回数とセット数をまとめる", () => {
+    const card = buildDailyShareCard(dailySource());
+
+    expect(card.details).toEqual({
+      title: "筋トレ",
+      subtitle: "2種目・6セット",
+      rows: [
+        { label: "ベンチプレス", value: "60kg×8回 3セット" },
+        { label: "スクワット", value: "80kg×5回 3セット" },
+      ],
+      note: undefined,
+    });
+    // 明細に出すため、数値欄には「◯種目」を重ねて出さない
+    expect(card.stats.map((stat) => stat.label)).not.toContain("筋トレ");
+  });
+
+  it("セットごとに重量・回数が違う種目は範囲で示す", () => {
+    const rows = summarizeWorkoutSets(
+      sets("ベンチプレス", 1, [
+        { weightKg: 50, reps: 10 },
+        { weightKg: 60, reps: 8 },
+        { weightKg: 60, reps: 6 },
+      ]),
+    );
+
+    expect(rows).toEqual([{ exerciseName: "ベンチプレス", setCount: 3, loadText: "50〜60kg×6〜10回" }]);
+  });
+
+  it("重量0のセットは自重として示し、重量の末尾の.0は出さない", () => {
+    const rows = summarizeWorkoutSets([
+      ...sets("腕立て伏せ", 1, [{ weightKg: 0, reps: 20 }]),
+      ...sets("ダンベルカール", 2, [{ weightKg: 12.5, reps: 10 }]),
+    ]);
+
+    expect(rows.map((row) => row.loadText)).toEqual(["自重×20回", "12.5kg×10回"]);
+  });
+
+  it("同じ種目名でも別カード(exerciseOrderが違う)なら別の行にする", () => {
+    const rows = summarizeWorkoutSets([
+      ...sets("ベンチプレス", 1, [{ weightKg: 60, reps: 8 }]),
+      ...sets("ベンチプレス", 2, [{ weightKg: 40, reps: 15 }]),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.loadText)).toEqual(["60kg×8回", "40kg×15回"]);
+  });
+
+  it("入力の並びが崩れていてもexerciseOrder・setNumber順にまとめ直す", () => {
+    const rows = summarizeWorkoutSets([
+      { exerciseName: "スクワット", exerciseOrder: 2, setNumber: 1, weightKg: 80, reps: 5 },
+      { exerciseName: "ベンチプレス", exerciseOrder: 1, setNumber: 2, weightKg: 60, reps: 8 },
+      { exerciseName: "ベンチプレス", exerciseOrder: 1, setNumber: 1, weightKg: 60, reps: 8 },
+    ]);
+
+    expect(rows.map((row) => row.exerciseName)).toEqual(["ベンチプレス", "スクワット"]);
+    expect(rows[0].setCount).toBe(2);
+  });
+
+  it("種目が多い日は行数の上限で打ち切り、残りは「ほか◯種目」にまとめる", () => {
+    const many = Array.from({ length: 6 }, (_, i) =>
+      sets(`種目${i + 1}`, i + 1, [{ weightKg: 40, reps: 10 }]),
+    ).flat();
+
+    const card = buildDailyShareCard(dailySource({ workoutSets: many }));
+
+    expect(card.details?.subtitle).toBe("6種目・6セット");
+    expect(card.details?.rows).toHaveLength(MAX_SHARE_CARD_DETAIL_ROWS - 1);
+    expect(card.details?.note).toBe("ほか3種目");
+  });
+
+  it("上限ちょうどの種目数なら「ほか」を出さずに全部載せる", () => {
+    const exact = Array.from({ length: MAX_SHARE_CARD_DETAIL_ROWS }, (_, i) =>
+      sets(`種目${i + 1}`, i + 1, [{ weightKg: 40, reps: 10 }]),
+    ).flat();
+
+    const card = buildDailyShareCard(dailySource({ workoutSets: exact }));
+
+    expect(card.details?.rows).toHaveLength(MAX_SHARE_CARD_DETAIL_ROWS);
+    expect(card.details?.note).toBeUndefined();
+  });
+
+  it("筋トレの記録が無い日は明細を出さない", () => {
+    expect(buildDailyShareCard(dailySource({ workoutSets: [] })).details).toBeNull();
+    // 週次カードは種目ごとの内訳を持たない
+    expect(buildWeeklyShareCard(weeklyDigest()).details).toBeNull();
   });
 });
 
@@ -208,7 +312,7 @@ describe("hasShareCardContent", () => {
         proteinG: null,
         fatG: null,
         carbsG: null,
-        workoutExercises: 0,
+        workoutSets: [],
         streakDays: 0,
       }),
     );
@@ -229,7 +333,7 @@ describe("hasShareCardContent", () => {
         carbsG: null,
         waterMl: null,
         steps: null,
-        workoutExercises: 0,
+        workoutSets: [],
         streakDays: 0,
       }),
     );

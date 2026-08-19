@@ -109,7 +109,13 @@ export default function HomePage() {
     carbsG: meals.length > 0 ? totalCarbsG : null,
     waterMl: waterRecords.length > 0 ? waterRecords.reduce((sum, record) => sum + record.amountMl, 0) : null,
     steps: todayActivity?.steps ?? null,
-    workoutExercises: new Set(workoutRecords.map((record) => record.exerciseName)).size,
+    workoutSets: workoutRecords.map(({ exerciseName, exerciseOrder, setNumber, weightKg, reps }) => ({
+      exerciseName,
+      exerciseOrder,
+      setNumber,
+      weightKg,
+      reps,
+    })),
     streakDays: streakDays ?? 0,
   };
   const shareCardHasContent = hasShareCardContent(buildDailyShareCard(shareSource));

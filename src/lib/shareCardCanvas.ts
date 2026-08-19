@@ -36,7 +36,9 @@ const REQUIRED_FONTS = [
   `700 44px ${fontRounded}`,
   `700 36px ${fontRounded}`,
   `700 24px ${fontRounded}`,
+  `700 21px ${fontRounded}`,
   `400 24px ${fontBody}`,
+  `400 21px ${fontBody}`,
   `400 20px ${fontBody}`,
 ];
 
@@ -81,6 +83,59 @@ function badgeColors(tone: ShareCardBadge["tone"]) {
   if (tone === "down") return { bg: tokens.secondarySoft, fg: tokens.secondaryDeep };
   if (tone === "up") return { bg: tokens.primarySoft, fg: PRIMARY };
   return { bg: tokens.beigeSoft, fg: SUB };
+}
+
+/** 明細ブロック(筋トレの内訳)の左端。主数値の右の空き領域に置く */
+const DETAIL_LEFT = 636;
+/** 明細の1行目のベースラインと行間 */
+const DETAIL_FIRST_ROW_Y = 312;
+const DETAIL_ROW_HEIGHT = 40;
+const DETAIL_FONT_SIZE = 21;
+
+/** 収まらない文字列を末尾「…」で切り詰める(種目名が長い場合の保険) */
+function truncateToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let truncated = text;
+  while (truncated.length > 1 && ctx.measureText(`${truncated}…`).width > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+  return `${truncated}…`;
+}
+
+/**
+ * 明細ブロック(見出し + 「種目名 …… 60kg×8回 3セット」の行)。
+ * 種目名は左揃え、内容は右揃えにして、行ごとの視線の折り返しを短くする
+ */
+function drawDetails(ctx: CanvasRenderingContext2D, details: ShareCardModel["details"], left: number): void {
+  if (details === null) return;
+  // 主数値が無く左端から置く場合、右端まで伸ばすと種目名と内容が離れすぎて行として読みにくい。
+  // 右半分に置くときと同じ列幅に揃える
+  const right = Math.min(CONTENT_RIGHT, left + (CONTENT_RIGHT - DETAIL_LEFT));
+
+  const titleWidth = drawText(ctx, details.title, left, 262, { font: `700 24px ${fontRounded}`, color: INK });
+  if (details.subtitle !== undefined) {
+    drawText(ctx, details.subtitle, left + titleWidth + 14, 262, { font: `400 20px ${fontBody}`, color: tokens.faint });
+  }
+
+  details.rows.forEach((row, i) => {
+    const y = DETAIL_FIRST_ROW_Y + DETAIL_ROW_HEIGHT * i;
+    ctx.font = `700 ${DETAIL_FONT_SIZE}px ${fontRounded}`;
+    const valueWidth = ctx.measureText(row.value).width;
+    drawText(ctx, row.value, right, y, {
+      font: `700 ${DETAIL_FONT_SIZE}px ${fontRounded}`,
+      color: SUB,
+      align: "right",
+    });
+    // 種目名は残り幅に収める(長い名前が右の内容に重ならないように)
+    ctx.font = `400 ${DETAIL_FONT_SIZE}px ${fontBody}`;
+    const name = truncateToWidth(ctx, row.label, right - valueWidth - 20 - left);
+    drawText(ctx, name, left, y, { font: `400 ${DETAIL_FONT_SIZE}px ${fontBody}`, color: INK });
+  });
+
+  if (details.note !== undefined) {
+    const y = DETAIL_FIRST_ROW_Y + DETAIL_ROW_HEIGHT * details.rows.length;
+    drawText(ctx, details.note, left, y, { font: `400 ${DETAIL_FONT_SIZE - 2}px ${fontBody}`, color: tokens.faint });
+  }
 }
 
 /** 数値欄の既定の文字サイズ。列に収まらない値はfitScale()で縮める */
@@ -140,9 +195,14 @@ export async function drawShareCard(
   drawText(ctx, model.title, CONTENT_LEFT, 124, { font: `700 36px ${fontRounded}`, color: INK });
   drawText(ctx, model.period, CONTENT_LEFT, 168, { font: `400 24px ${fontBody}`, color: SUB });
 
-  // 主数値
+  // 主数値。明細ブロックがある日はカードの右半分を明細に譲るため、バッジを見出し行へ移す
+  // (バッジを数値の右に置いたままだと、長いバッジが明細の列に重なる)
+  const hasDetails = model.details !== null;
   if (model.headline !== null) {
-    drawText(ctx, model.headline.caption, CONTENT_LEFT, 262, { font: `400 22px ${fontBody}`, color: tokens.faint });
+    const captionWidth = drawText(ctx, model.headline.caption, CONTENT_LEFT, 262, {
+      font: `400 22px ${fontBody}`,
+      color: tokens.faint,
+    });
     const valueWidth = drawText(ctx, model.headline.value, CONTENT_LEFT, 372, {
       font: `800 112px ${fontRounded}`,
       color: INK,
@@ -153,20 +213,27 @@ export async function drawShareCard(
     });
 
     if (model.badge !== null) {
+      const badgeH = hasDetails ? 46 : 58;
+      const badgeFont = `700 ${hasDetails ? 22 : 26}px ${fontRounded}`;
       const { bg, fg } = badgeColors(model.badge.tone);
-      ctx.font = `700 26px ${fontRounded}`;
+      ctx.font = badgeFont;
       const textWidth = ctx.measureText(model.badge.text).width;
-      const badgeX = CONTENT_LEFT + valueWidth + unitWidth + 40;
-      const badgeH = 58;
-      const badgeY = 372 - 34 - badgeH / 2;
+      const padX = hasDetails ? 22 : 28;
+      const badgeX = hasDetails ? CONTENT_LEFT + captionWidth + 20 : CONTENT_LEFT + valueWidth + unitWidth + 40;
+      const badgeY = hasDetails ? 262 - 16 - badgeH / 2 : 372 - 34 - badgeH / 2;
       ctx.fillStyle = bg;
-      roundRectPath(ctx, badgeX, badgeY, textWidth + 56, badgeH, badgeH / 2);
+      roundRectPath(ctx, badgeX, badgeY, textWidth + padX * 2, badgeH, badgeH / 2);
       ctx.fill();
-      drawText(ctx, model.badge.text, badgeX + 28, badgeY + badgeH / 2 + 9, {
-        font: `700 26px ${fontRounded}`,
+      drawText(ctx, model.badge.text, badgeX + padX, badgeY + badgeH / 2 + (hasDetails ? 8 : 9), {
+        font: badgeFont,
         color: fg,
       });
     }
+  }
+
+  // 明細(筋トレの内訳)。主数値があれば右半分、無ければ左端から置く
+  if (model.details !== null) {
+    drawDetails(ctx, model.details, model.headline !== null ? DETAIL_LEFT : CONTENT_LEFT);
   }
 
   // 数値の並び(最大4項目。等幅の列に左揃えで置く)

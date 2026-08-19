@@ -10,12 +10,14 @@ import {
   markHabitDone,
   unmarkHabitDone,
 } from "@/db/habitRecords";
-import { addDaysToDateString, dateStringDaysAgo } from "@/lib/date";
-import { currentStreakDays } from "@/lib/recording";
+import { addDaysToDateString } from "@/lib/date";
+import { currentStreakDays, streakDaysEndingOn } from "@/lib/recording";
 import { fontRounded, tokens } from "@/theme";
 
 interface HabitChecklistProps {
-  today: string;
+  /** 表示中の日付(YYYY-MM-DD)。過去日ならその日のチェック状況を出す(Issue #226) */
+  date: string;
+  isToday: boolean;
 }
 
 const RECENT_WINDOW_DAYS = 27; // 直近28日(達成率・連続日数の集計窓)
@@ -24,12 +26,12 @@ const RECENT_WINDOW_DAYS = 27; // 直近28日(達成率・連続日数の集計�
  * ホームの習慣チェックリスト(Issue #113)。アクティブな習慣を今日のチェック状態とともに表示し、
  * タップで記録のON/OFFを切り替える。習慣ごとに連続日数と直近7日の達成状況を可視化する(#46の考え方を流用)。
  */
-export default function HabitChecklist({ today }: HabitChecklistProps) {
+export default function HabitChecklist({ date, isToday }: HabitChecklistProps) {
   const habits = useLiveQuery(() => getActiveHabitMasterItems(), []);
-  const todayRecords = useLiveQuery(() => getHabitRecordsForDate(today), [today]);
+  const todayRecords = useLiveQuery(() => getHabitRecordsForDate(date), [date]);
   const recentRecords = useLiveQuery(
-    () => getHabitRecordsByDateRange(dateStringDaysAgo(RECENT_WINDOW_DAYS), today),
-    [today],
+    () => getHabitRecordsByDateRange(addDaysToDateString(date, -RECENT_WINDOW_DAYS), date),
+    [date],
   );
 
   // アクティブな習慣が無ければセクションごと出さない(管理は設定画面。ホームを散らかさない)
@@ -44,12 +46,12 @@ export default function HabitChecklist({ today }: HabitChecklistProps) {
     set.add(record.date);
     datesByHabit.set(record.habitId, set);
   }
-  const last7Start = dateStringDaysAgo(6);
+  const last7Start = addDaysToDateString(date, -6);
   const countLast7 = (habitId: string) => {
     const set = datesByHabit.get(habitId);
     if (!set) return 0;
     let count = 0;
-    for (let date = last7Start; date <= today; date = addDaysToDateString(date, 1)) {
+    for (let d = last7Start; d <= date; d = addDaysToDateString(d, 1)) {
       if (set.has(date)) count += 1;
     }
     return count;
@@ -57,9 +59,9 @@ export default function HabitChecklist({ today }: HabitChecklistProps) {
 
   const toggle = async (habitId: string, habitName: string, isDone: boolean) => {
     if (isDone) {
-      await unmarkHabitDone(today, habitId);
+      await unmarkHabitDone(date, habitId);
     } else {
-      await markHabitDone({ date: today, habitId, habitName });
+      await markHabitDone({ date, habitId, habitName });
     }
   };
 
@@ -68,7 +70,7 @@ export default function HabitChecklist({ today }: HabitChecklistProps) {
   return (
     <>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", m: "24px 0 12px", px: "2px" }}>
-        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>今日の習慣</Typography>
+        <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 16 }}>{isToday ? "今日の習慣" : "この日の習慣"}</Typography>
         <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 12, color: "text.secondary" }}>
           {doneCount}/{habits.length}
         </Typography>
@@ -77,7 +79,7 @@ export default function HabitChecklist({ today }: HabitChecklistProps) {
         {habits.map((habit) => {
           const isDone = doneToday.has(habit.id);
           const doneDates = datesByHabit.get(habit.id) ?? new Set<string>();
-          const streak = currentStreakDays(doneDates, today);
+          const streak = isToday ? currentStreakDays(doneDates, date) : streakDaysEndingOn(doneDates, date);
           const last7 = countLast7(habit.id);
           return (
             <ButtonBase

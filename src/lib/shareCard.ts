@@ -1,4 +1,4 @@
-import { formatMonthDay } from "./date";
+import { formatMonthDay, todayDateString } from "./date";
 import type { WeeklyDigest } from "@/types";
 
 /**
@@ -68,6 +68,8 @@ export interface ShareCardOptions {
    * 公開の場に出す画像のため、体重そのものは出したくない場合に使う
    */
   hideWeightValue?: boolean;
+  /** 「今日」の判定基準日(テストからの注入用。通常は省略して実際の今日を使う) */
+  today?: string;
 }
 
 /**
@@ -298,6 +300,10 @@ export interface DailyShareSource {
  */
 export function buildDailyShareCard(src: DailyShareSource, options: ShareCardOptions = {}): ShareCardModel {
   const hide = options.hideWeightValue === true;
+  // 過去日を振り返る画面からも作れるため(Issue #226)、当日でなければ「今日の」と言わない
+  const isToday = src.date === (options.today ?? todayDateString());
+  const weightCaption = isToday ? "今日の体重" : "この日の体重";
+  const intakeCaption = isToday ? "今日の摂取" : "この日の摂取";
   const changeKg =
     src.weightKg !== null && src.previousWeightKg !== null
       ? Math.round((src.weightKg - src.previousWeightKg) * 100) / 100
@@ -306,16 +312,16 @@ export function buildDailyShareCard(src: DailyShareSource, options: ShareCardOpt
   let headline: ShareCardModel["headline"] = null;
   let badge: ShareCardBadge | null = null;
   if (src.weightKg !== null && !hide) {
-    headline = { caption: "今日の体重", value: src.weightKg.toFixed(1), unit: "kg" };
+    headline = { caption: weightCaption, value: src.weightKg.toFixed(1), unit: "kg" };
     badge = changeKg !== null ? { text: `前回比 ${formatSigned(changeKg, 2)}kg`, tone: weightTone(changeKg) } : null;
   } else if (changeKg !== null) {
     headline = { caption: "体重の前回比", value: formatSigned(changeKg, 2), unit: "kg" };
   } else if (src.intakeKcal !== null) {
-    headline = { caption: "今日の摂取", value: formatInt(src.intakeKcal), unit: "kcal" };
+    headline = { caption: intakeCaption, value: formatInt(src.intakeKcal), unit: "kcal" };
   }
 
   const stats: ShareCardStat[] = [];
-  if (src.intakeKcal !== null && headline?.caption !== "今日の摂取") {
+  if (src.intakeKcal !== null && headline?.caption !== intakeCaption) {
     stats.push({
       label: "摂取カロリー",
       value: formatInt(src.intakeKcal),
@@ -342,7 +348,7 @@ export function buildDailyShareCard(src: DailyShareSource, options: ShareCardOpt
 
   return {
     kind: "daily",
-    title: "今日の記録",
+    title: isToday ? "今日の記録" : "この日の記録",
     period: formatDayWithWeekday(src.date),
     headline,
     badge,

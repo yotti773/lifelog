@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import ShareCardLauncher from "@/components/ShareCardLauncher";
 import { db } from "@/db/db";
 import { getBloodPressureRecord } from "@/db/bloodPressureRecords";
 import { getDiaryRecord } from "@/db/diaryRecords";
@@ -12,6 +13,7 @@ import { getWaterRecordsForDate } from "@/db/waterRecords";
 import { getWorkoutRecordsForDate } from "@/db/workoutRecords";
 import { localDateRangeToUtcIso, todayDateString } from "@/lib/date";
 import { currentStreakDays } from "@/lib/recording";
+import { buildDailyShareCard, type DailyShareSource } from "@/lib/shareCard";
 import { fontRounded, tokens } from "@/theme";
 import BodyMetricsCards from "./BodyMetricsCards";
 import CalorieCard from "./CalorieCard";
@@ -65,6 +67,9 @@ export default function HomePage() {
     () => db.bodyMeasurementRecords.orderBy("date").last().then((v) => v ?? null),
     [],
   );
+  // 当日の活動記録(SNS共有カードの歩数。Issue #235)。Garmin連携は前日分を翌3時に取り込むため
+  // 当日分は通常まだ無い — 「未記録」とロード中を区別するためnullに正規化する
+  const todayActivity = useLiveQuery(() => db.activityRecords.get(today).then((v) => v ?? null), [today]);
   // 連続記録日数(Issue #46)。常時表示のためaccent色は使わない(デザインガイドの制約)
   const streakDays = useLiveQuery(
     async () => currentStreakDays(await getRecordedDateSet(), today),
@@ -90,6 +95,24 @@ export default function HomePage() {
   const totalCarbsG = Math.round(meals.reduce((sum, meal) => sum + meal.confirmedCarbsG, 0) * 10) / 10;
 
   const now = new Date();
+
+  // SNS共有カード(Issue #235)。画面が既に読み込んでいる当日分の値だけで組み立てる
+  const shareSource: DailyShareSource = {
+    date: today,
+    weightKg: weight?.weightKg ?? null,
+    previousWeightKg: previousWeight?.weightKg ?? null,
+    // 食事記録が1件も無い日は「0kcal」ではなく未記録として扱う
+    intakeKcal: meals.length > 0 ? totalKcal : null,
+    targetKcal: settings.dailyCalorieTarget ?? null,
+    proteinG: meals.length > 0 ? totalProteinG : null,
+    fatG: meals.length > 0 ? totalFatG : null,
+    carbsG: meals.length > 0 ? totalCarbsG : null,
+    waterMl: waterRecords.length > 0 ? waterRecords.reduce((sum, record) => sum + record.amountMl, 0) : null,
+    steps: todayActivity?.steps ?? null,
+    workoutExercises: new Set(workoutRecords.map((record) => record.exerciseName)).size,
+    streakDays: streakDays ?? 0,
+  };
+  const shareCardHasContent = buildDailyShareCard(shareSource).headline !== null;
 
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "24px", pb: "130px" }}>
@@ -167,6 +190,16 @@ export default function HomePage() {
       />
 
       <HabitChecklist today={today} />
+
+      {/* SNS共有カード(Issue #235)。載せる数字が無い日は導線ごと出さない */}
+      {shareCardHasContent && (
+        <Box sx={{ mt: "14px" }}>
+          <ShareCardLauncher
+            buildModel={(options) => buildDailyShareCard(shareSource, options)}
+            description="今日の記録をカード画像にして、SNSに投稿できます"
+          />
+        </Box>
+      )}
     </Box>
   );
 }

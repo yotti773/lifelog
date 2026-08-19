@@ -7,6 +7,7 @@ import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import CrossAnalysisCard from "./CrossAnalysisCard";
 import MoodIcon from "@/components/MoodIcon";
+import ShareCardLauncher from "@/components/ShareCardLauncher";
 import {
   IconActivity,
   IconArrow,
@@ -25,6 +26,7 @@ import { getDiaryRecordsByDateRange } from "@/db/diaryRecords";
 import { getSettings, updateSettings } from "@/db/settings";
 import { formatMonthDay } from "@/lib/date";
 import { suggestCalorieTarget } from "@/lib/nutritionCalc";
+import { buildWeeklyShareCard } from "@/lib/shareCard";
 import { ACTIVITY_MIN_RECORDED_DAYS } from "@/lib/weeklyDigest";
 import { fontRounded, tokens } from "@/theme";
 import type { DigestFlag, WeeklyDigest } from "@/types";
@@ -180,6 +182,9 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
   };
 
   const hasPfcData = pfc.avgProteinG !== null || pfc.targetProteinG !== null;
+
+  // SNS共有カード(Issue #235)。載せる数字が1つも無い週は導線ごと出さない
+  const shareCardHasContent = buildWeeklyShareCard(digest).headline !== null;
 
   return (
     <>
@@ -698,6 +703,14 @@ export default function WeeklyReview({ digest, onPrevWeek, onNextWeek, canGoNext
       )}
 
       <WeeklyAdviceCard digest={digest} />
+
+      {/* SNS共有カード(Issue #235) */}
+      {shareCardHasContent && (
+        <ShareCardLauncher
+          buildModel={(options) => buildWeeklyShareCard(digest, options)}
+          description="この週の数字をカード画像にして、SNSに投稿できます"
+        />
+      )}
     </>
   );
 }

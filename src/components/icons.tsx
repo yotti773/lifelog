@@ -241,6 +241,18 @@ export function IconUpload(props: IconProps) {
   );
 }
 
+/** 共有(SNS共有カードの書き出し。Issue #235)。3点を線でつないだノード型 */
+export function IconShare(props: IconProps) {
+  return (
+    <svg {...base({ size: 18, ...props }, "0 0 20 20")}>
+      <circle cx="5.6" cy="10" r="2.3" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="14.4" cy="5.4" r="2.3" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="14.4" cy="14.6" r="2.3" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M7.7 8.9 12.3 6.5M7.7 11.1l4.6 2.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** カメラ(写真撮影) */
 export function IconCamera(props: IconProps) {
   return (

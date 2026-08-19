@@ -16,7 +16,7 @@ import {
 import { fontRounded, tokens } from "@/theme";
 import type { ShareCardModel, ShareCardOptions } from "@/lib/shareCard";
 
-/** 画像のフッターに入れるアプリ名。配信元(host)はlocationから取り、URLは直書きしない */
+/** 画像のフッターに入れる署名。アイコンは描画側がPWAアイコンのマスターから読む */
 const APP_NAME = "からだログ";
 
 interface ShareCardLauncherProps {
@@ -65,7 +65,7 @@ function ShareCardPreview({
         return;
       }
       try {
-        await drawShareCard(canvas, model, { appName: APP_NAME, host: window.location.host });
+        await drawShareCard(canvas, model, { appName: APP_NAME });
         if (!cancelled) onDrawnRef.current(null);
       } catch (error) {
         if (!cancelled) {

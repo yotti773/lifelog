@@ -42,6 +42,36 @@ const REQUIRED_FONTS = [
   `400 20px ${fontBody}`,
 ];
 
+/**
+ * フッターに置くアプリアイコン。**PWAアイコンのマスター(docs/icon/icon_master.svg)のコピーを
+ * そのまま読み込む** — canvasに手で描き写すと、マスターを直したときに画像だけ古い絵が残るため。
+ * 同一オリジンのSVGなのでcanvasは汚染されず、書き出し(toBlob)もそのまま通る。
+ */
+const APP_ICON_SRC = "/icons/icon.svg";
+const FOOTER_ICON_SIZE = 38;
+
+let appIconPromise: Promise<HTMLImageElement | null> | null = null;
+
+/** アイコンを読む(結果は使い回す)。読めなければnullを返し、アイコン無しで描く */
+function loadAppIcon(): Promise<HTMLImageElement | null> {
+  if (appIconPromise !== null) return appIconPromise;
+  appIconPromise = new Promise<HTMLImageElement | null>((resolve) => {
+    if (typeof Image === "undefined") {
+      resolve(null);
+      return;
+    }
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => {
+      // 失敗を覚え込ませない(次に描くときに読み直せるようにする)
+      appIconPromise = null;
+      resolve(null);
+    };
+    image.src = APP_ICON_SRC;
+  });
+  return appIconPromise;
+}
+
 async function ensureFontsLoaded(): Promise<void> {
   if (typeof document === "undefined" || !("fonts" in document)) return;
   try {
@@ -157,18 +187,20 @@ function fitScale(ctx: CanvasRenderingContext2D, stat: ShareCardModel["stats"][n
 
 /**
  * モデルの内容をcanvasへ描く。canvasのサイズもここで設定する(呼び出し側は空の<canvas>を渡す)。
- * hostは画像のフッターに入れる配信元(location.host)。URLを直書きしないための引数
+ * brandはフッターの署名(アプリアイコン + アプリ名)。
  */
 export async function drawShareCard(
   canvas: HTMLCanvasElement,
   model: ShareCardModel,
-  brand: { appName: string; host: string },
+  brand: { appName: string },
 ): Promise<void> {
   const ctx = canvas.getContext("2d");
   if (ctx === null) throw new Error("この端末では画像を生成できませんでした");
 
   canvas.width = SHARE_CARD_WIDTH * SCALE;
   canvas.height = SHARE_CARD_HEIGHT * SCALE;
+  // フォントとアイコンは並行して読む(どちらも描画の直前に揃っていればよい)
+  const iconPromise = loadAppIcon();
   await ensureFontsLoaded();
   ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
 
@@ -258,15 +290,22 @@ export async function drawShareCard(
     });
   }
 
-  // フッター(アプリ名と配信元)
+  // フッターの署名(アプリアイコン + アプリ名)。URLは載せない —
+  // 投稿本文側にリンクを置く運用で、画像の中の生のホスト名は読み手の役に立たないため
   ctx.strokeStyle = tokens.divider;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(CONTENT_LEFT, 586);
   ctx.lineTo(CONTENT_RIGHT, 586);
   ctx.stroke();
-  drawText(ctx, brand.appName, CONTENT_LEFT, 620, { font: `700 24px ${fontRounded}`, color: PRIMARY });
-  drawText(ctx, brand.host, CONTENT_RIGHT, 620, { font: `400 20px ${fontBody}`, color: tokens.faint, align: "right" });
+
+  const icon = await iconPromise;
+  let signatureX = CONTENT_LEFT;
+  if (icon !== null) {
+    ctx.drawImage(icon, signatureX, 620 - FOOTER_ICON_SIZE + 8, FOOTER_ICON_SIZE, FOOTER_ICON_SIZE);
+    signatureX += FOOTER_ICON_SIZE + 14;
+  }
+  drawText(ctx, brand.appName, signatureX, 620, { font: `700 26px ${fontRounded}`, color: PRIMARY });
 }
 
 export function shareCardToBlob(canvas: HTMLCanvasElement): Promise<Blob> {

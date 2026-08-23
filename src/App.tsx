@@ -18,17 +18,20 @@ import BodyMeasurementRecordPage from "./pages/BodyMeasurementRecordPage";
 import { createAutoSyncRunner } from "./sync/autoSync";
 import InitialSetupPage from "./pages/InitialSetupPage";
 import OAuthCallbackPage from "./pages/OAuthCallbackPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 
 export default function App() {
   const location = useLocation();
   // 記録フロー画面はヘッダー(戻る)+下部固定ボタンの全画面レイアウトのため、ナビを出さない(モックの画面構成参照)。
-  // 初回セットアップ(Issue #217)も同じ全画面フロー — ナビを出すと目標未設定のまま他タブへ素通りできてしまう
+  // 初回セットアップ(Issue #217)も同じ全画面フロー — ナビを出すと目標未設定のまま他タブへ素通りできてしまう。
   // Googleの認可コールバック(Issue #214)もナビを出さない — 交換中の一瞬しか表示されない中継画面で、
-  // ここから他タブへ移られると認可コードが未交換のまま失われる
+  // ここから他タブへ移られると認可コードが未交換のまま失われる。
+  // プライバシーポリシー(Issue #238)は読み物で、戻る導線をヘッダーに持つためナビを出さない
   const isFullScreenFlow =
     location.pathname.startsWith("/record/") ||
     location.pathname === "/setup" ||
-    location.pathname === "/oauth/callback";
+    location.pathname === "/oauth/callback" ||
+    location.pathname === "/privacy";
 
   // 自動同期のトリガー(画面設計書10章、Issue #105): 起動時に加え、PWAをホーム画面から開き直した
   // ときの復帰(visibilitychange)とオフライン→オンライン復帰(online)でも未同期分の同期を試みる。
@@ -59,6 +62,7 @@ export default function App() {
       <Routes>
         <Route path="/setup" element={<InitialSetupPage />} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/" element={<HomePage />} />
         <Route path="/trends" element={<TrendsPage />} />
         <Route path="/settings" element={<SettingsPage />} />

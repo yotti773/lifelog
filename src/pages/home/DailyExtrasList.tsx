@@ -68,8 +68,10 @@ function SummaryRow({ to, icon, iconBg, iconColor, children, right }: SummaryRow
 }
 
 interface DailyExtrasListProps {
-  /** 記録画面の遷移先を組み立てる基準日(今日)。血圧・周囲径は当日分があれば編集で開く */
-  today: string;
+  /** 記録画面の遷移先を組み立てる基準日(表示中の日付。Issue #226)。その日の記録があれば編集で開く */
+  date: string;
+  /** 表示日が今日かどうか。過去日は「明示的な追加」として ?create=1 を付ける(Issue #141の約束) */
+  isToday: boolean;
   waterRecords: WaterRecord[];
   /** 1日の目標水分摂取量(ml)。未設定なら進捗バーを出さず合計mlのみ表示する */
   waterTargetMl: number | undefined;
@@ -84,7 +86,8 @@ interface DailyExtrasListProps {
 
 /** ホーム画面の「その他の記録」セクション(水分・日記・筋トレ・血圧・周囲径。画面設計書2章) */
 export default function DailyExtrasList({
-  today,
+  date,
+  isToday,
   waterRecords,
   waterTargetMl,
   diary,
@@ -95,6 +98,9 @@ export default function DailyExtrasList({
   const waterTotalMl = waterRecords.reduce((sum, record) => sum + record.amountMl, 0);
   const waterProgress = waterTargetMl ? Math.max(0, Math.min(100, (waterTotalMl / waterTargetMl) * 100)) : 0;
   const workoutExerciseCount = new Set(workoutRecords.map((record) => record.exerciseOrder)).size;
+  // 日付キーの記録画面(血圧・周囲径)は、未記録の過去日を開くと既定で「見つかりません」になる。
+  // ホームからの遷移は明示的な追加の意思とみなし、過去日では ?create=1 を添える(useDailyRecordEditor参照)
+  const dailyEditorQuery = `?date=${date}${isToday ? "" : "&create=1"}`;
 
   return (
     <>
@@ -104,7 +110,7 @@ export default function DailyExtrasList({
       <Box sx={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {/* 水分: 合計+進捗バー */}
         <SummaryRow
-          to="/record/water"
+          to={`/record/water?date=${date}`}
           icon={<IconDrop size={21} />}
           iconBg={tokens.waterSoft}
           iconColor={tokens.waterMain}
@@ -138,7 +144,7 @@ export default function DailyExtrasList({
         </SummaryRow>
 
         {/* 日記: 気分タグ+本文プレビュー */}
-        <SummaryRow to="/record/diary" icon={<IconDiary size={21} />} iconBg={tokens.warnBg} iconColor={tokens.warnIcon}>
+        <SummaryRow to={`/record/diary?date=${date}`} icon={<IconDiary size={21} />} iconBg={tokens.warnBg} iconColor={tokens.warnIcon}>
           <Box sx={{ display: "flex", alignItems: "center", gap: "7px", mb: "2px" }}>
             <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13 }}>日記</Typography>
             {diary?.mood && (
@@ -171,7 +177,7 @@ export default function DailyExtrasList({
         </SummaryRow>
 
         {/* 筋トレ: 当日サマリー(◯種目・◯セット) */}
-        <SummaryRow to="/record/strength" icon={<IconBarbell size={21} />} iconBg={tokens.strengthBg} iconColor="primary.main">
+        <SummaryRow to={`/record/strength?date=${date}`} icon={<IconBarbell size={21} />} iconBg={tokens.strengthBg} iconColor="primary.main">
           <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "2px" }}>筋トレ</Typography>
           <Typography
             sx={{
@@ -188,7 +194,7 @@ export default function DailyExtrasList({
 
         {/* 血圧: 今日の測定値(最高/最低)。朝の測定を想定(Issue #117) */}
         <SummaryRow
-          to={`/record/blood-pressure?date=${today}`}
+          to={`/record/blood-pressure${dailyEditorQuery}`}
           icon={<IconActivity size={21} />}
           iconBg={tokens.primarySoft}
           iconColor="primary.main"
@@ -207,13 +213,13 @@ export default function DailyExtrasList({
         >
           <Typography sx={{ fontFamily: fontRounded, fontWeight: 700, fontSize: 13, mb: "2px" }}>血圧</Typography>
           <Typography sx={{ fontSize: 12, color: bloodPressure ? "text.secondary" : tokens.faint }}>
-            {bloodPressure ? "今日の測定値" : "未記録"}
+            {bloodPressure ? (isToday ? "今日の測定値" : "この日の測定値") : "未記録"}
           </Typography>
         </SummaryRow>
 
         {/* 周囲径: 最新の腹囲(低頻度のため最新値と測定日を表示。Issue #118) */}
         <SummaryRow
-          to={`/record/measurement?date=${today}`}
+          to={`/record/measurement${dailyEditorQuery}`}
           icon={<IconRuler size={21} />}
           iconBg={tokens.secondarySoft}
           iconColor="#2EC4B6"

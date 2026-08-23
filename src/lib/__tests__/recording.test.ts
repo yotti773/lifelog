@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildRecordedDateSet, countRecordedDaysInRange, currentStreakDays } from "../recording";
+import {
+  buildRecordedDateSet,
+  countRecordedDaysInRange,
+  currentStreakDays,
+  streakDaysEndingOn,
+} from "../recording";
 
 describe("buildRecordedDateSet", () => {
   it("体重・食事どちらかの記録がある日を「記録した日」とする", () => {
@@ -36,6 +41,24 @@ describe("currentStreakDays", () => {
   it("月またぎでも連続を数えられる", () => {
     const set = new Set(["2026-06-29", "2026-06-30", "2026-07-01"]);
     expect(currentStreakDays(set, "2026-07-01")).toBe(3);
+  });
+});
+
+describe("streakDaysEndingOn", () => {
+  it("指定日を含めて連続日数を数える", () => {
+    const set = new Set(["2026-07-08", "2026-07-09", "2026-07-10"]);
+    expect(streakDaysEndingOn(set, "2026-07-09")).toBe(2);
+  });
+
+  it("指定日が未記録なら0(当日のような猶予は認めない)", () => {
+    const set = new Set(["2026-07-08", "2026-07-09"]);
+    // currentStreakDays なら「昨日まで継続中」で2を返す状況でも、過去日の振り返りでは0
+    expect(streakDaysEndingOn(set, "2026-07-10")).toBe(0);
+    expect(currentStreakDays(set, "2026-07-10")).toBe(2);
+  });
+
+  it("記録が1件も無ければ0", () => {
+    expect(streakDaysEndingOn(new Set(), "2026-07-10")).toBe(0);
   });
 });
 

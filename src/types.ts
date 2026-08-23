@@ -248,6 +248,10 @@ export interface Settings {
    */
   sendDiaryTextToAi?: boolean;
 
+  // AIへの送信に同意した日時(ISO8601。Issue #219)。**未設定=未同意**で、AI機能だけが止まる。
+  // 記録・同期は同意なしで全部使える。シート同期には載せない(記録ではなく「この人が同意した」事実のため)
+  aiConsentAt?: string;
+
   /**
    * 初回セットアップをスキップしたかどうかのフラグ(Issue #217)。
    * true の場合、目標値が未設定でも /setup へリダイレクトしない。

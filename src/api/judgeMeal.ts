@@ -1,3 +1,4 @@
+import { assertAiConsent } from "@/api/aiConsent";
 import { AI_REQUEST_TIMEOUT_MS, requestApi } from "@/api/request";
 import { resizeImageToBase64 } from "@/lib/image";
 import type { MealType } from "@/types";
@@ -27,6 +28,8 @@ export async function judgeMealPhoto(
   mealType: MealType,
   note?: string,
 ): Promise<MealJudgmentResult> {
+  // 写真そのものを送る経路のため、同意チェックは画像を読む前に行う(Issue #219)
+  await assertAiConsent();
   const images = await Promise.all(
     files.map(async (file) => {
       const { base64, mimeType } = await resizeImageToBase64(file);

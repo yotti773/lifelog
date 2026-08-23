@@ -23,6 +23,7 @@ import { db } from "@/db/db";
 import { getSettings, updateSettings } from "@/db/settings";
 import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { fontRounded, tokens } from "@/theme";
+import AiConsentCard from "./AiConsentCard";
 import AppResetCard from "./AppResetCard";
 import GoogleConnectionCard from "./GoogleConnectionCard";
 import LocalBackupCard from "./LocalBackupCard";
@@ -219,6 +220,7 @@ export default function SettingsPage() {
       </Typography>
 
       <SectionLabel>AIコーチング</SectionLabel>
+      <AiConsentCard />
       <Card sx={{ overflow: "hidden", mb: "8px" }}>
         {/* 日記本文のAI送信オプトイン(Issue #103でIssue #12を決着)。デフォルトOFF */}
         <Box sx={{ display: "flex", alignItems: "center", gap: "13px", p: "9px 16px 9px 16px" }}>

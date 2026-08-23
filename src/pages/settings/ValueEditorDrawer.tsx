@@ -450,7 +450,7 @@ function ValueEditorContent({
       )}
       {target === "apiToken" && (
         <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "12px", textAlign: "center", lineHeight: 1.6 }}>
-          同期・AI判定などのAPI呼び出しに使う合言葉です。
+          AI判定・AIコメント・Google連携のAPI呼び出しに使う合言葉です。
           <br />
           Workerのシークレット API_AUTH_TOKEN と同じ値を入力してください
         </Typography>

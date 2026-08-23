@@ -215,7 +215,7 @@ export default function SettingsPage() {
         />
       </Card>
       <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
-        同期・AI判定のAPIを第三者の呼び出しから守る合言葉です(Workerのシークレット API_AUTH_TOKEN と同じ値を設定)
+        AI判定・AIコメント・Google連携のAPIを第三者の呼び出しから守る合言葉です(Workerのシークレット API_AUTH_TOKEN と同じ値を設定)
       </Typography>
 
       <SectionLabel>AIコーチング</SectionLabel>

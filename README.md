@@ -39,8 +39,9 @@ src/
   components/ 複数画面で共有する UI 部品(アイコン・ナビ・共通レイアウト)
   hooks/      共有 React フック
 worker/       Cloudflare Workers: 静的アセット配信 + /api/judge-meal(写真AI判定)
-              + /api/sync-sheets(同期) + /api/import-sheets(取り込み) + /api/weekly-advice(AIコーチング)
+              + /api/weekly-advice・/api/monthly-advice(AIコーチング)
               + /api/google-oauth/*(ユーザー自身のGoogle認可のトークン交換)
+              ※シート同期はクライアントからGoogle Sheets APIを直接呼ぶ(#215)。Workerは経由しない
 scripts/garmin/ Garmin→スプレッドシートの日次同期スクリプト(GitHub Actions から実行)
 docs/         要件定義書・画面設計書・デザインガイド・AIコンサルティング設計書・意思決定ログ・レビューチェックリスト
 ```

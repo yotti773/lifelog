@@ -1,8 +1,9 @@
 GEMINI_API_KEY=your-gemini-api-key-here
 GEMINI_MODEL=gemini-3.6-flash
-GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
-GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
-GOOGLE_SHEETS_SPREADSHEET_ID=your-spreadsheet-id-here
+# シート同期のサービスアカウント3点(GOOGLE_SERVICE_ACCOUNT_EMAIL / _PRIVATE_KEY /
+# GOOGLE_SHEETS_SPREADSHEET_ID)は Issue #215 で不要になった。同期はクライアントから
+# Google Sheets API を直接叩く形になり、Worker は健康データに触れない。
+# **GitHub Actions 側の同名 Secrets は消さないこと** — Garmin連携(scripts/garmin/)がまだ使う。
 # APIの共有トークン(Issue #87)。本番はwrangler secret putで登録し、アプリの設定画面に同じ値を入力する。
 # 未設定の場合は認証を要求しない(ローカル開発用)
 API_AUTH_TOKEN=your-random-token-here

@@ -1,6 +1,6 @@
 import { runActivityImport } from "./importEngine";
 import { runSync, type SyncOutcome } from "./syncEngine";
-import { workerSheetsTransport } from "./workerSheetsTransport";
+import { googleSheetsTransport } from "./googleSheetsTransport";
 
 /**
  * 自動同期のトリガー管理(Issue #105)。
@@ -18,8 +18,8 @@ import { workerSheetsTransport } from "./workerSheetsTransport";
  * (runActivityImportは失敗してもthrowせずエラーを返すだけなのでpushの成功を打ち消さない)。
  */
 async function runAutoSync(): Promise<SyncOutcome> {
-  const outcome = await runSync({ transport: workerSheetsTransport });
-  await runActivityImport({ transport: workerSheetsTransport });
+  const outcome = await runSync({ transport: googleSheetsTransport });
+  await runActivityImport({ transport: googleSheetsTransport });
   return outcome;
 }
 

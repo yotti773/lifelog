@@ -46,7 +46,7 @@ npm run preview   # 本番ビルドをローカルで配信(実際のPWA/イン�
 - **E2Eは `npm run test` に含めない**(実行に数分かかるため)。
 - 個々のUI変更を目視で確認したい場合は、E2Eスイートとは別に `npm run dev` + Playwrightのアドホックなスクリプトで操作してよい(スクリーンショット確認など)。
 
-**CIチェック(`.github/workflows/ci.yml`、Issue #201):** PR作成時と `main` へのpushで、`npm run test` / `npm run build` / `npm run typecheck:worker` が自動実行される。**これはPRの品質シグナルであってデプロイのゲートではない** — 本番デプロイは従来どおりCloudflareのGit連携が行い、CIが落ちてもデプロイは止まらない(デプロイ自体をActionsへ移す案は見送っている。Issue #18)。**E2EはCIに入れていない**ため、下記の通りローカルで実行すること。
+**CIチェック(`.github/workflows/ci.yml`、Issue #201):** PR作成時と `main`・`epic/**` へのpushで、`npm run test` / `npm run build` / `npm run typecheck:worker` が自動実行される。**これはPRの品質シグナルであってデプロイのゲートではない** — 本番デプロイは従来どおりCloudflareのGit連携が行い、CIが落ちてもデプロイは止まらない(デプロイ自体をActionsへ移す案は見送っている。Issue #18)。**E2EはCIに入れていない**ため、下記の通りローカルで実行すること。
 
 ## 開発フロー
 
@@ -63,6 +63,9 @@ npm run preview   # 本番ビルドをローカルで配信(実際のPWA/イン�
 - **仕様に影響する変更を実装したら、対応する `docs/` の仕様書へ書き戻す(必須)。** 画面の挙動・データモデル・同期・意思決定に関わる変更は、実装だけで終わらせず該当する仕様書本文(画面設計書・要件定義書など)を現在の仕様に更新し、見送っていた論点を実装した場合は12章などの論点リストと `docs/からだログ_意思決定ログ.md` に経緯を残す。仕様書が真実の情報源であり、コードと乖離させない。純粋なバグ修正・リファクタなど仕様に影響しない変更は書き戻し不要(その旨を判断できるよう、影響有無は毎回確認する)。
 - **PR作成前にレビューを行う(必須)。** `docs/からだログ_レビューチェックリスト.md` の観点(特に「5. UIコードのレビュー観点」「4. コード不変条件チェック」)で自分の変更を点検する。まとまった変更では `/code-review` skill を併用してよい。指摘は修正するか、対応しない場合は理由を残す。
 - **Issueが完了したらPRを作成する。** PR本文で該当Issueを参照し(例: `Closes #6`)、マージ時に自動クローズされるようにする。PRを介さず `main` へ直接マージしない — PRは「何を・なぜ変更したか」の記録になる。
+- **複数のIssueが揃って初めて意味を持つ機能群は、エピックブランチ(`epic/<名前>`)にまとめる。** 子IssueのPRはmainではなくエピックへ向け、**関連Issueが全て完了してからエピックをmainへマージする**。現在のエピック: `epic/distribution`(数人への配布版 #213 の子Issue群 #214〜#219)。中途半端な状態が本番へ出るのを防ぐための運用で、単独で完結するIssueは従来どおりmainへ直接PRを出してよい。
+  - エピックブランチもCIの対象(`.github/workflows/ci.yml` の `epic/**`)。`pull_request` のトリガー判定は**ベースブランチ側**のワークフロー定義で行われるため、この設定はエピックブランチ自身に入っている必要がある
+  - 子PRを重ねる間にmainが進んだら、エピックへmainを取り込んでから続ける(エピックが古いmainのまま育つと、最後のマージでまとめて衝突する)
 - **PRのマージはユーザーの明示的な指示(例:「マージして」「PR #29をマージして」)を受けてから `gh pr merge --squash` で行う。** PRはこのリポジトリのGitHubアカウント自身が作成するため、GitHub上の正式なApprove機能は使えない(自分が作成したPRは自分でApproveできない、というGitHub側の固定仕様)。そのためレビュー完了の合図はチャット上のユーザーの明示的な指示とし、指示なしに自発的にマージしない。マージ方式は常にsquash(PR内の複数コミットをmainに1つにまとめる)。
 - **PRがマージされたら作業ブランチを削除する。** リモート側はリポジトリ設定(`Settings → General → Pull Requests → Automatically delete head branches`、API上は`delete_branch_on_merge`)を有効にしてあるため、マージ時に自動削除される。ローカル側は自動化されないため、マージ確認後に `git checkout main && git pull --ff-only origin main && git branch -d <ブランチ名>` で手動削除する。
 - **Issue作成時は `優先度: 高` / `優先度: 中` / `優先度: 低` のいずれかを付ける。** 判断基準は `docs/からだログ_要件定義書.md` 3章のMVP優先表(体重・食事記録が最優先、筋トレは後回し)および各章の「フェーズ2」「検討する」といった記述に沿う — 減量目標(10月末)に直結するMVPコア機能ほど高く、フェーズ2以降の拡張機能や検討中の論点ほど低くする。
@@ -83,7 +86,7 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 
 **AIコメントの同期(Issue #164):** 週次・月次のAIコメント(`adviceRecords`/`monthlyAdviceRecords`)は**スプレッドシート同期の対象**。生成が非決定的で再生成しても同じものが出ず、失うと復旧手段が無い唯一のデータのため。**シートに載せるのは `advice`(判定・総評・良かった点・アクション)だけで、`digest` は載せない** — digestはレコードから再計算でき(`getWeeklyDigest()`)、実際に画面のどこからも参照されていないため。`AdviceRecord.digest` が任意になっているのはこのため(シート由来のレコードでは未設定)。判定は日本語ラベル(順調/やや遅れ/遅れ/要注意)でシートに書き、取り込み時に `VERDICT_FROM_LABEL` で逆引きする。削除UIが無いため削除トゥームストーンの仕組みには乗せていない。
 
-**設定の同期(Issue #164):** 設定(`Settings`)もシート同期の対象で、1設定=1行の key-value 形式で「設定」タブに書く(`src/sync/settingsSync.ts` の `SETTINGS_SYNC_FIELDS` と `worker/sheetsSync.ts` の `SETTINGS_FIELDS` を**手で同期させること** — worker側は src/ に依存しない独立ビルドのため共有できない)。**`apiToken` は載せない** — 取り込みAPIの呼び出し自体に `Authorization: Bearer` としてこの値が要るため、シートからは原理的に復元できない。`lastSyncedAt` も端末固有なので載せない。`SettingsRow.synced` で差分同期し、**`lastSyncedAt` だけの更新では未同期に戻さない**(同期完了のたびに書くため、戻すと永久に同期待ちになる)。
+**設定の同期(Issue #164):** 設定(`Settings`)もシート同期の対象で、1設定=1行の key-value 形式で「設定」タブに書く(`src/sync/settingsSync.ts` の `SETTINGS_SYNC_FIELDS` と `src/sync/sheets/sheetsSync.ts` の `SETTINGS_FIELDS` を**手で同期させること**。#215 で同じビルドに入ったので、いずれ片方に寄せられる)。**`apiToken` は載せない** — 取り込みAPIの呼び出し自体に `Authorization: Bearer` としてこの値が要るため、シートからは原理的に復元できない。`lastSyncedAt` も端末固有なので載せない。`SettingsRow.synced` で差分同期し、**`lastSyncedAt` だけの更新では未同期に戻さない**(同期完了のたびに書くため、戻すと永久に同期待ちになる)。
 
 **完全バックアップ(`src/db/backup.ts`、Issue #164):** 上記でAIコメントと設定は同期されるようになったため、**シート同期で戻せないのは食事のAI推定値・写真参照と`apiToken`だけ**になった。これを埋めるのが設定画面の「完全バックアップ(ファイル)」で、`syncDeletions` を除く全テーブルを1つのJSONに書き出し、全削除+書き戻しで復元する。**`BACKUP_TABLES` に新しいテーブルを足し忘れると `backup.test.ts` が落ちる**(`db.tables` と突き合わせている) — フェーズ1時代の実装が3テーブルのまま腐っていた実績があるため、この番人を外さないこと。復元は必ず `parseBackupData()` の検証を通してから行う(旧実装は壊れたファイルでも `clear()` してしまう作りだった)。**IndexedDBはオリジン単位なので、配信URLを変えるときも退避が必要**(同じブラウザでもデータは引き継がれない)。
 
@@ -93,19 +96,45 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 
 `runSync()`(`syncEngine.ts` 内)はトランスポート非依存: 未同期のレコードと**削除トゥームストーン**(`src/db/syncDeletions.ts`、後述)を取得し、`SyncTransport.push()` を呼び、トランスポートが成功を報告したレコードだけを同期済みにする(部分的な成功は想定内で、ハンドリングされている)。何らかのエラーがthrowされた場合、何も同期済みにされず、エラーは呼び出し元に伝播する — これがリトライの仕組みであり、別途リトライキューは存在しない。
 
-**編集・削除の反映(Issue #30):** 追記のみだと、同期済みレコードを編集すると新しい行が重複して増え、削除はスプレッドシートに残り続ける。これを防ぐため、(1) 編集は `synced: false` に戻る性質をそのまま使い、Worker側で**ID列をキーに既存行を特定して上書き**(無ければ追記)する upsert にした(タブごとのID列は `worker/sheetsSync.ts` の `*_CONFIG` が正)。(2) 削除は `deleteWeightRecord`/`deleteMealRecord` が `syncDeletions` テーブルに**トゥームストーン**(対象タブとID列の値)を残し、次回同期でWorkerが該当行を `deleteDimension` で物理削除する。削除確定後にトゥームストーンを消す。体重は主キーが日付のため、削除した日付を再登録したら `saveWeightRecord` が保留中のトゥームストーンを取り消す(`cancelDeletion`)。`worker/sheetsSync.ts` の `planUpserts`/`planRowDeletions` は純関数として切り出してあり単体テストがある。
+**編集・削除の反映(Issue #30):** 追記のみだと、同期済みレコードを編集すると新しい行が重複して増え、削除はスプレッドシートに残り続ける。これを防ぐため、(1) 編集は `synced: false` に戻る性質をそのまま使い、**ID列をキーに既存行を特定して上書き**(無ければ追記)する upsert にした(タブごとのID列は `src/sync/sheets/sheetsSync.ts` の `*_CONFIG` が正)。(2) 削除は `deleteWeightRecord`/`deleteMealRecord` が `syncDeletions` テーブルに**トゥームストーン**(対象タブとID列の値)を残し、次回同期で該当行を `deleteDimension` で物理削除する。削除確定後にトゥームストーンを消す。体重は主キーが日付のため、削除した日付を再登録したら `saveWeightRecord` が保留中のトゥームストーンを取り消す(`cancelDeletion`)。`src/sync/sheets/sheetsSync.ts` の `planUpserts`/`planRowDeletions` は純関数として切り出してあり単体テストがある。
 
-**取り込み(Issue #54):** シート→アプリ方向の手動インポート(設定画面の「シートから取り込み」ボタンのみがトリガー)。`runImport()`(`src/sync/importEngine.ts`)が `workerSheetsTransport.pull()` → `GET /api/import-sheets`(`worker/sheetsImport.ts`)経由で**全タブ**(一覧は `worker/sheetsImport.ts` の `handleImportSheets` が正)の全行をレコードに逆変換して受け取り、**追加のみ・ローカル優先**でマージする(既存キー・削除トゥームストーン保留中のキーはスキップ。取り込んだレコードは `synced: true` で保存し再送信しない)。例外は活動記録で、アプリ内に編集・削除が無くGarminが真実の情報源のため、常にシート側の値で上書きする(Issue #81)。マスタ2タブ(Issue #96)はIDが違っても同名(前後空白無視)の既存品目・種目をスキップする — 種目マスタは名前がサジェストのキーで同名を許さないため。Worker側は、ID列が空の行(手入力の過去データ)にIDを採番して(体重・日記=日付、食事・水分・筋トレ・マスタ=UUID)**シートに書き戻す** — 書き戻せないと以後のupsert・行削除がその行を見つけられず重複行を生むため、書き戻し失敗は取り込み全体の失敗にする。行パース(`planWeightImport`/`planMealImport` ほか)は純関数として切り出してあり単体テストがある。シートに無い情報(食事のAI推定値・写真参照、設定)は復元されない。
+**取り込み(Issue #54):** シート→アプリ方向の手動インポート(設定画面の「シートから取り込み」ボタンのみがトリガー)。`runImport()`(`src/sync/importEngine.ts`)が `googleSheetsTransport.pull()`(`src/sync/sheets/sheetsImport.ts`)が Google Sheets API から直接**全タブ**(一覧は `src/sync/sheets/sheetsImport.ts` の `pullFromSheets` が正)の全行をレコードに逆変換して受け取り、**追加のみ・ローカル優先**でマージする(既存キー・削除トゥームストーン保留中のキーはスキップ。取り込んだレコードは `synced: true` で保存し再送信しない)。例外は活動記録で、アプリ内に編集・削除が無くGarminが真実の情報源のため、常にシート側の値で上書きする(Issue #81)。マスタ2タブ(Issue #96)はIDが違っても同名(前後空白無視)の既存品目・種目をスキップする — 種目マスタは名前がサジェストのキーで同名を許さないため。ID列が空の行(手入力の過去データ)にはIDを採番して(体重・日記=日付、食事・水分・筋トレ・マスタ=UUID)**シートに書き戻す** — 書き戻せないと以後のupsert・行削除がその行を見つけられず重複行を生むため、書き戻し失敗は取り込み全体の失敗にする。行パース(`planWeightImport`/`planMealImport` ほか)は純関数として切り出してあり単体テストがある。シートに無い情報(食事のAI推定値・写真参照、設定)は復元されない。
 
-**活動記録の自動取り込み(Issue #133):** 上記の手動取り込みとは別に、活動記録タブ**だけ**は自動同期のたびに取り込む。`runActivityImport()`(`src/sync/importEngine.ts`)が `workerSheetsTransport.pullActivity()` → `GET /api/import-activity`(`worker/sheetsImport.ts` の `handleImportActivity`)経由で活動記録タブ1枚だけを読み取り(全タブを読む `/api/import-sheets` と分けた軽量版)、`runImport` の活動記録と同じく常にシート側で上書きして `synced: true` で保存する。`createAutoSyncRunner` の既定動作 `runAutoSync` が push(`runSync`)に続けてこれを呼ぶ。取り込みはベストエフォートで、`runActivityImport` はthrowせずエラーを返すため push の成功を打ち消さない。手動の「今すぐ同期」ボタンは push のみ、全タブの取り込みは引き続き「シートから取り込み」ボタンのみ。
+**活動記録の自動取り込み(Issue #133):** 上記の手動取り込みとは別に、活動記録タブ**だけ**は自動同期のたびに取り込む。`runActivityImport()`(`src/sync/importEngine.ts`)が `googleSheetsTransport.pullActivity()`(`src/sync/sheets/sheetsImport.ts` の `pullActivityFromSheets`)が活動記録タブ1枚だけを読み取り(全タブを読む `pullFromSheets` と分けた軽量版)、`runImport` の活動記録と同じく常にシート側で上書きして `synced: true` で保存する。`createAutoSyncRunner` の既定動作 `runAutoSync` が push(`runSync`)に続けてこれを呼ぶ。取り込みはベストエフォートで、`runActivityImport` はthrowせずエラーを返すため push の成功を打ち消さない。手動の「今すぐ同期」ボタンは push のみ、全タブの取り込みは引き続き「シートから取り込み」ボタンのみ。
 
-`notConfiguredTransport` は `runSync()`/`runImport()`/`runActivityImport()` の引数無しデフォルトのままで、常にthrowするだけのプレースホルダー(テストでも「デフォルトは未設定エラーになる」ことの検証に使われている)。実際に使われるのは `workerSheetsTransport`(`src/sync/workerSheetsTransport.ts`)で、`App.tsx`(自動同期)と設定画面の `SheetsSyncCard.tsx`(「今すぐ同期」「シートから取り込み」ボタン)からは `runSync({ transport: workerSheetsTransport })` / `runImport({ transport: workerSheetsTransport })` の形で明示的に渡している。自動同期のトリガーは起動時・アプリ復帰時(`visibilitychange`)・オンライン復帰時(`online`)の3つ(Issue #105)で、そのたびに push と活動記録の取り込み(上記)の両方を行う。短時間の連続発火を防ぐスロットリング(最小間隔5分)と実行中の再入抑止は `src/sync/autoSync.ts` の `createAutoSyncRunner` が持つ(手動ボタンは対象外)。
+`notConfiguredTransport` は `runSync()`/`runImport()`/`runActivityImport()` の引数無しデフォルトのままで、常にthrowするだけのプレースホルダー(テストでも「デフォルトは未設定エラーになる」ことの検証に使われている)。実際に使われるのは `googleSheetsTransport`(`src/sync/googleSheetsTransport.ts`)で、`App.tsx`(自動同期)と設定画面の `SheetsSyncCard.tsx`(「今すぐ同期」「シートから取り込み」ボタン)からは `runSync({ transport: googleSheetsTransport })` / `runImport({ transport: googleSheetsTransport })` の形で明示的に渡している。自動同期のトリガーは起動時・アプリ復帰時(`visibilitychange`)・オンライン復帰時(`online`)の3つ(Issue #105)で、そのたびに push と活動記録の取り込み(上記)の両方を行う。短時間の連続発火を防ぐスロットリング(最小間隔5分)と実行中の再入抑止は `src/sync/autoSync.ts` の `createAutoSyncRunner` が持つ(手動ボタンは対象外)。
 
-`workerSheetsTransport` は `POST /api/sync-sheets`(`worker/sheetsSync.ts`)を叩く。Workerはサービスアカウントの秘密鍵からJWTを組み立てて署名し(`worker/googleSheetsAuth.ts`、Web Crypto APIの `crypto.subtle` を使用。Node/ブラウザのcryptoライブラリは使わない)、Google OAuth2のJWT Bearerフローでアクセストークンを取得したうえで、Google Sheets API(`values.append`・`values:batchUpdate`・`spreadsheets:batchUpdate` の `deleteDimension`。詳細は上記の編集・削除の反映を参照)を呼び出す。認証情報(`GOOGLE_SERVICE_ACCOUNT_EMAIL`・`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`・`GOOGLE_SHEETS_SPREADSHEET_ID`)はWorkerのシークレットとしてのみ保持し、クライアントには渡さない。
+**Google Sheets API はブラウザから直接叩く(Issue #215)。** `googleSheetsTransport` が `src/sync/sheets/` の `pushToSheets`/`pullFromSheets`/`pullActivityFromSheets` を呼び、それぞれが Sheets API(`values.append`・`values:batchUpdate`・`spreadsheets:batchUpdate` の `deleteDimension`)を叩く。必要なものは access token(#214 のユーザー自身の認可)と `Settings.spreadsheetId`(#216 でアプリが作成したシート)の2つで、**どちらかが無ければ通信する前にエラーにする**(未同期フラグは残るので後から同期できる)。
+
+**この移設で、他人の健康データが開発者のインフラを一切通らなくなった。** Workerに残るのはAIの2本(週次・月次コメント)と写真判定だけで、そこへ送るのはダイジェストと写真に限られる — プライバシーポリシー(#238)の「記録はお預かりしません」はこの構成で初めて成立する。サービスアカウント経由の同期(`worker/sheetsSync.ts`・`worker/googleSheetsAuth.ts`・`/api/sync-sheets`・`/api/import-sheets`・`/api/import-activity`)は削除済み。**ただしGarmin連携は別経路で、いまもサービスアカウントを使う** — GitHub Actions の Secrets(`scripts/garmin/`)は消さないこと。
 
 全 `/api/*` エンドポイントは共有トークン認証で保護される(Issue #87、`worker/auth.ts`): Workerのシークレット `API_AUTH_TOKEN` が設定されている場合、クライアントは設定画面で入力したAPIトークン(`Settings.apiToken`)を `Authorization: Bearer` ヘッダで送る必要がある(付与は `src/api/apiAuth.ts` のヘルパー経由)。`API_AUTH_TOKEN` 未設定なら認証を要求しない(ローカル開発・移行期間用)。新しいAPIエンドポイント・API呼び出しを追加する際もこの仕組みに乗せること。
 
-**同期先はアプリのデータモデル専用に新規作成したスプレッドシートであり、今使っている手動運用の既存スプレッドシートではない。** タブの一覧・タブ名・ID列・列の並びは `worker/sheetsSync.ts`(`*_CONFIG`・`*_HEADER`・`*ToRow`)が正で、ここには再掲しない。**フェーズ1〜2の記録5タブ(体重・食事・水分・筋トレ・日記)だけが手動作成前提で、それ以外は後付けのため同期時にタブが無ければWorkerが見出し行付きで自動作成する。** 検討の結果、既存の手動運用シートは「1日1行、その日の食事の合計カロリー/PFC」という集計形式で、アプリの `MealRecord`(1食事=1レコード、1日に複数件記録しうる)とは粒度が異なることが分かった。既存シートに合わせるには「日付で行を検索→既存の値と合算→上書き」という集計取り込みロジックが必要になり、「レコード単位で一方向に反映する(1レコード=1行、ID列で upsert・削除)」という現在の設計と相性が悪いため、新規スプレッドシートを採用した(Issue #3)。
+**`API_AUTH_TOKEN` はカンマ区切りで複数指定できる(Issue #218)。** 配布先ごとに別のトークンを配れば、その1本をシークレットから外すだけで1人分だけ失効させられる(`parseAuthTokens` が分解し、いずれかに一致すれば許可)。**認証を要求しないのは「シークレット自体が無い(`undefined`)」ときだけで、シークレットは在るのに解釈できるトークンが0本(`""`・`","`・`"  "`)なら全拒否する** — 手編集で最後の1本を抜いた状態を「未設定」と同じ全許可にすると、失効させたつもりの操作でAPIが黙って全開放されるため。全員を止めたいときはシークレットを空にせず、誰にも渡していない新しい値に差し替える。発行・失効のUIやD1によるユーザー管理は作らない(Cloudflareのシークレットを手で書き換える運用。課金状態との突合は有料化に進むときの論点)。
+
+**同期先は、アプリが利用者自身のGoogle Driveに新規作成するスプレッドシート(Issue #216)。** 設定画面の「スプレッドシートを作成」で作り、IDを `Settings.spreadsheetId` に保存する。**IDの手入力は用意しない** — `drive.file` スコープはアプリが作成したファイルにしかアクセスできず、他所で作られたシートのIDを入れてもGoogleが403を返すだけだから。タブの一覧・タブ名・ID列・列の並びは `src/sync/sheets/sheetsSync.ts`(`*_CONFIG`・`*_HEADER`・`*ToRow`)が正で、ここには再掲しない。**全タブを作成時に用意し、後から増えたタブは同期時に見出し行付きで自動作成する**(記録5タブが手動作成前提だったのは #216 まで。他人のDriveに置く以上、手動作成の前提は成立しない)。**活動記録タブだけはGarmin側(`scripts/garmin/garmin_to_sheet.py`)が作る** — 列構成の正があちらにあるため。 検討の結果、既存の手動運用シートは「1日1行、その日の食事の合計カロリー/PFC」という集計形式で、アプリの `MealRecord`(1食事=1レコード、1日に複数件記録しうる)とは粒度が異なることが分かった。既存シートに合わせるには「日付で行を検索→既存の値と合算→上書き」という集計取り込みロジックが必要になり、「レコード単位で一方向に反映する(1レコード=1行、ID列で upsert・削除)」という現在の設計と相性が悪いため、新規スプレッドシートを採用した(Issue #3)。
+
+### AIへの送信の同意(`src/api/aiConsent.ts`、Issue #219)
+
+配布(#213)に伴い、**AIへ送る前に利用者の同意を要求する**。健康データを第三者(GoogleのGemini API)へ送るため、無償配布でも省略しない。
+
+- **歯止めは送信経路に置く。** `assertAiConsent()` を `judgeMealPhoto`・`requestWeeklyAdvice`・`requestMonthlyAdvice` の先頭で呼ぶ。画面側の分岐だけにすると、呼び出し口が増えたときに漏れる
+- **同意を聞くのはUI側**(`useAiConsentGate`)。AI機能を使う直前にダイアログを出し、同意しなければ何も送らずに戻る。同意済みなら以後は聞かない
+- **同意状態は `Settings.aiConsentAt`(同意日時)。シート同期には載せない** — 記録ではなく「この人が同意した」という事実のため。バックアップJSONには入る
+- **同意しなくても記録・グラフ・同期は全部使える。** 止まるのはAI機能だけ
+- ダイアログの文言はプライバシーポリシー(#238)4章と同じ内容に揃える。**片方だけ変えないこと**
+
+### ユーザー自身のGoogle認可(`worker/googleOAuth.ts`・`src/api/googleOAuth.ts`、Issue #214)
+
+配布版(#213)に向けて、同期先スプレッドシートを**各ユーザー自身のDrive**に置くための認可。サービスアカウント1つで全員分を書く現状(全員のデータが1枚のシートに混ざる)を置き換える。方式は検討メモ12.8の**案A**(Sheets APIはクライアント直・refresh tokenもクライアント保持)。
+
+- **要求スコープは `drive.file` だけ。`spreadsheets` を足さないこと** — `drive.file` は非機微(non-sensitive)でGoogleのアプリ検証が必須にならないが、`spreadsheets` を足した瞬間に sensitive に落ちる。`worker/googleOAuth.ts` の `GOOGLE_OAUTH_SCOPE` が正で、テストが `spreadsheets` の混入を検出する
+- **Workerが担うのはトークン交換だけで、健康データには触れない。** Googleは refresh token の発行・使用の両方で `client_secret` を要求し、PKCEでは代替できないため、client_secret を持つサーバ側の口が1つだけ必要になる。**refresh token は保存しない**(ステートレスな中継)
+- **`/api/google-oauth/token` は実質「client_secret の代行窓口」。必ず共有トークン認証の内側に置く**(`worker/index.ts` のルーティング順)。認証の外に出すと、refresh token を盗んだ相手がここを叩いて代行させられる
+- **refresh token は `googleAuth` テーブル(1行)に置き、シート同期にもバックアップにも載せない**(`BACKUP_EXCLUDED_TABLES`)。`Settings` に相乗りさせると同期先シートとバックアップJSONの両方へ流出する。access token は短命なため永続化せず、`src/api/googleOAuth.ts` がメモリで保持して期限切れ時に作り直す
+- **失効は正常系として扱う**(6ヶ月未使用・ユーザーによる解除・認可の上限超過)。Workerが `code: "google_reauth_required"` 付きの401を返し、クライアントはそのときだけ保存済みトークンを捨てて未連携に戻す。**ステータスだけで判断しない** — 401は共有トークン認証(#87)の失敗でも返るため、`API_AUTH_TOKEN` の差し替え(#218の失効運用)やAPIトークンの打ち間違いで、無関係にGoogle連携まで失われる。**一時障害(502等)でも捨てない**
+- **連携を解除したら `Settings.spreadsheetId` も一緒に捨てる。** シートは連携したアカウントのDriveにあり、別アカウントで連携し直すと `drive.file` では読めない。IDを残すと、二度と読めないシートを指したまま同期が失敗し続け、作り直す導線も出ない
+- **配信URLを変えると、Google Cloud Consoleの「承認済みのリダイレクトURI」の更新も要る**(`/oauth/callback`)。IndexedDBがオリジン単位である件と同じ紐付きが認可にも及ぶ
 
 ### Garmin連携(`scripts/garmin/`、`.github/workflows/garmin-sync.yml`)
 

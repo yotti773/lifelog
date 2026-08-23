@@ -1,4 +1,5 @@
 import { isAuthorized, unauthorizedResponse } from "./auth";
+import { handleGoogleOAuthConfig, handleGoogleOAuthToken } from "./googleOAuth";
 import {
   buildMealJudgmentPrompt,
   MEAL_JUDGMENT_RESPONSE_SCHEMA,
@@ -8,8 +9,6 @@ import {
 } from "./mealJudgment";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 import { handleMonthlyAdvice } from "./monthlyAdvice";
-import { handleImportActivity, handleImportSheets } from "./sheetsImport";
-import { handleSyncSheets } from "./sheetsSync";
 import { handleWeeklyAdvice } from "./weeklyAdvice";
 
 export interface Env {
@@ -20,9 +19,9 @@ export interface Env {
   GEMINI_MODEL?: string;
   /** 週次レビューのAIコメント用の軽量モデル(Issue #12)。未設定時はworker/weeklyAdvice.tsのデフォルトを使う */
   GEMINI_ADVICE_MODEL?: string;
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: string;
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: string;
-  GOOGLE_SHEETS_SPREADSHEET_ID: string;
+  /** ユーザー自身のGoogle認可(Issue #214)。clientIdは公開値、clientSecretはWorkerのみが持つ */
+  GOOGLE_OAUTH_CLIENT_ID?: string;
+  GOOGLE_OAUTH_CLIENT_SECRET?: string;
 }
 
 /** 1回の判定に添付できる写真の上限(Issue #110)。クライアント側のsrc/api/judgeMeal.tsと合わせる */
@@ -102,16 +101,15 @@ export default {
       return unauthorizedResponse();
     }
 
-    if (url.pathname === "/api/sync-sheets" && request.method === "POST") {
-      return handleSyncSheets(request, env);
+    // Googleの認可(Issue #214)。**必ず上の共有トークン認証の内側**に置くこと —
+    // このエンドポイントは client_secret の代行窓口で、認証の外に出すと
+    // refresh token を盗んだ相手が代行させられる(検討メモ12.8)
+    if (url.pathname === "/api/google-oauth/config" && request.method === "GET") {
+      return handleGoogleOAuthConfig(env);
     }
 
-    if (url.pathname === "/api/import-sheets" && request.method === "GET") {
-      return handleImportSheets(env);
-    }
-
-    if (url.pathname === "/api/import-activity" && request.method === "GET") {
-      return handleImportActivity(env);
+    if (url.pathname === "/api/google-oauth/token" && request.method === "POST") {
+      return handleGoogleOAuthToken(request, env);
     }
 
     if (url.pathname === "/api/weekly-advice" && request.method === "POST") {
@@ -147,6 +145,13 @@ export default {
         const message = error instanceof Error ? error.message : "判定に失敗しました";
         return Response.json({ error: message }, { status: 502 });
       }
+    }
+
+    // **知らない /api/* はJSONの404で返す。** ここを素通りさせるとSPAのindex.htmlが200で返り、
+    // クライアントには「サーバーからの正しい応答が得られませんでした」としか見えない。
+    // #215で削除した3つのエンドポイント(/api/sync-sheets ほか)を、更新前のPWAが叩く間に効く
+    if (url.pathname.startsWith("/api/")) {
+      return Response.json({ error: `このAPIは存在しません (${url.pathname})` }, { status: 404 });
     }
 
     return env.ASSETS.fetch(request);

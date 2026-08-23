@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -15,18 +16,22 @@ import {
   IconKey,
   IconPerson,
   IconRuler,
+  IconShield,
   IconSun,
 } from "@/components/icons";
 import { db } from "@/db/db";
 import { getSettings, updateSettings } from "@/db/settings";
 import { activityLevelLabel } from "@/lib/nutritionCalc";
 import { fontRounded, tokens } from "@/theme";
+import AiConsentCard from "./AiConsentCard";
 import AppResetCard from "./AppResetCard";
+import GoogleConnectionCard from "./GoogleConnectionCard";
 import LocalBackupCard from "./LocalBackupCard";
 import MasterDataSections from "./MasterDataSections";
 import PfcEditorDrawer from "./PfcEditorDrawer";
 import SettingRow, { SectionLabel } from "./SettingRow";
 import SheetsSyncCard from "./SheetsSyncCard";
+import SpreadsheetCard from "./SpreadsheetCard";
 import ValueEditorDrawer, { SEX_OPTIONS, type EditTarget } from "./ValueEditorDrawer";
 
 /** YYYY-MM-DD を 2026/10/31 形式で表示する */
@@ -36,6 +41,7 @@ function formatSlashDate(date: string): string {
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const settings = useLiveQuery(() => getSettings(), []);
   // 自動計算(Issue #43)は直近の体重記録を使う。「記録なし」とロード中を区別するためnullに正規化する
   const latestWeightRecord = useLiveQuery(
@@ -185,7 +191,11 @@ export default function SettingsPage() {
         </Box>
       )}
 
+      <SectionLabel>Googleとの連携</SectionLabel>
+      <GoogleConnectionCard />
+
       <SectionLabel>データ同期・バックアップ(スプレッドシート)</SectionLabel>
+      <SpreadsheetCard />
       <SheetsSyncCard lastSyncedAt={settings.lastSyncedAt} />
 
       <SectionLabel>完全バックアップ(ファイル)</SectionLabel>
@@ -206,10 +216,11 @@ export default function SettingsPage() {
         />
       </Card>
       <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
-        同期・AI判定のAPIを第三者の呼び出しから守る合言葉です(Workerのシークレット API_AUTH_TOKEN と同じ値を設定)
+        AI判定・AIコメント・Google連携のAPIを第三者の呼び出しから守る合言葉です(Workerのシークレット API_AUTH_TOKEN と同じ値を設定)
       </Typography>
 
       <SectionLabel>AIコーチング</SectionLabel>
+      <AiConsentCard />
       <Card sx={{ overflow: "hidden", mb: "8px" }}>
         {/* 日記本文のAI送信オプトイン(Issue #103でIssue #12を決着)。デフォルトOFF */}
         <Box sx={{ display: "flex", alignItems: "center", gap: "13px", p: "9px 16px 9px 16px" }}>
@@ -242,6 +253,20 @@ export default function SettingsPage() {
       </Typography>
 
       <MasterDataSections />
+
+      <SectionLabel>このアプリについて</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "8px" }}>
+        <SettingRow
+          icon={<IconShield size={18} />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label="プライバシーポリシー"
+          onClick={() => navigate("/privacy")}
+        />
+      </Card>
+      <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
+        記録がどこに保存され、AIに何が送られるかをまとめています
+      </Typography>
 
       <ValueEditorDrawer
         target={editTarget}

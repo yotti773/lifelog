@@ -224,6 +224,10 @@ export interface Settings {
   dailyWaterTargetMl?: number; // 1日の目標水分摂取量(ml)。未設定時はホーム・水分記録画面で合計mlのみ表示する(画面設計書5章)
   lastSyncedAt?: string; // ISO8601, 最終同期日時
   apiToken?: string; // Worker API(/api/*)の共有トークン(Issue #87)。WorkerのAPI_AUTH_TOKENと同じ値を設定する
+  // 同期先スプレッドシートのID(Issue #216)。アプリがユーザーのDriveに作成したシートを指す。
+  // **手入力では代用できない** — drive.fileスコープはアプリが作成したファイルにしかアクセスできないため。
+  // シート同期の対象外(シート自身のIDをシートに書いても復元には使えない)。バックアップJSONには含める
+  spreadsheetId?: string;
   baselineDate?: string; // YYYY-MM-DD, 進捗バーの起点日。未設定時は一番古い体重記録を起点とする
 
   // --- フェーズ3: 身体プロフィール(Issue #43。画面設計書9章) ---
@@ -243,6 +247,10 @@ export interface Settings {
    * デフォルト(undefined)はOFF = 本文は外部AIに送らず気分タグの件数集計のみ(AIコンサルティング設計書7章)
    */
   sendDiaryTextToAi?: boolean;
+
+  // AIへの送信に同意した日時(ISO8601。Issue #219)。**未設定=未同意**で、AI機能だけが止まる。
+  // 記録・同期は同意なしで全部使える。シート同期には載せない(記録ではなく「この人が同意した」事実のため)
+  aiConsentAt?: string;
 
   /**
    * 初回セットアップをスキップしたかどうかのフラグ(Issue #217)。

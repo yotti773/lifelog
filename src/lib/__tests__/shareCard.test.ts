@@ -144,7 +144,9 @@ describe("buildWeeklyShareCard", () => {
 
 describe("buildDailyShareCard", () => {
   it("体重を主数値にし、前回比をバッジにする", () => {
-    const card = buildDailyShareCard(dailySource());
+    // 見出しの「今日の」は表示日が当日かどうかで変わる(#226)。todayを渡さないと
+    // 実行日が2026-08-19のときだけ通るテストになるため、必ず明示する
+    const card = buildDailyShareCard(dailySource(), { today: "2026-08-19" });
 
     expect(card.kind).toBe("daily");
     expect(card.period).toBe("8月19日(水)");
@@ -167,7 +169,9 @@ describe("buildDailyShareCard", () => {
   });
 
   it("体重の記録が無い日は摂取カロリーを主数値にする", () => {
-    const card = buildDailyShareCard(dailySource({ weightKg: null, previousWeightKg: 69.7 }));
+    const card = buildDailyShareCard(dailySource({ weightKg: null, previousWeightKg: 69.7 }), {
+      today: "2026-08-19",
+    });
 
     expect(card.headline).toEqual({ caption: "今日の摂取", value: "1,820", unit: "kcal" });
     expect(card.hasWeightValue).toBe(false);

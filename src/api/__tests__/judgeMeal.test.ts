@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { judgeMealPhoto } from "@/api/judgeMeal";
+import { grantAiConsent } from "@/db/aiConsent";
+import { db } from "@/db/db";
 
 // resizeImageToBase64はcanvasに依存しNode上で動かないため、変換済みの体でモックする
 vi.mock("@/lib/image", () => ({
@@ -7,6 +9,12 @@ vi.mock("@/lib/image", () => ({
 }));
 
 const photo = new File(["dummy"], "meal.jpg", { type: "image/jpeg" });
+
+// AIへの送信には同意が要る(Issue #219)。ここでの関心は送信の中身なので、同意済みから始める
+beforeEach(async () => {
+  await db.settings.clear();
+  await grantAiConsent();
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();

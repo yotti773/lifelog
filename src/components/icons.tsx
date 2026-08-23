@@ -488,3 +488,18 @@ export function IconKey(props: IconProps) {
     </svg>
   );
 }
+
+/** 盾(プライバシーポリシー。Issue #238) */
+export function IconShield(props: IconProps) {
+  return (
+    <svg {...base(props, "0 0 24 24")}>
+      <path
+        d="M12 3.2 5.5 5.8v5.3c0 3.9 2.6 7.4 6.5 8.7 3.9-1.3 6.5-4.8 6.5-8.7V5.8L12 3.2Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="m9.3 11.9 1.9 1.9 3.5-3.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

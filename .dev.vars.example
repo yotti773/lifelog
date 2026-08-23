@@ -1,8 +1,31 @@
 GEMINI_API_KEY=your-gemini-api-key-here
 GEMINI_MODEL=gemini-3.6-flash
-GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
-GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
-GOOGLE_SHEETS_SPREADSHEET_ID=your-spreadsheet-id-here
+# シート同期のサービスアカウント3点(GOOGLE_SERVICE_ACCOUNT_EMAIL / _PRIVATE_KEY /
+# GOOGLE_SHEETS_SPREADSHEET_ID)は Issue #215 で不要になった。同期はクライアントから
+# Google Sheets API を直接叩く形になり、Worker は健康データに触れない。
+# **GitHub Actions 側の同名 Secrets は消さないこと** — Garmin連携(scripts/garmin/)がまだ使う。
 # APIの共有トークン(Issue #87)。本番はwrangler secret putで登録し、アプリの設定画面に同じ値を入力する。
-# 未設定の場合は認証を要求しない(ローカル開発用)
+# この行自体が無い場合は認証を要求しない(ローカル開発用)。
+# 逆に、行は在るのに値が空("" や ",")の場合は全拒否になる — 手編集で最後の1本を抜いたときに
+# APIが黙って全開放されるのを防ぐため(Issue #218)。全員を止めたいときは空にせず、
+# 誰にも渡していない新しい値に差し替えること
+#
+# カンマ区切りで複数指定できる(Issue #218)。配布先ごとに別のトークンを発行しておくと、
+# その1本をこの値から外すだけで、その人だけを失効させられる(他の人は影響を受けない)。
+#   例) API_AUTH_TOKEN=token-for-me,token-for-alice,token-for-bob
+# 文字列の完全一致で照合するため、各トークンは十分な長さのランダム値にすること。
+# 誰にどのトークンを渡したかはリポジトリ・Issueに書かない(手元で管理する)。
 API_AUTH_TOKEN=your-random-token-here
+
+# ユーザー自身のGoogle認可(Issue #214)。Google Cloud Console の「APIとサービス → 認証情報」で
+# OAuth 2.0 クライアントID(種類: ウェブアプリケーション)を作って設定する。
+#
+# 「承認済みのリダイレクトURI」に次の2つを登録すること(パスは /oauth/callback 固定):
+#   https://lifelog.n1lab.workers.dev/oauth/callback
+#   http://localhost:5173/oauth/callback   ← ローカル開発用
+#
+# スコープは drive.file のみ。同意画面の公開ステータスは「本番」にする
+# (テストのままだと refresh token が7日で失効する)。
+# CLIENT_ID は認可URLに載る公開値、CLIENT_SECRET はWorkerだけが持つ。
+GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-oauth-client-secret

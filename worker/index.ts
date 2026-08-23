@@ -9,8 +9,6 @@ import {
 } from "./mealJudgment";
 import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
 import { handleMonthlyAdvice } from "./monthlyAdvice";
-import { handleImportActivity, handleImportSheets } from "./sheetsImport";
-import { handleSyncSheets } from "./sheetsSync";
 import { handleWeeklyAdvice } from "./weeklyAdvice";
 
 export interface Env {
@@ -21,9 +19,6 @@ export interface Env {
   GEMINI_MODEL?: string;
   /** 週次レビューのAIコメント用の軽量モデル(Issue #12)。未設定時はworker/weeklyAdvice.tsのデフォルトを使う */
   GEMINI_ADVICE_MODEL?: string;
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: string;
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: string;
-  GOOGLE_SHEETS_SPREADSHEET_ID: string;
   /** ユーザー自身のGoogle認可(Issue #214)。clientIdは公開値、clientSecretはWorkerのみが持つ */
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
@@ -115,18 +110,6 @@ export default {
 
     if (url.pathname === "/api/google-oauth/token" && request.method === "POST") {
       return handleGoogleOAuthToken(request, env);
-    }
-
-    if (url.pathname === "/api/sync-sheets" && request.method === "POST") {
-      return handleSyncSheets(request, env);
-    }
-
-    if (url.pathname === "/api/import-sheets" && request.method === "GET") {
-      return handleImportSheets(env);
-    }
-
-    if (url.pathname === "/api/import-activity" && request.method === "GET") {
-      return handleImportActivity(env);
     }
 
     if (url.pathname === "/api/weekly-advice" && request.method === "POST") {

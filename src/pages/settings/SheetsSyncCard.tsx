@@ -23,7 +23,7 @@ import { formatDateTime } from "@/lib/date";
 import { runImport, type ImportOutcome } from "@/sync/importEngine";
 import { toSettingsEntries } from "@/sync/settingsSync";
 import { runSync, type SyncOutcome } from "@/sync/syncEngine";
-import { workerSheetsTransport } from "@/sync/workerSheetsTransport";
+import { googleSheetsTransport } from "@/sync/googleSheetsTransport";
 import { fontRounded, tokens } from "@/theme";
 
 function syncOutcomeMessage(outcome: SyncOutcome): string {
@@ -209,7 +209,7 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
     setSyncing(true);
     setSyncOutcome(null);
     try {
-      const outcome = await runSync({ transport: workerSheetsTransport });
+      const outcome = await runSync({ transport: googleSheetsTransport });
       setSyncOutcome(outcome);
     } finally {
       setSyncing(false);
@@ -220,7 +220,7 @@ export default function SheetsSyncCard({ lastSyncedAt }: SheetsSyncCardProps) {
     setImporting(true);
     setImportOutcome(null);
     try {
-      const outcome = await runImport({ transport: workerSheetsTransport });
+      const outcome = await runImport({ transport: googleSheetsTransport });
       setImportOutcome(outcome);
     } finally {
       setImporting(false);

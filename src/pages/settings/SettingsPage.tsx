@@ -30,6 +30,7 @@ import MasterDataSections from "./MasterDataSections";
 import PfcEditorDrawer from "./PfcEditorDrawer";
 import SettingRow, { SectionLabel } from "./SettingRow";
 import SheetsSyncCard from "./SheetsSyncCard";
+import SpreadsheetCard from "./SpreadsheetCard";
 import ValueEditorDrawer, { SEX_OPTIONS, type EditTarget } from "./ValueEditorDrawer";
 
 /** YYYY-MM-DD を 2026/10/31 形式で表示する */
@@ -193,6 +194,7 @@ export default function SettingsPage() {
       <GoogleConnectionCard />
 
       <SectionLabel>データ同期・バックアップ(スプレッドシート)</SectionLabel>
+      <SpreadsheetCard />
       <SheetsSyncCard lastSyncedAt={settings.lastSyncedAt} />
 
       <SectionLabel>完全バックアップ(ファイル)</SectionLabel>
@@ -213,7 +215,7 @@ export default function SettingsPage() {
         />
       </Card>
       <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
-        同期・AI判定のAPIを第三者の呼び出しから守る合言葉です(Workerのシークレット API_AUTH_TOKEN と同じ値を設定)
+        AI判定・AIコメント・Google連携のAPIを第三者の呼び出しから守る合言葉です(Workerのシークレット API_AUTH_TOKEN と同じ値を設定)
       </Typography>
 
       <SectionLabel>AIコーチング</SectionLabel>

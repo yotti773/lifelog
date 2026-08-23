@@ -1,8 +1,24 @@
-import { getGoogleAccessToken } from "./googleSheetsAuth";
-import { DIARY_MOOD_LABELS } from "./diaryMoodLabels";
-import { EXERCISE_BODY_PART_LABELS } from "./exerciseBodyPartLabels";
-import type { Env } from "./index";
-import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
+import { EXERCISE_BODY_PART_LABELS } from "@/lib/exerciseBodyParts";
+import type { DiaryMood, ExerciseBodyPart, MealType } from "@/types";
+import type {
+  PulledActivityRecord,
+  PulledAdviceRecord,
+  PulledBloodPressureRecord,
+  PulledBodyMeasurementRecord,
+  PulledDiaryRecord,
+  PulledExerciseMasterItem,
+  PulledFoodMasterItem,
+  PulledHabitMasterItem,
+  PulledHabitRecord,
+  PulledMealRecord,
+  PulledMonthlyAdviceRecord,
+  PulledWaterRecord,
+  PulledWeightRecord,
+  PulledWorkoutRecord,
+  SyncPullActivityResult,
+  SyncPullResult,
+} from "../types";
+import { DIARY_MOOD_LABELS, MEAL_TYPE_LABELS } from "./labels";
 import {
   ADVICE_CONFIG,
   BLOOD_PRESSURE_CONFIG,
@@ -28,179 +44,31 @@ import {
   WEIGHT_CONFIG,
   WORKOUT_CONFIG,
   type SheetConfig,
+  type SheetsApiContext,
 } from "./sheetsSync";
 
-// worker/tsconfig.json は src/ に依存しない独立ビルドのため、必要な形をここにローカルで複製している。
-// src/sync/types.ts の Pulled*Record / SyncPullResult と手動で同期を保つこと。
-export interface ImportedWeightRecordOutput {
-  id: string;
-  date: string;
-  timestamp: string;
-  weightKg: number;
-  bodyFatPercent?: number;
-  note?: string;
-}
+/**
+ * シートの行から復元したレコードの形。**移設(Issue #215)で `src/sync/types.ts` の実型へ寄せた** —
+ * 移設前は worker/ が src/ に依存しない独立ビルドだったため同じ形を複製していたが、
+ * 同じビルドに入った以上、二重管理する理由は無くなった。
+ */
+export type ImportedWeightRecordOutput = PulledWeightRecord;
+export type ImportedMealRecordOutput = PulledMealRecord;
+export type ImportedWaterRecordOutput = PulledWaterRecord;
+export type ImportedWorkoutRecordOutput = PulledWorkoutRecord;
+export type ImportedDiaryRecordOutput = PulledDiaryRecord;
+export type ImportedActivityRecordOutput = PulledActivityRecord;
+export type ImportedFoodMasterItemOutput = PulledFoodMasterItem;
+export type ImportedExerciseMasterItemOutput = PulledExerciseMasterItem;
+export type ImportedSettingsEntryOutput = { key: string; value: string | number | boolean };
+export type ImportedAdviceRecordOutput = PulledAdviceRecord;
+export type ImportedMonthlyAdviceRecordOutput = PulledMonthlyAdviceRecord;
+export type ImportedBloodPressureRecordOutput = PulledBloodPressureRecord;
+export type ImportedBodyMeasurementRecordOutput = PulledBodyMeasurementRecord;
+export type ImportedHabitMasterItemOutput = PulledHabitMasterItem;
+export type ImportedHabitRecordOutput = PulledHabitRecord;
 
-export interface ImportedMealRecordOutput {
-  id: string;
-  timestamp: string;
-  mealType: string;
-  confirmedName: string;
-  confirmedKcal: number;
-  confirmedProteinG: number;
-  confirmedFatG: number;
-  confirmedCarbsG: number;
-}
 
-export interface ImportedWaterRecordOutput {
-  id: string;
-  timestamp: string;
-  amountMl: number;
-}
-
-export interface ImportedWorkoutRecordOutput {
-  id: string;
-  date: string;
-  timestamp: string;
-  exerciseName: string;
-  exerciseOrder: number;
-  setNumber: number;
-  weightKg: number;
-  reps: number;
-}
-
-export interface ImportedDiaryRecordOutput {
-  id: string;
-  date: string;
-  timestamp: string;
-  text: string;
-  mood?: string;
-  alcohol?: boolean; // 飲酒タグ(Issue #112)
-}
-
-export interface ImportedActivityRecordOutput {
-  date: string;
-  steps?: number;
-  totalKcal?: number;
-  activeKcal?: number;
-  sleepMinutes?: number;
-  sleepScore?: number;
-  restingHeartRate?: number;
-  moderateIntensityMinutes?: number;
-  vigorousIntensityMinutes?: number;
-}
-
-export interface ImportedFoodMasterItemOutput {
-  id: string;
-  name: string;
-  kcal: number;
-  proteinG: number;
-  fatG: number;
-  carbsG: number;
-  source?: string;
-  createdAt: string;
-}
-
-export interface ImportedExerciseMasterItemOutput {
-  id: string;
-  name: string;
-  bodyPart?: string;
-  createdAt: string;
-}
-
-/** 設定の1項目(Issue #164)。値はキーごとの型に復元して返す */
-export interface ImportedSettingsEntryOutput {
-  key: string;
-  value: string | number | boolean;
-}
-
-/** 週次AIコメント(Issue #164)。digestはシートに無いため復元されない */
-export interface ImportedAdviceRecordOutput {
-  weekStart: string;
-  createdAt: string;
-  advice: { verdict: string; summary: string; wins: string[]; actions: string[] };
-}
-
-export interface ImportedMonthlyAdviceRecordOutput {
-  month: string;
-  createdAt: string;
-  advice: { verdict: string; summary: string; wins: string[]; actions: string[] };
-}
-
-export interface ImportedBloodPressureRecordOutput {
-  id: string;
-  date: string;
-  timestamp: string;
-  systolic: number;
-  diastolic: number;
-  pulse?: number;
-  note?: string;
-}
-
-export interface ImportedBodyMeasurementRecordOutput {
-  id: string;
-  date: string;
-  timestamp: string;
-  waistCm: number;
-  chestCm?: number;
-  thighCm?: number;
-  note?: string;
-}
-
-export interface ImportedHabitMasterItemOutput {
-  id: string;
-  name: string;
-  targetWeeklyFrequency?: number;
-  archived: boolean;
-  order: number;
-  createdAt: string;
-}
-
-export interface ImportedHabitRecordOutput {
-  id: string;
-  date: string;
-  habitId: string;
-  habitName: string;
-  timestamp: string;
-}
-
-interface ActivityImportResultOutput {
-  activityRecords: ImportedActivityRecordOutput[];
-  skippedActivityRows: number;
-}
-
-interface SheetsImportResultOutput {
-  weightRecords: ImportedWeightRecordOutput[];
-  mealRecords: ImportedMealRecordOutput[];
-  waterRecords: ImportedWaterRecordOutput[];
-  workoutRecords: ImportedWorkoutRecordOutput[];
-  diaryRecords: ImportedDiaryRecordOutput[];
-  activityRecords: ImportedActivityRecordOutput[];
-  foodMasterItems: ImportedFoodMasterItemOutput[];
-  exerciseMasterItems: ImportedExerciseMasterItemOutput[];
-  bloodPressureRecords: ImportedBloodPressureRecordOutput[];
-  bodyMeasurementRecords: ImportedBodyMeasurementRecordOutput[];
-  settingsEntries: ImportedSettingsEntryOutput[];
-  adviceRecords: ImportedAdviceRecordOutput[];
-  monthlyAdviceRecords: ImportedMonthlyAdviceRecordOutput[];
-  habitMasterItems: ImportedHabitMasterItemOutput[];
-  habitRecords: ImportedHabitRecordOutput[];
-  skippedWeightRows: number;
-  skippedMealRows: number;
-  skippedWaterRows: number;
-  skippedWorkoutRows: number;
-  skippedDiaryRows: number;
-  skippedActivityRows: number;
-  skippedFoodMasterRows: number;
-  skippedExerciseMasterRows: number;
-  skippedBloodPressureRows: number;
-  skippedBodyMeasurementRows: number;
-  skippedHabitMasterRows: number;
-  skippedHabitRecordRows: number;
-  skippedSettingsRows: number;
-  skippedAdviceRows: number;
-  skippedMonthlyAdviceRows: number;
-}
 
 /** Sheets APIのvalues.get(FORMATTED_VALUE)が返しうるセル値 */
 export type CellValue = string | number | undefined;
@@ -276,10 +144,10 @@ const MEAL_TYPE_BY_LABEL: Record<string, string> = Object.fromEntries(
 );
 
 /** 食事区分セル(日本語ラベル or 英語キー)をMealTypeキーに変換する。未知の値はnull */
-export function parseMealTypeCell(value: CellValue): string | null {
+export function parseMealTypeCell(value: CellValue): MealType | null {
   const s = String(value ?? "").trim();
-  if (MEAL_TYPE_BY_LABEL[s]) return MEAL_TYPE_BY_LABEL[s];
-  if (s in MEAL_TYPE_LABELS) return s;
+  if (MEAL_TYPE_BY_LABEL[s]) return MEAL_TYPE_BY_LABEL[s] as MealType;
+  if (s in MEAL_TYPE_LABELS) return s as MealType;
   return null;
 }
 
@@ -292,11 +160,11 @@ const BODY_PART_BY_LABEL: Record<string, string> = Object.fromEntries(
 );
 
 /** 部位セル(日本語ラベル or 英語キー)を部位キーに変換する(Issue #104)。空・未知の値はundefined(行は取り込む) */
-export function parseBodyPartCell(value: CellValue): string | undefined {
+export function parseBodyPartCell(value: CellValue): ExerciseBodyPart | undefined {
   const s = String(value ?? "").trim();
   if (s === "") return undefined;
-  if (BODY_PART_BY_LABEL[s]) return BODY_PART_BY_LABEL[s];
-  if (s in EXERCISE_BODY_PART_LABELS) return s;
+  if (BODY_PART_BY_LABEL[s]) return BODY_PART_BY_LABEL[s] as ExerciseBodyPart;
+  if (s in EXERCISE_BODY_PART_LABELS) return s as ExerciseBodyPart;
   return undefined;
 }
 
@@ -311,11 +179,11 @@ export function parseAlcoholCell(value: CellValue): boolean | undefined {
 }
 
 /** 気分タグセル(日本語ラベル or 英語キー)をDiaryMoodキーに変換する。空・未知の値はundefined */
-export function parseMoodCell(value: CellValue): string | undefined {
+export function parseMoodCell(value: CellValue): DiaryMood | undefined {
   const s = String(value ?? "").trim();
   if (s === "") return undefined;
-  if (DIARY_MOOD_BY_LABEL[s]) return DIARY_MOOD_BY_LABEL[s];
-  if (s in DIARY_MOOD_LABELS) return s;
+  if (DIARY_MOOD_BY_LABEL[s]) return DIARY_MOOD_BY_LABEL[s] as DiaryMood;
+  if (s in DIARY_MOOD_LABELS) return s as DiaryMood;
   return undefined;
 }
 
@@ -1162,20 +1030,7 @@ async function writeBackIds(
  * push(handleSyncSheets)と違い部分成功は返さない — 読み取りは副作用がなく、失敗したら
  * クライアント側は何も取り込まず再試行すればよいため、全体を成功/失敗の2値にしている。
  */
-export async function handleImportSheets(env: Env): Promise<Response> {
-  if (!env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || !env.GOOGLE_SHEETS_SPREADSHEET_ID) {
-    return Response.json({ error: "Google Sheets連携が未設定です(環境変数を確認してください)" }, { status: 500 });
-  }
-
-  let accessToken: string;
-  try {
-    accessToken = await getGoogleAccessToken(env);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Google認証に失敗しました";
-    return Response.json({ error: message }, { status: 502 });
-  }
-
-  const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
+export async function pullFromSheets({ accessToken, spreadsheetId }: SheetsApiContext): Promise<SyncPullResult> {
   try {
     const [
       weightRows,
@@ -1249,7 +1104,7 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       writeBackIds(accessToken, spreadsheetId, MONTHLY_ADVICE_CONFIG, monthlyAdvicePlan.idBackfills),
     ]);
 
-    return Response.json({
+    return {
       weightRecords: weightPlan.records,
       mealRecords: mealPlan.records,
       waterRecords: waterPlan.records,
@@ -1280,10 +1135,10 @@ export async function handleImportSheets(env: Env): Promise<Response> {
       skippedSettingsRows: settingsPlan.skippedRowCount,
       skippedAdviceRows: advicePlan.skippedRowCount,
       skippedMonthlyAdviceRows: monthlyAdvicePlan.skippedRowCount,
-    } satisfies SheetsImportResultOutput);
+    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "スプレッドシートの読み取りに失敗しました";
-    return Response.json({ error: message }, { status: 502 });
+    // 読み取りは副作用が無いため、失敗はそのまま呼び出し元へ投げて再試行に委ねる
+    throw error instanceof Error ? error : new Error("スプレッドシートの読み取りに失敗しました");
   }
 }
 
@@ -1292,28 +1147,14 @@ export async function handleImportSheets(env: Env): Promise<Response> {
  * 自動同期のたびに叩かれるため、全12タブを読むhandleImportSheetsと分けた軽量版。
  * 活動記録は日付が主キーでID列・書き戻しが無いため、読み取り→パースだけで完結する。
  */
-export async function handleImportActivity(env: Env): Promise<Response> {
-  if (!env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || !env.GOOGLE_SHEETS_SPREADSHEET_ID) {
-    return Response.json({ error: "Google Sheets連携が未設定です(環境変数を確認してください)" }, { status: 500 });
-  }
-
-  let accessToken: string;
-  try {
-    accessToken = await getGoogleAccessToken(env);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Google認証に失敗しました";
-    return Response.json({ error: message }, { status: 502 });
-  }
-
-  try {
-    const activityRows = await readActivityRowsIfPresent(accessToken, env.GOOGLE_SHEETS_SPREADSHEET_ID);
-    const activityPlan = planActivityImport(activityRows);
-    return Response.json({
-      activityRecords: activityPlan.records,
-      skippedActivityRows: activityPlan.skippedRowCount,
-    } satisfies ActivityImportResultOutput);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "スプレッドシートの読み取りに失敗しました";
-    return Response.json({ error: message }, { status: 502 });
-  }
+export async function pullActivityFromSheets({
+  accessToken,
+  spreadsheetId,
+}: SheetsApiContext): Promise<SyncPullActivityResult> {
+  const activityRows = await readActivityRowsIfPresent(accessToken, spreadsheetId);
+  const activityPlan = planActivityImport(activityRows);
+  return {
+    activityRecords: activityPlan.records,
+    skippedActivityRows: activityPlan.skippedRowCount,
+  };
 }

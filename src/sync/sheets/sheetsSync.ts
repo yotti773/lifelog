@@ -1,186 +1,39 @@
-import { getGoogleAccessToken } from "./googleSheetsAuth";
-import type { Env } from "./index";
-import { DIARY_MOOD_LABELS } from "./diaryMoodLabels";
-import { EXERCISE_BODY_PART_LABELS } from "./exerciseBodyPartLabels";
-import { MEAL_TYPE_LABELS } from "./mealTypeLabels";
+import { EXERCISE_BODY_PART_LABELS } from "@/lib/exerciseBodyParts";
+import type {
+  BloodPressureRecord,
+  BodyMeasurementRecord,
+  DiaryRecord,
+  ExerciseMasterItem,
+  FoodMasterItem,
+  HabitMasterItem,
+  HabitRecord,
+  MealRecord,
+  WaterRecord,
+  WeightRecord,
+  WorkoutRecord,
+} from "@/types";
+import type { WeeklyAdvice } from "@/types";
+import type {
+  PushableAdviceRecord,
+  PushableMonthlyAdviceRecord,
+  SyncPushPayload,
+  SyncPushResult,
+} from "../types";
+import { DIARY_MOOD_LABELS, MEAL_TYPE_LABELS } from "./labels";
 
-// worker/tsconfig.json は src/ に依存しない独立ビルドのため、必要な形をここにローカルで複製している。
-// src/types.ts・src/sync/types.ts と手動で同期を保つこと。
-interface WeightRecordInput {
-  id: string;
-  date: string;
-  timestamp: string;
-  weightKg: number;
-  bodyFatPercent?: number;
-  note?: string;
-}
+/**
+ * スプレッドシートへの書き出し(Issue #3・#30。**Issue #215 で `worker/` からクライアント側へ移設**)。
+ *
+ * **Google Sheets API はブラウザから直接叩く。** access token は #214 で取得したユーザー自身の
+ * 認可から得る(`src/api/googleOAuth.ts`)。これにより、他人の健康データが開発者のインフラを
+ * 一切通らなくなる — プライバシーポリシー(#238)の「記録はお預かりしません」はこれで成立する。
+ *
+ * 移設前は Worker が src/ に依存しない独立ビルドだったため、レコードの形をこのファイルに複製していた。
+ * **移設に伴いその複製は削除し、`src/types.ts` の実型を直接使う**(二重管理の解消)。
+ */
 
-interface MealRecordInput {
-  id: string;
-  timestamp: string;
-  mealType: string;
-  confirmedName: string;
-  confirmedKcal: number;
-  confirmedProteinG: number;
-  confirmedFatG: number;
-  confirmedCarbsG: number;
-}
-
-interface WaterRecordInput {
-  id: string;
-  timestamp: string;
-  amountMl: number;
-}
-
-interface WorkoutRecordInput {
-  id: string;
-  date: string;
-  timestamp: string;
-  exerciseName: string;
-  exerciseOrder: number;
-  setNumber: number;
-  weightKg: number;
-  reps: number;
-}
-
-interface DiaryRecordInput {
-  id: string;
-  date: string;
-  timestamp: string;
-  text: string;
-  mood?: string;
-  alcohol?: boolean; // 飲酒タグ(Issue #112)。シートには「あり」/空欄で書く
-}
-
-interface FoodMasterItemInput {
-  id: string;
-  name: string;
-  kcal: number;
-  proteinG: number;
-  fatG: number;
-  carbsG: number;
-  source?: string;
-  createdAt: string;
-}
-
-interface ExerciseMasterItemInput {
-  id: string;
-  name: string;
-  bodyPart?: string; // 部位分類のキー(chest/back/...。Issue #104)。シートには日本語ラベルで書く
-  createdAt: string;
-}
-
-/** 設定の1項目(Issue #164)。クライアント側で文字列化済みの値を受け取る */
-interface SettingsEntryInput {
-  key: string;
-  value: string;
-}
-
-/** 週次AIコメント(Issue #164)。シートに載せるのはadviceだけで、digestは送らない */
-interface AdviceRecordInput {
-  weekStart: string;
-  createdAt: string;
-  advice: { verdict: string; summary: string; wins: string[]; actions: string[] };
-}
-
-interface MonthlyAdviceRecordInput {
-  month: string;
-  createdAt: string;
-  advice: { verdict: string; summary: string; wins: string[]; actions: string[] };
-}
-
-interface BloodPressureRecordInput {
-  id: string;
-  date: string;
-  timestamp: string;
-  systolic: number;
-  diastolic: number;
-  pulse?: number;
-  note?: string;
-}
-
-interface BodyMeasurementRecordInput {
-  id: string;
-  date: string;
-  timestamp: string;
-  waistCm: number;
-  chestCm?: number;
-  thighCm?: number;
-  note?: string;
-}
-
-interface HabitMasterItemInput {
-  id: string;
-  name: string;
-  targetWeeklyFrequency?: number;
-  archived: boolean;
-  order: number;
-  createdAt: string;
-}
-
-interface HabitRecordInput {
-  id: string;
-  date: string;
-  habitId: string;
-  habitName: string;
-  timestamp: string;
-}
-
-interface SyncPushPayloadInput {
-  weightRecords?: WeightRecordInput[];
-  mealRecords?: MealRecordInput[];
-  waterRecords?: WaterRecordInput[];
-  workoutRecords?: WorkoutRecordInput[];
-  diaryRecords?: DiaryRecordInput[];
-  foodMasterItems?: FoodMasterItemInput[];
-  exerciseMasterItems?: ExerciseMasterItemInput[];
-  settingsEntries?: SettingsEntryInput[];
-  adviceRecords?: AdviceRecordInput[];
-  monthlyAdviceRecords?: MonthlyAdviceRecordInput[];
-  bloodPressureRecords?: BloodPressureRecordInput[];
-  bodyMeasurementRecords?: BodyMeasurementRecordInput[];
-  habitMasterItems?: HabitMasterItemInput[];
-  habitRecords?: HabitRecordInput[];
-  deletedWeightIds?: string[];
-  deletedMealIds?: string[];
-  deletedWaterIds?: string[];
-  deletedWorkoutIds?: string[];
-  deletedDiaryIds?: string[];
-  deletedFoodMasterIds?: string[];
-  deletedExerciseMasterIds?: string[];
-  deletedBloodPressureIds?: string[];
-  deletedBodyMeasurementIds?: string[];
-  deletedHabitMasterIds?: string[];
-  deletedHabitRecordIds?: string[];
-}
-
-interface SyncPushResultOutput {
-  syncedWeightDates: string[];
-  syncedMealIds: string[];
-  syncedWaterIds: string[];
-  syncedWorkoutIds: string[];
-  syncedDiaryDates: string[];
-  syncedFoodMasterIds: string[];
-  syncedExerciseMasterIds: string[];
-  syncedSettingsKeys: string[];
-  syncedAdviceWeekStarts: string[];
-  syncedMonthlyAdviceMonths: string[];
-  syncedBloodPressureDates: string[];
-  syncedBodyMeasurementDates: string[];
-  syncedHabitMasterIds: string[];
-  syncedHabitRecordIds: string[];
-  deletedWeightIds: string[];
-  deletedMealIds: string[];
-  deletedWaterIds: string[];
-  deletedWorkoutIds: string[];
-  deletedDiaryIds: string[];
-  deletedFoodMasterIds: string[];
-  deletedExerciseMasterIds: string[];
-  deletedBloodPressureIds: string[];
-  deletedBodyMeasurementIds: string[];
-  deletedHabitMasterIds: string[];
-  deletedHabitRecordIds: string[];
-}
+/** 設定タブの1行(Issue #164)。key-value の形で書き出す */
+type SettingsEntry = { key: string; value: string };
 
 export interface SheetConfig {
   name: string;
@@ -215,6 +68,21 @@ export const MONTHLY_ADVICE_CONFIG: SheetConfig = { name: "月次AIコメント"
 
 // マスタ系タブは記録系と違い後付けのため(Issue #96)、既存スプレッドシートには存在しない。
 // 同期時にタブが無ければWorkerがこのヘッダー行付きで自動作成する(記録系タブは手動作成が前提のまま)
+/** Sheets APIを叩くのに要る2つ。access tokenは #214 のユーザー認可、シートIDは Settings が持つ(#216) */
+export interface SheetsApiContext {
+  accessToken: string;
+  spreadsheetId: string;
+}
+
+// 記録5タブのヘッダー(Issue #216)。**移設前は手動作成が前提でヘッダー定数が無かった** —
+// 配布版では他人のDriveにアプリがシートを作るため、5タブも自動作成の対象になった。
+// 列の並びは *ToRow と1対1で対応する(取り込みは位置で読むため、並べ替えないこと)
+export const WEIGHT_HEADER = ["日付", "体重(kg)", "体脂肪率(%)", "メモ", "記録日時", "ID"];
+export const MEAL_HEADER = ["記録日時", "区分", "品目", "カロリー(kcal)", "たんぱく質(g)", "脂質(g)", "炭水化物(g)", "ID"];
+export const WATER_HEADER = ["記録日時", "量(ml)", "ID"];
+export const WORKOUT_HEADER = ["日付", "種目", "種目順", "セット", "重量(kg)", "回数", "記録日時", "ID"];
+export const DIARY_HEADER = ["日付", "気分", "本文", "記録日時", "ID", "飲酒"];
+
 export const FOOD_MASTER_HEADER = ["品目名", "カロリー(kcal)", "たんぱく質(g)", "脂質(g)", "炭水化物(g)", "出典", "登録日時", "ID"];
 export const EXERCISE_MASTER_HEADER = ["種目名", "登録日時", "ID", "部位"];
 export const BLOOD_PRESSURE_HEADER = ["日付", "最高血圧(mmHg)", "最低血圧(mmHg)", "脈拍(bpm)", "メモ", "記録日時", "ID"];
@@ -273,9 +141,10 @@ export const VERDICT_LABELS: Record<string, string> = {
   behind: "遅れ",
   needs_attention: "要注意",
 };
-export const VERDICT_FROM_LABEL: Record<string, string> = Object.fromEntries(
+/** 表示ラベル→判定値の逆引き(取り込み用)。値は判定の実型に確定するので、そう型付けする */
+export const VERDICT_FROM_LABEL = Object.fromEntries(
   Object.entries(VERDICT_LABELS).map(([value, label]) => [label, value]),
-);
+) as Record<string, WeeklyAdvice["verdict"]>;
 
 export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
@@ -316,7 +185,7 @@ export function formatJstDateTime(isoTimestamp: string): string {
   return `${year}年${month}月${day}日 ${hour}:${minute}`;
 }
 
-function weightRecordToRow(r: WeightRecordInput): (string | number)[] {
+function weightRecordToRow(r: WeightRecord): (string | number)[] {
   return [
     formatCalendarDate(r.date),
     r.weightKg,
@@ -327,7 +196,7 @@ function weightRecordToRow(r: WeightRecordInput): (string | number)[] {
   ];
 }
 
-function mealRecordToRow(r: MealRecordInput): (string | number)[] {
+function mealRecordToRow(r: MealRecord): (string | number)[] {
   return [
     formatJstDateTime(r.timestamp),
     MEAL_TYPE_LABELS[r.mealType] ?? r.mealType,
@@ -340,11 +209,11 @@ function mealRecordToRow(r: MealRecordInput): (string | number)[] {
   ];
 }
 
-function waterRecordToRow(r: WaterRecordInput): (string | number)[] {
+function waterRecordToRow(r: WaterRecord): (string | number)[] {
   return [formatJstDateTime(r.timestamp), r.amountMl, r.id];
 }
 
-function workoutRecordToRow(r: WorkoutRecordInput): (string | number)[] {
+function workoutRecordToRow(r: WorkoutRecord): (string | number)[] {
   return [
     formatCalendarDate(r.date),
     r.exerciseName,
@@ -357,7 +226,7 @@ function workoutRecordToRow(r: WorkoutRecordInput): (string | number)[] {
   ];
 }
 
-function diaryRecordToRow(r: DiaryRecordInput): (string | number)[] {
+function diaryRecordToRow(r: DiaryRecord): (string | number)[] {
   return [
     formatCalendarDate(r.date),
     (r.mood && DIARY_MOOD_LABELS[r.mood]) ?? r.mood ?? "",
@@ -368,7 +237,7 @@ function diaryRecordToRow(r: DiaryRecordInput): (string | number)[] {
   ];
 }
 
-function foodMasterItemToRow(r: FoodMasterItemInput): (string | number)[] {
+function foodMasterItemToRow(r: FoodMasterItem): (string | number)[] {
   return [
     r.name,
     r.kcal,
@@ -381,17 +250,17 @@ function foodMasterItemToRow(r: FoodMasterItemInput): (string | number)[] {
   ];
 }
 
-function exerciseMasterItemToRow(r: ExerciseMasterItemInput): (string | number)[] {
+function exerciseMasterItemToRow(r: ExerciseMasterItem): (string | number)[] {
   return [r.name, formatJstDateTime(r.createdAt), r.id, (r.bodyPart && EXERCISE_BODY_PART_LABELS[r.bodyPart]) ?? r.bodyPart ?? ""];
 }
 
 // wins/actionsは配列。1セル内改行で並べると、シート上でも1行=1項目として読める
-function settingsEntryToRow(e: SettingsEntryInput): (string | number)[] {
+function settingsEntryToRow(e: SettingsEntry): (string | number)[] {
   const field = SETTINGS_FIELDS.find((f) => f.key === e.key);
   return [field?.label ?? e.key, e.value, e.key];
 }
 
-function adviceRecordToRow(r: AdviceRecordInput): (string | number)[] {
+function adviceRecordToRow(r: PushableAdviceRecord): (string | number)[] {
   return [
     formatCalendarDate(r.weekStart),
     VERDICT_LABELS[r.advice.verdict] ?? r.advice.verdict,
@@ -416,7 +285,7 @@ export function monthToSheetLabel(month: string): string {
   return `${year}年${mm}月`;
 }
 
-function monthlyAdviceRecordToRow(r: MonthlyAdviceRecordInput): (string | number)[] {
+function monthlyAdviceRecordToRow(r: PushableMonthlyAdviceRecord): (string | number)[] {
   return [
     monthToSheetLabel(r.month),
     VERDICT_LABELS[r.advice.verdict] ?? r.advice.verdict,
@@ -428,7 +297,7 @@ function monthlyAdviceRecordToRow(r: MonthlyAdviceRecordInput): (string | number
   ];
 }
 
-function bloodPressureRecordToRow(r: BloodPressureRecordInput): (string | number)[] {
+function bloodPressureRecordToRow(r: BloodPressureRecord): (string | number)[] {
   return [
     formatCalendarDate(r.date),
     r.systolic,
@@ -440,7 +309,7 @@ function bloodPressureRecordToRow(r: BloodPressureRecordInput): (string | number
   ];
 }
 
-function bodyMeasurementRecordToRow(r: BodyMeasurementRecordInput): (string | number)[] {
+function bodyMeasurementRecordToRow(r: BodyMeasurementRecord): (string | number)[] {
   return [
     formatCalendarDate(r.date),
     r.waistCm,
@@ -452,11 +321,11 @@ function bodyMeasurementRecordToRow(r: BodyMeasurementRecordInput): (string | nu
   ];
 }
 
-function habitMasterItemToRow(r: HabitMasterItemInput): (string | number)[] {
+function habitMasterItemToRow(r: HabitMasterItem): (string | number)[] {
   return [r.name, r.targetWeeklyFrequency ?? "", r.archived ? "アーカイブ" : "", r.order, formatJstDateTime(r.createdAt), r.id];
 }
 
-function habitRecordToRow(r: HabitRecordInput): (string | number)[] {
+function habitRecordToRow(r: HabitRecord): (string | number)[] {
   return [formatCalendarDate(r.date), r.habitName, r.habitId, formatJstDateTime(r.timestamp), r.id];
 }
 
@@ -698,17 +567,18 @@ async function syncOneSheet(
   return { syncedIds: rows.map((r) => r.id), deletedIds: deletionIds };
 }
 
-export async function handleSyncSheets(request: Request, env: Env): Promise<Response> {
-  if (!env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || !env.GOOGLE_SHEETS_SPREADSHEET_ID) {
-    return Response.json({ error: "Google Sheets連携が未設定です(環境変数を確認してください)" }, { status: 500 });
-  }
-
-  let payload: SyncPushPayloadInput;
-  try {
-    payload = await request.json();
-  } catch {
-    return Response.json({ error: "リクエストボディの解析に失敗しました" }, { status: 400 });
-  }
+/**
+ * 未同期のレコードと削除トゥームストーンをスプレッドシートへ反映する。
+ *
+ * **タブごとに独立して処理し、部分的な成功をそのまま返す**(`Promise.allSettled`)。
+ * 1タブが失敗しても他タブの同期は確定させる — 呼び出し元(`runSync`)は返ってきたIDだけを
+ * 同期済みにするため、失敗分は次回の同期で再送信される。
+ * **全タブが失敗したときだけ例外を投げる**(何も進んでいないため、呼び出し元にエラーを見せる)。
+ */
+export async function pushToSheets(
+  payload: SyncPushPayload,
+  { accessToken, spreadsheetId }: SheetsApiContext,
+): Promise<SyncPushResult> {
   const weightRecords = payload.weightRecords ?? [];
   const mealRecords = payload.mealRecords ?? [];
   const waterRecords = payload.waterRecords ?? [];
@@ -735,15 +605,6 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   const deletedHabitMasterIds = payload.deletedHabitMasterIds ?? [];
   const deletedHabitRecordIds = payload.deletedHabitRecordIds ?? [];
 
-  let accessToken: string;
-  try {
-    accessToken = await getGoogleAccessToken(env);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Google認証に失敗しました";
-    return Response.json({ error: message }, { status: 502 });
-  }
-
-  const spreadsheetId = env.GOOGLE_SHEETS_SPREADSHEET_ID;
   const [
     weightResult,
     mealResult,
@@ -766,6 +627,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       WEIGHT_CONFIG,
       weightRecords.map((r) => ({ id: r.id, cells: weightRecordToRow(r) })),
       deletedWeightIds,
+      WEIGHT_HEADER,
     ),
     syncOneSheet(
       accessToken,
@@ -773,6 +635,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       MEAL_CONFIG,
       mealRecords.map((r) => ({ id: r.id, cells: mealRecordToRow(r) })),
       deletedMealIds,
+      MEAL_HEADER,
     ),
     syncOneSheet(
       accessToken,
@@ -780,6 +643,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       WATER_CONFIG,
       waterRecords.map((r) => ({ id: r.id, cells: waterRecordToRow(r) })),
       deletedWaterIds,
+      WATER_HEADER,
     ),
     syncOneSheet(
       accessToken,
@@ -787,6 +651,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       WORKOUT_CONFIG,
       workoutRecords.map((r) => ({ id: r.id, cells: workoutRecordToRow(r) })),
       deletedWorkoutIds,
+      WORKOUT_HEADER,
     ),
     syncOneSheet(
       accessToken,
@@ -794,6 +659,7 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
       DIARY_CONFIG,
       diaryRecords.map((r) => ({ id: r.id, cells: diaryRecordToRow(r) })),
       deletedDiaryIds,
+      DIARY_HEADER,
     ),
     syncOneSheet(
       accessToken,
@@ -943,15 +809,16 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
   });
   const anyFailure = labeledResults.some(([, result]) => result.status === "rejected");
 
+  // 1件も進まずに全滅したときだけエラーにする(部分成功は正常系として返す)
   if (attempted && nothingSynced && anyFailure) {
     const messages = labeledResults
       .map(([, result]) => result)
       .filter((r): r is PromiseRejectedResult => r.status === "rejected")
       .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
-    return Response.json({ error: messages.join(" / ") }, { status: 502 });
+    throw new Error(messages.join(" / "));
   }
 
-  return Response.json({
+  return {
     syncedWeightDates: weight.syncedIds,
     syncedMealIds: meal.syncedIds,
     syncedWaterIds: water.syncedIds,
@@ -978,5 +845,5 @@ export async function handleSyncSheets(request: Request, env: Env): Promise<Resp
     deletedBodyMeasurementIds: bodyMeasurement.deletedIds,
     deletedHabitMasterIds: habitMaster.deletedIds,
     deletedHabitRecordIds: habitRecord.deletedIds,
-  } satisfies SyncPushResultOutput);
+  };
 }

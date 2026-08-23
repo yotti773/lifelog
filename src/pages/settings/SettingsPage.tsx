@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -15,6 +16,7 @@ import {
   IconKey,
   IconPerson,
   IconRuler,
+  IconShield,
   IconSun,
 } from "@/components/icons";
 import { db } from "@/db/db";
@@ -37,6 +39,7 @@ function formatSlashDate(date: string): string {
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const settings = useLiveQuery(() => getSettings(), []);
   // 自動計算(Issue #43)は直近の体重記録を使う。「記録なし」とロード中を区別するためnullに正規化する
   const latestWeightRecord = useLiveQuery(
@@ -246,6 +249,20 @@ export default function SettingsPage() {
       </Typography>
 
       <MasterDataSections />
+
+      <SectionLabel>このアプリについて</SectionLabel>
+      <Card sx={{ overflow: "hidden", mb: "8px" }}>
+        <SettingRow
+          icon={<IconShield size={18} />}
+          iconBg={tokens.secondarySoft}
+          iconColor="#2EC4B6"
+          label="プライバシーポリシー"
+          onClick={() => navigate("/privacy")}
+        />
+      </Card>
+      <Typography sx={{ fontSize: 11, color: "text.secondary", mb: "18px", px: "4px", lineHeight: 1.6 }}>
+        記録がどこに保存され、AIに何が送られるかをまとめています
+      </Typography>
 
       <ValueEditorDrawer
         target={editTarget}

@@ -10,7 +10,9 @@ import { IconCheck, IconShare, IconWarning } from "@/components/icons";
 import { getGoogleConnection } from "@/db/googleAuth";
 import { markAllRecordsUnsynced } from "@/db/resync";
 import { getSettings, updateSettings } from "@/db/settings";
+import { googleSheetsTransport } from "@/sync/googleSheetsTransport";
 import { createSpreadsheet, spreadsheetUrlFor } from "@/sync/sheets/spreadsheetSetup";
+import { runSync } from "@/sync/syncEngine";
 import { fontRounded, tokens } from "@/theme";
 
 /**
@@ -38,6 +40,10 @@ export default function SpreadsheetCard() {
       const created = await createSpreadsheet(accessToken);
       await updateSettings({ spreadsheetId: created.spreadsheetId });
       await markAllRecordsUnsynced();
+      // **その場で書き出すところまでやる。** 未同期に戻すだけだと、自動同期のスロットリング(5分)に
+      // 阻まれて見出し行だけのシートがしばらく残り、「すべて書き出します」の説明と食い違う
+      const outcome = await runSync({ transport: googleSheetsTransport });
+      if (outcome.status === "error") setError(outcome.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "スプレッドシートを作成できませんでした");
     } finally {
@@ -85,7 +91,7 @@ export default function SpreadsheetCard() {
               startIcon={isCreating ? <CircularProgress size={14} color="inherit" /> : undefined}
               sx={{ height: 46, borderRadius: "13px", fontSize: 13, boxShadow: tokens.secondaryButtonShadow }}
             >
-              {isCreating ? "作成しています..." : "スプレッドシートを作成"}
+              {isCreating ? "作成して書き出しています..." : "スプレッドシートを作成"}
             </Button>
           </>
         )}

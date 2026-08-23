@@ -1,5 +1,6 @@
 import { ApiStatusError, requestApi, SYNC_REQUEST_TIMEOUT_MS } from "@/api/request";
 import { clearGoogleRefreshToken, getGoogleRefreshToken, saveGoogleRefreshToken } from "@/db/googleAuth";
+import { updateSettings } from "@/db/settings";
 import { createCodeChallenge, generateRandomToken } from "@/lib/pkce";
 
 /**
@@ -15,6 +16,12 @@ import { createCodeChallenge, generateRandomToken } from "@/lib/pkce";
  * **access token は永続化しない。** 短命(約1時間)なのでメモリに置き、期限切れなら作り直す。
  * 永続化する価値より、保存された認証情報を増やさないことを取る。
  */
+
+/**
+ * Googleの認可が失効したときにWorkerが返すコード(`worker/googleOAuth.ts` と同じ値)。
+ * **worker/ は src/ に依存しない独立ビルドのため、この定数だけは両側に持つ。片方だけ変えないこと。**
+ */
+const GOOGLE_REAUTH_REQUIRED_CODE = "google_reauth_required";
 
 /** 認可後にGoogleが戻ってくる先。Google Cloud Consoleの「承認済みのリダイレクトURI」に登録が要る */
 export const OAUTH_REDIRECT_PATH = "/oauth/callback";
@@ -153,8 +160,13 @@ export async function completeAuthorization(params: URLSearchParams): Promise<vo
  * Sheets APIを呼ぶためのaccess tokenを返す(#215がこれを使う)。
  * 期限内ならメモリのものを使い、切れていればrefresh tokenから作り直す。
  *
- * **失効(401)は正常系として扱う**(検討メモ12.8): 保存済みのrefresh tokenを捨てて未連携に戻し、
+ * **失効は正常系として扱う**(検討メモ12.8): 保存済みのrefresh tokenを捨てて未連携に戻し、
  * 再連携を促すエラーを投げる。使えないトークンを持ち続けても再連携の妨げにしかならない。
+ *
+ * **ただし「401だから失効」とは判断しない。** 401は共有トークン認証(#87)の失敗でも返るため、
+ * ステータスだけで捨てると、`API_AUTH_TOKEN` を差し替えた(#218の失効運用)ときや
+ * APIトークンの打ち間違いで、無関係にGoogle連携まで失われる。Workerが失効時にだけ載せる
+ * `code: "google_reauth_required"` を見て判断する。
  */
 export async function getGoogleAccessToken(): Promise<string> {
   if (cachedAccessToken !== null && cachedAccessToken.expiresAtMs - REFRESH_MARGIN_MS > Date.now()) {
@@ -170,7 +182,7 @@ export async function getGoogleAccessToken(): Promise<string> {
   try {
     tokens = await exchangeToken({ grantType: "refresh_token", refreshToken });
   } catch (error) {
-    if (error instanceof ApiStatusError && error.status === 401) {
+    if (error instanceof ApiStatusError && error.status === 401 && error.code === GOOGLE_REAUTH_REQUIRED_CODE) {
       await clearGoogleRefreshToken();
       cachedAccessToken = null;
     }
@@ -181,8 +193,15 @@ export async function getGoogleAccessToken(): Promise<string> {
   return cachedAccessToken.token;
 }
 
-/** 連携を解除する。ローカルのトークンを捨てるだけで、Google側の認可取り消しはユーザーのアカウント画面から */
+/**
+ * 連携を解除する。ローカルのトークンを捨てるだけで、Google側の認可取り消しはユーザーのアカウント画面から。
+ *
+ * **同期先スプレッドシートのIDも一緒に手放す。** シートは連携したアカウントのDriveにあり、
+ * 別のアカウントで連携し直すとアクセスできない(`drive.file` はアプリが作ったファイル単位の許可)。
+ * IDを残すと、二度と読めないシートを指したまま同期が失敗し続け、作り直す導線も出ない。
+ */
 export async function disconnectGoogle(): Promise<void> {
   await clearGoogleRefreshToken();
+  await updateSettings({ spreadsheetId: undefined });
   cachedAccessToken = null;
 }

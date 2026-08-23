@@ -189,15 +189,33 @@ describe("getGoogleAccessToken", () => {
     }
   });
 
-  it("失効(401)ならローカルのrefresh tokenを捨てて未連携に戻す", async () => {
+  it("Googleの失効(code付きの401)ならローカルのrefresh tokenを捨てて未連携に戻す", async () => {
     await saveGoogleRefreshToken("rt");
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ error: "連携し直してください" }), { status: 401 })),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: "連携し直してください", code: "google_reauth_required" }), {
+            status: 401,
+          }),
+      ),
     );
 
     await expect(getGoogleAccessToken()).rejects.toThrow("連携し直して");
     expect(await getGoogleRefreshToken()).toBeNull();
+  });
+
+  it("共有トークン認証の401(code無し)ではrefresh tokenを捨てない", async () => {
+    // API_AUTH_TOKENを差し替えた(#218の失効運用)ときやAPIトークンの打ち間違いでも401が返る。
+    // ここで捨てると、Googleとは無関係の理由で連携が失われ、再認可のやり直しになる
+    await saveGoogleRefreshToken("rt");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "認証に失敗しました" }), { status: 401 })),
+    );
+
+    await expect(getGoogleAccessToken()).rejects.toThrow("認証に失敗");
+    expect(await getGoogleRefreshToken()).toBe("rt");
   });
 
   it("失効以外のエラーではrefresh tokenを捨てない(一時障害で連携を失わない)", async () => {
@@ -223,5 +241,17 @@ describe("disconnectGoogle", () => {
     expect(await getGoogleRefreshToken()).toBeNull();
     // メモリも消えているので、次は未連携エラーになる(古いトークンを返さない)
     await expect(getGoogleAccessToken()).rejects.toThrow("連携していません");
+  });
+
+  it("同期先スプレッドシートのIDも手放す", async () => {
+    // シートは連携したアカウントのDriveにある。別アカウントで連携し直すと読めないため、
+    // IDを残すと二度と読めないシートを指したまま同期が失敗し続ける(#216のレビュー指摘)
+    const { updateSettings, getSettings } = await import("@/db/settings");
+    await saveGoogleRefreshToken("rt");
+    await updateSettings({ spreadsheetId: "sheet-1" });
+
+    await disconnectGoogle();
+
+    expect((await getSettings()).spreadsheetId).toBeUndefined();
   });
 });

@@ -132,7 +132,8 @@ DexieでIndexedDBをラップしている。`db.ts` がスキーマを定義し�
 - **Workerが担うのはトークン交換だけで、健康データには触れない。** Googleは refresh token の発行・使用の両方で `client_secret` を要求し、PKCEでは代替できないため、client_secret を持つサーバ側の口が1つだけ必要になる。**refresh token は保存しない**(ステートレスな中継)
 - **`/api/google-oauth/token` は実質「client_secret の代行窓口」。必ず共有トークン認証の内側に置く**(`worker/index.ts` のルーティング順)。認証の外に出すと、refresh token を盗んだ相手がここを叩いて代行させられる
 - **refresh token は `googleAuth` テーブル(1行)に置き、シート同期にもバックアップにも載せない**(`BACKUP_EXCLUDED_TABLES`)。`Settings` に相乗りさせると同期先シートとバックアップJSONの両方へ流出する。access token は短命なため永続化せず、`src/api/googleOAuth.ts` がメモリで保持して期限切れ時に作り直す
-- **失効は正常系として扱う**(6ヶ月未使用・ユーザーによる解除・認可の上限超過)。Workerが401を返し、クライアントは保存済みトークンを捨てて未連携に戻す。**一時障害(502等)ではトークンを捨てない** — 捨てると一時的な不調で連携が失われる
+- **失効は正常系として扱う**(6ヶ月未使用・ユーザーによる解除・認可の上限超過)。Workerが `code: "google_reauth_required"` 付きの401を返し、クライアントはそのときだけ保存済みトークンを捨てて未連携に戻す。**ステータスだけで判断しない** — 401は共有トークン認証(#87)の失敗でも返るため、`API_AUTH_TOKEN` の差し替え(#218の失効運用)やAPIトークンの打ち間違いで、無関係にGoogle連携まで失われる。**一時障害(502等)でも捨てない**
+- **連携を解除したら `Settings.spreadsheetId` も一緒に捨てる。** シートは連携したアカウントのDriveにあり、別アカウントで連携し直すと `drive.file` では読めない。IDを残すと、二度と読めないシートを指したまま同期が失敗し続け、作り直す導線も出ない
 - **配信URLを変えると、Google Cloud Consoleの「承認済みのリダイレクトURI」の更新も要る**(`/oauth/callback`)。IndexedDBがオリジン単位である件と同じ紐付きが認可にも及ぶ
 
 ### Garmin連携(`scripts/garmin/`、`.github/workflows/garmin-sync.yml`)

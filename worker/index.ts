@@ -147,6 +147,13 @@ export default {
       }
     }
 
+    // **知らない /api/* はJSONの404で返す。** ここを素通りさせるとSPAのindex.htmlが200で返り、
+    // クライアントには「サーバーからの正しい応答が得られませんでした」としか見えない。
+    // #215で削除した3つのエンドポイント(/api/sync-sheets ほか)を、更新前のPWAが叩く間に効く
+    if (url.pathname.startsWith("/api/")) {
+      return Response.json({ error: `このAPIは存在しません (${url.pathname})` }, { status: 404 });
+    }
+
     return env.ASSETS.fetch(request);
   },
 };

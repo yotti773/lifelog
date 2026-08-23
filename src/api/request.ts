@@ -56,6 +56,12 @@ export class ApiStatusError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /**
+     * サーバーが返した機械可読なエラーコード(あれば)。
+     * **同じステータスでも意味が違う場合の判別に使う** — 401は共有トークン認証の失敗でも
+     * Google認可の失効でも返るため、後者だけを見分ける必要がある(Issue #214のレビュー指摘)
+     */
+    readonly code?: string,
   ) {
     super(message);
     this.name = "ApiStatusError";
@@ -95,8 +101,8 @@ export async function requestApi<T>(path: string, options: ApiRequestOptions): P
   }
 
   if (!res.ok) {
-    const errorBody = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new ApiStatusError(res.status, errorBody?.error ?? fallbackErrorMessage(res.status));
+    const errorBody = (await res.json().catch(() => null)) as { error?: string; code?: string } | null;
+    throw new ApiStatusError(res.status, errorBody?.error ?? fallbackErrorMessage(res.status), errorBody?.code);
   }
 
   try {

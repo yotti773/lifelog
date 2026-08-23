@@ -44,7 +44,22 @@ export const db = new Dexie("lifelog") as Dexie & {
   bodyMeasurementRecords: EntityTable<BodyMeasurementRecord, "date">;
   habitMasterItems: EntityTable<HabitMasterItem, "id">;
   habitRecords: EntityTable<HabitRecord, "id">;
+  googleAuth: EntityTable<GoogleAuthRow, "id">;
 };
+
+/**
+ * ユーザー自身のGoogle認可の保存行(Issue #214)。1行だけ(`id: "default"`)。
+ *
+ * **refresh token は実質的に権限そのもの**(いつでもaccess tokenを作れる券)。ただしGoogleは
+ * その使用にも `client_secret` を要求するため、トークン単体では鍵にならない(検討メモ12.8)。
+ * それでも持ち出し経路は塞ぐ: **シート同期にもバックアップにも載せない。**
+ * access token は短命なため永続化せず、メモリ上でのみ保持する(`src/api/googleOAuth.ts`)。
+ */
+export interface GoogleAuthRow {
+  id: "default";
+  refreshToken: string;
+  connectedAt: string; // ISO8601
+}
 
 // weightRecords: dateを主キーにすることで、同じ日付のput()が自動的に上書き(後勝ち)になる
 db.version(1).stores({
@@ -124,3 +139,11 @@ db.version(12)
     await tx.table("monthlyAdviceRecords").toCollection().modify({ synced: false });
     await tx.table("settings").toCollection().modify({ synced: false });
   });
+
+// ユーザー自身のGoogle認可(Issue #214)。1行だけを持つ(id: "default")。
+// **Settings に相乗りさせない** — Settings はシート同期にも完全バックアップにも乗るため、
+// refresh token が同期先のシートやバックアップJSONへ流出する。専用テーブルに分けたうえで
+// BACKUP_EXCLUDED_TABLES(src/db/backup.ts)で明示的に除外している
+db.version(13).stores({
+  googleAuth: "id",
+});

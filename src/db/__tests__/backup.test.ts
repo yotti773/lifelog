@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  BACKUP_EXCLUDED_TABLES,
   BACKUP_TABLES,
   BACKUP_TABLE_LABELS,
   countBackupRows,
@@ -22,16 +23,27 @@ const digest = { weekStart: "2026-07-27" } as unknown as WeeklyDigest;
 const advice = { summary: "順調です", wins: [], actions: [] } as unknown as WeeklyAdvice;
 
 describe("バックアップ対象テーブル", () => {
-  it("syncDeletions以外のすべてのテーブルを対象にしている", () => {
+  it("すべてのテーブルが対象か除外かに分類されている", () => {
     // テーブルを足したのにバックアップに入れ忘れる事故を防ぐ。実際にフェーズ2以降の
-    // テーブルが漏れたまま放置されていた(Issue #164)
+    // テーブルが漏れたまま放置されていた(Issue #164)。
+    // 除外する場合も BACKUP_EXCLUDED_TABLES に理由付きで入れる必要があり、
+    // 「入れ忘れ」は必ずここで落ちる
     const all = db.tables.map((table) => table.name).sort();
-    const covered = [...BACKUP_TABLES, "syncDeletions"].sort();
+    const covered = [...BACKUP_TABLES, ...BACKUP_EXCLUDED_TABLES].sort();
     expect(covered).toEqual(all);
   });
 
-  it("同期の途中状態であるsyncDeletionsは含めない", () => {
-    expect(BACKUP_TABLES).not.toContain("syncDeletions");
+  it("除外テーブルは対象に含めない", () => {
+    for (const name of BACKUP_EXCLUDED_TABLES) {
+      expect(BACKUP_TABLES).not.toContain(name);
+    }
+  });
+
+  it("同期の途中状態と認証情報を除外している", () => {
+    // syncDeletions = 同期の途中状態。googleAuth = Googleのrefresh token(#214)。
+    // 認証情報を持ち出せるファイルにしない、という #164 の apiToken と同じ判断
+    expect(BACKUP_EXCLUDED_TABLES).toContain("syncDeletions");
+    expect(BACKUP_EXCLUDED_TABLES).toContain("googleAuth");
   });
 
   it("すべての対象テーブルに表示名がある", () => {

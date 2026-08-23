@@ -85,9 +85,20 @@ function Strong({ children }: { children: React.ReactNode }) {
 export default function PrivacyPolicyPage() {
   const navigate = useNavigate();
 
+  /**
+   * 戻る。**このページはGoogle Cloud Consoleに登録するURLとして直接開かれる**ため、
+   * 履歴が無いことがある(その場合 navigate(-1) は何も起きない)。
+   * react-routerは履歴内の位置を history.state.idx に持つので、先頭なら設定画面へ送る。
+   */
+  const handleBack = () => {
+    const historyIndex = (window.history.state as { idx?: number } | null)?.idx;
+    if (typeof historyIndex === "number" && historyIndex > 0) navigate(-1);
+    else navigate("/settings", { replace: true });
+  };
+
   return (
     <Box sx={{ mx: "auto", maxWidth: 448, px: "20px", pt: "16px", pb: "40px" }}>
-      <RecordHeader title="プライバシーポリシー" onBack={() => navigate(-1)} />
+      <RecordHeader title="プライバシーポリシー" onBack={handleBack} />
 
       <Typography sx={{ fontSize: 11, color: tokens.faint, mb: "12px", px: "2px" }}>
         最終更新: {LAST_UPDATED}

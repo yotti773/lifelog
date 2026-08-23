@@ -25,19 +25,28 @@ export function useAiConsentGate() {
   const [open, setOpen] = useState(false);
   // 「同意した/やめた」をawaitしている呼び出し元へ返すための保留中のresolve
   const resolveRef = useRef<((agreed: boolean) => void) | null>(null);
+  // 表示中のダイアログに対する保留中のPromise(二重呼び出しで共有する)
+  const pendingRef = useRef<Promise<boolean> | null>(null);
 
   const settle = useCallback((agreed: boolean) => {
     setOpen(false);
     resolveRef.current?.(agreed);
     resolveRef.current = null;
+    pendingRef.current = null;
   }, []);
 
   const ensureConsent = useCallback(async (): Promise<boolean> => {
     if (await hasAiConsent()) return true;
+    // **すでに聞いている最中なら、同じ回答を両方の呼び出しへ返す。**
+    // resolveを上書きすると、先に待っていた側のPromiseが永久に解決しない
+    // (「コメントを生成する」の二度押しで起きる)
+    if (pendingRef.current !== null) return pendingRef.current;
     setOpen(true);
-    return new Promise<boolean>((resolve) => {
+    const pending = new Promise<boolean>((resolve) => {
       resolveRef.current = resolve;
     });
+    pendingRef.current = pending;
+    return pending;
   }, []);
 
   const handleAgree = useCallback(async () => {

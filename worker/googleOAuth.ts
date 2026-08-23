@@ -35,6 +35,14 @@ export type GoogleTokenRequest =
   | { grantType: "authorization_code"; code: string; codeVerifier: string; redirectUri: string }
   | { grantType: "refresh_token"; refreshToken: string };
 
+/**
+ * Googleの認可が失効したときだけ応答に載せる印(Issue #215のレビュー指摘)。
+ * **401は共有トークン認証(worker/auth.ts)も返す**ため、ステータスだけで判断すると、
+ * API_AUTH_TOKENを差し替えた(#218の失効運用)瞬間にGoogle連携まで捨ててしまう。
+ * クライアントはこの印がある401のときだけ保存済みのrefresh tokenを捨てる。
+ */
+export const GOOGLE_REAUTH_REQUIRED_CODE = "google_reauth_required";
+
 export interface GoogleTokenResponse {
   accessToken: string;
   /** 有効期限(秒)。クライアントはこれを使って期限切れ前に更新する */
@@ -173,7 +181,13 @@ export async function handleGoogleOAuthToken(
     // 失効は異常系ではなく正常系として扱う(検討メモ12.8)。401で返し、クライアントが再連携を促す
     const isExpired =
       typeof payload === "object" && payload !== null && (payload as Record<string, unknown>).error === "invalid_grant";
-    return Response.json({ error: describeTokenError(res.status, payload) }, { status: isExpired ? 401 : 502 });
+    if (isExpired) {
+      return Response.json(
+        { error: describeTokenError(res.status, payload), code: GOOGLE_REAUTH_REQUIRED_CODE },
+        { status: 401 },
+      );
+    }
+    return Response.json({ error: describeTokenError(res.status, payload) }, { status: 502 });
   }
 
   try {

@@ -66,7 +66,7 @@ export default function GoogleConnectionCard() {
           >
             <IconKey size={18} />
           </Box>
-          <Typography sx={{ flex: 1, fontSize: 14, fontWeight: 500 }}>Googleとの連携</Typography>
+          <Typography sx={{ flex: 1, fontSize: 14, fontWeight: 500 }}>Googleアカウント</Typography>
           {connection !== undefined && (
             <Typography
               sx={{

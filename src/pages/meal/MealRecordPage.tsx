@@ -17,6 +17,7 @@ import {
   replaceMealRecordsForDateAndType,
   type MealItemInput,
 } from "@/db/mealRecords";
+import { useAiConsentGate } from "@/hooks/useAiConsentGate";
 import { useHistoryBackNavigation } from "@/hooks/useHistoryBackNavigation";
 import { formatMonthDay, nearestMealType, toDatetimeLocalValue, todayDateString } from "@/lib/date";
 import { accent, fontRounded, tokens } from "@/theme";
@@ -134,11 +135,15 @@ export default function MealRecordPage() {
     setJudgeError(null);
   };
 
+  const { ensureConsent, consentDialog } = useAiConsentGate();
+
   // 写真・テキスト(備考欄)のどちらか一方でもあれば解析できる(Issue #159)
   const canJudge = photos.length > 0 || note.trim() !== "";
 
   const handleJudge = async () => {
     if (!canJudge) return;
+    // 写真そのものをGeminiへ送るため、初回は同意を取る(Issue #219)
+    if (!(await ensureConsent())) return;
     const hadPhoto = photos.length > 0;
     setJudging(true);
     setJudgeError(null);
@@ -411,6 +416,8 @@ export default function MealRecordPage() {
         onClick={handleSave}
         label={skipped ? "食べなかったと記録する" : filledCount > 0 ? `保存する(${filledCount}品)` : "保存する"}
       />
+
+      {consentDialog}
     </Box>
   );
 }

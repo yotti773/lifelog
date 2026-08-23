@@ -5,6 +5,7 @@ import Card from "@mui/material/Card";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 import { isApiConnectionError } from "@/api/request";
+import { useAiConsentGate } from "@/hooks/useAiConsentGate";
 import { IconCheck, IconSparkle, IconWarning } from "@/components/icons";
 import { formatDateTime } from "@/lib/date";
 import { fontRounded, tokens } from "@/theme";
@@ -52,12 +53,16 @@ export default function AdviceCard({
 }: AdviceCardProps) {
   const [isGenerating, setGenerating] = useState(false);
   const [adviceError, setAdviceError] = useState<AdviceError | null>(null);
+  // 週次・月次の生成はどちらもこのカードから始まるため、同意(Issue #219)もここで1回だけ取る
+  const { ensureConsent, consentDialog } = useAiConsentGate();
 
   const handleGenerateAdvice = async () => {
     if (!navigator.onLine) {
       setAdviceError({ message: "オフラインのため生成できません", selfContained: true });
       return;
     }
+    // 同意していなければダイアログを出し、同意しなければ何も送らずに戻る(Issue #219)
+    if (!(await ensureConsent())) return;
     setGenerating(true);
     setAdviceError(null);
     try {
@@ -199,6 +204,8 @@ export default function AdviceCard({
       <Typography sx={{ fontSize: 10, color: tokens.faint, mt: "14px", pt: "10px", borderTop: `1px solid ${tokens.divider}`, lineHeight: 1.6 }}>
         AIによる参考情報であり、医学的助言ではありません
       </Typography>
+
+      {consentDialog}
     </Card>
   );
 }

@@ -9,5 +9,10 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts"],
+  // wranglerRouting.test.ts はデプロイ設定(wrangler.toml)を node:fs で読むテストで、
+  // Workersランタイムの世界には属さない。ここに `"node"` 型を足して通すと、
+  // Worker本体のコードでもNode APIが型エラーにならなくなる(nodejs_compatは未有効)ため、
+  // 型検査は tsconfig.node.json 側に持たせて、こちらからは外す
+  "exclude": ["__tests__/wranglerRouting.test.ts"]
 }

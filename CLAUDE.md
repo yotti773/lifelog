@@ -170,6 +170,8 @@ Cloudflare Workers(クラシックな別サービスの「Pages」ではなく�
 
 **`public/_redirects` ファイルを追加しないこと** — `not_found_handling = "single-page-application"` と組み合わせると、CloudflareはSPAフォールバックの処理をどちらも試みるものとみなし、無限リダイレクトループとしてデプロイを拒否する。`[assets]` の設定だけで十分であり、現在デプロイされているのもこの構成。
 
+**`run_worker_first` を配列にするなら `/api/*` を必ず含めること。** この値を配列にした時点で、Cloudflareは既定の暗黙ルーティング(Sec-Fetch-Modeを見て、アセットに無いパスをWorkerへ回す)をやめ、**書いたパスだけ**をWorkerへ通す。流入元ログ(Issue #251)のために `["/"]` としたところ、`/api/*` がアセット層で完結してWorkerのハンドラまで届かなくなり、POST(`/api/google-oauth/token`・`/api/judge-meal`)が失敗してシート同期とAI判定が本番で全滅した(2026-08-27、Issue #252)。画面にはWorkerが返すJSONの文言ではなく呼び出し元のフォールバック文言しか出ないため、症状からWorkerまで届いていないことが読み取れない。`worker/__tests__/wranglerRouting.test.ts` が番人。
+
 `npm run deploy` はローカルで同じbuild+deployを実行するが、事前に `wrangler login` が必要(このサンドボックス化された開発環境ではセットアップされていない — 特に指示が無い限り未認証だと想定すること)。
 
 **デプロイパイプラインに自動テストのゲートは無い**(`npm run test` が失敗していてもビルドさえ通れば本番へデプロイされる)。デプロイ自体をGitHub Actionsへ移してテストゲートを設ける案は、個人開発・単一ユーザー向けというプロジェクト規模には見合わないと判断し対応不要とした(Issue #18、からだログ_意思決定ログ.md参照)。**PRと `main` へのpushではCI(`.github/workflows/ci.yml`、Issue #201)がテスト・ビルドを回すが、これはデプロイに関与しない品質シグナルで、落ちてもデプロイは止まらない**(止めるにはブランチ保護でこのチェックを必須にする設定が別途要る)。上記テスト節の通り、PR前にローカルでも実行する運用と併せてカバーする。

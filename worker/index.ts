@@ -96,6 +96,22 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // **どの入り口から来たかを記録する。** 貼ったリンクに `?from=` を付けておくと、
+    // ここに1行だけ残る(wrangler.toml の `run_worker_first` とセット)。
+    //
+    // 目的は自分の利用と外部からの訪問を分けること。ホーム画面のPWAから開くとクエリも
+    // リファラも付かないので、**`from` が付いているものだけが外から踏まれた分**になる。
+    // リクエスト総数を見ても、毎日記録している自分の分に埋もれて外部が見えない。
+    // Xのリンクは t.co で包まれ、モバイルアプリからはリファラが落ちることが多いため、
+    // リファラではなく `?from=` を正とする。
+    //
+    // 残すのは流入元とリファラだけで、**個人を識別するもの(IP・UA・トークン)は出さない**。
+    // プライバシーポリシーの「行わないこと」に、この用途を明記してある。
+    const from = url.searchParams.get("from");
+    if (from !== null) {
+      console.log(JSON.stringify({ event: "visit", from, referer: request.headers.get("referer") }));
+    }
+
     // 全APIエンドポイントを共有トークンで保護する(Issue #87)。静的アセット配信は対象外
     if (url.pathname.startsWith("/api/") && !isAuthorized(request.headers.get("authorization"), env.API_AUTH_TOKEN)) {
       return unauthorizedResponse();

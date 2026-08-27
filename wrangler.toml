@@ -11,3 +11,14 @@ enabled = true
 directory = "dist"
 not_found_handling = "single-page-application"
 binding = "ASSETS"
+
+# トップページだけWorkerを先に通す。**流入元(`?from=`)を読むため**。
+#
+# 既定では静的アセットがWorkerより先に返るため、`/` はエッジキャッシュから返って
+# Workerが起動しない(2026-08-27に実測: `/?from=x` も、毎回違うクエリ+no-cacheでも
+# CF-Cache-Status: HIT。起動するのは `/api/*` だけだった)。この1行が無いと、
+# リンクに何を付けても記録が残らない。
+#
+# `true`(全リクエスト)にはしない。JS/CSS/画像まで毎回Workerを通ると、
+# observabilityのログがアセットの取得で埋まり、肝心の流入が探せなくなる。
+run_worker_first = ["/"]

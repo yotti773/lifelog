@@ -12,13 +12,21 @@ directory = "dist"
 not_found_handling = "single-page-application"
 binding = "ASSETS"
 
-# トップページだけWorkerを先に通す。**流入元(`?from=`)を読むため**。
+# Workerを先に通すパス。トップページは**流入元(`?from=`)を読むため**(Issue #251)、
+# `/api/*` は**APIをWorkerに届けるため**(Issue #252)。
 #
 # 既定では静的アセットがWorkerより先に返るため、`/` はエッジキャッシュから返って
 # Workerが起動しない(2026-08-27に実測: `/?from=x` も、毎回違うクエリ+no-cacheでも
-# CF-Cache-Status: HIT。起動するのは `/api/*` だけだった)。この1行が無いと、
+# CF-Cache-Status: HIT。起動するのは `/api/*` だけだった)。この設定が無いと、
 # リンクに何を付けても記録が残らない。
+#
+# **`/api/*` を必ず含めること。** この値を配列にすると、Cloudflareは既定の暗黙ルーティング
+# (Sec-Fetch-Mode を見て、アセットに無いパスをWorkerへ回す)をやめ、**ここに書いたパスだけ**を
+# Workerへ通す。`["/"]` だけにすると `/api/*` はアセット層で完結してWorkerのハンドラまで届かず、
+# JSONの `error` を持たない応答(POSTならメソッド不許可の405)が返る —
+# シート同期(`/api/google-oauth/token`)もAI判定(`/api/judge-meal`)も丸ごと失敗する。
+# 2026-08-27にこの状態で本番が壊れた(Issue #252)。`worker/__tests__/wranglerRouting.test.ts` が番人。
 #
 # `true`(全リクエスト)にはしない。JS/CSS/画像まで毎回Workerを通ると、
 # observabilityのログがアセットの取得で埋まり、肝心の流入が探せなくなる。
-run_worker_first = ["/"]
+run_worker_first = ["/", "/api/*"]

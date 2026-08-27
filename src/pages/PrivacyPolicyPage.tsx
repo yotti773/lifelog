@@ -21,7 +21,7 @@ import { fontRounded, tokens } from "@/theme";
  */
 
 /** 最終更新日。本文を変えたらここも更新する(利用者が変更に気付ける唯一の手がかりのため) */
-const LAST_UPDATED = "2026年8月23日";
+const LAST_UPDATED = "2026年8月27日";
 
 /** AIへ送るもの・送らないものの一覧。「送る」を上にまとめ、誤解の起きやすい日記本文を送らない側の先頭に置く */
 const AI_DATA_ROWS: { label: string; sent: boolean; note?: string }[] = [
@@ -116,7 +116,7 @@ export default function PrivacyPolicyPage() {
             "記録はあなたの端末の中に保存されます",
             "同期をONにしたときだけ、記録があなたのGoogleスプレッドシートへ送られます",
             "日記の本文は、設定でONにしない限りAIに送りません",
-            "アクセス解析・広告・第三者への提供はありません",
+            "解析ツールの設置・広告・第三者への提供はありません",
           ].map((text) => (
             <Typography key={text} component="li" sx={{ fontSize: 11.5, lineHeight: 1.7, color: "#2F6F68" }}>
               {text}
@@ -195,7 +195,9 @@ export default function PrivacyPolicyPage() {
         <Paragraph>
           アクセス解析ツールの設置、広告の配信、記録の第三者への提供・販売は
           <Strong>いずれも行いません</Strong>
-          。サーバー側に残るのは、障害の調査に使う通信のログ(いつ・どのURLへリクエストがあったか)だけです。
+          。サーバー側に残るのは通信のログ(いつ・どのURLへリクエストがあったか)だけで、用途は「障害の調査」と「どの入り口から来たかを知ること」の2つです。後者は、記事やSNSに貼ったリンクに付けておいた印を数えているだけで、
+          <Strong>誰が来たかは分かりません</Strong>
+          (IPアドレス・端末の情報・記録の中身は残していません)。
         </Paragraph>
       </Section>
 

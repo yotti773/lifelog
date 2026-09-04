@@ -76,7 +76,7 @@ async function ensureFontsLoaded(): Promise<void> {
   if (typeof document === "undefined" || !("fonts" in document)) return;
   try {
     // 第2引数は「その字形が使えるか」の判定に使うサンプル。数字・単位・かなを混ぜて両フォントを起こす
-    await Promise.all(REQUIRED_FONTS.map((font) => document.fonts.load(font, "0123456789kgcal記録今週日")));
+    await Promise.all(REQUIRED_FONTS.map((font) => document.fonts.load(font, "0123456789kgcal記録今週日連続中")));
   } catch {
     // 読み込みに失敗しても描画自体は続ける(フォールバックのsans-serifで描かれる)
   }
@@ -245,7 +245,17 @@ export async function drawShareCard(
 
   // 見出し(何の記録か)と期間
   drawText(ctx, model.title, CONTENT_LEFT, TITLE_Y, { font: `700 36px ${fontRounded}`, color: INK });
-  drawText(ctx, model.period, CONTENT_LEFT, PERIOD_Y, { font: `400 24px ${fontBody}`, color: SUB });
+  const periodWidth = drawText(ctx, model.period, CONTENT_LEFT, PERIOD_Y, {
+    font: `400 24px ${fontBody}`,
+    color: SUB,
+  });
+  // 連続記録は数値欄ではなく日付行に併記する(Issue #258)。**常時表示のためaccent(黄)は使わない**
+  if (model.streak !== null) {
+    drawText(ctx, `・${model.streak}`, CONTENT_LEFT + periodWidth, PERIOD_Y, {
+      font: `400 24px ${fontBody}`,
+      color: tokens.faint,
+    });
+  }
 
   // 署名(アプリアイコン + アプリ名)。見出しの右端に置き、フッターは持たない
   const icon = await iconPromise;

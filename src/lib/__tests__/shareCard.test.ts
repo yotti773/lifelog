@@ -373,3 +373,63 @@ describe("hasShareCardContent", () => {
     expect(hasShareCardContent(card)).toBe(false);
   });
 });
+
+describe("連続記録の置き場所(Issue #258)", () => {
+  it("日次は数値欄に出さず、日付行の文言として持つ(当日は「記録中」を付ける)", () => {
+    const card = buildDailyShareCard(dailySource(), { today: "2026-08-19" });
+
+    expect(card.stats.map((stat) => stat.label)).not.toContain("連続記録");
+    expect(card.streak).toBe("連続97日記録中");
+  });
+
+  it("歩数が取り込まれている日でも連続記録が消えない(数値欄の4枠から押し出されない)", () => {
+    const card = buildDailyShareCard(dailySource({ steps: 12345 }), { today: "2026-08-19" });
+
+    // 数値欄は上限まで埋まっている状態
+    expect(card.stats).toHaveLength(MAX_SHARE_CARD_STATS);
+    expect(card.stats.map((stat) => stat.label)).toEqual(["摂取カロリー", "PFC", "水分", "歩数"]);
+    expect(card.streak).toBe("連続97日記録中");
+  });
+
+  it("過去日は「記録中」を付けない", () => {
+    const card = buildDailyShareCard(dailySource({ date: "2026-08-18" }), { today: "2026-08-19" });
+
+    expect(card.streak).toBe("連続97日");
+  });
+
+  it("連続が切れている日は出さない", () => {
+    const card = buildDailyShareCard(dailySource({ streakDays: 0 }), { today: "2026-08-19" });
+
+    expect(card.streak).toBeNull();
+  });
+
+  it("その日の記録がまだ無くても、連続が続いていれば共有導線を出す", () => {
+    // 今日まだ記録していない状態(currentStreakDaysは昨日までの連続を継続中として返す)
+    const card = buildDailyShareCard(
+      dailySource({
+        weightKg: null,
+        previousWeightKg: null,
+        intakeKcal: null,
+        proteinG: null,
+        fatG: null,
+        carbsG: null,
+        waterMl: null,
+        steps: null,
+        workoutSets: [],
+        streakDays: 97,
+      }),
+      { today: "2026-08-19" },
+    );
+
+    expect(card.headline).toBeNull();
+    expect(card.stats).toEqual([]);
+    expect(hasShareCardContent(card)).toBe(true);
+  });
+
+  it("週次は据え置きで、連続記録は数値欄に残す(今日時点の値で、その週の値ではないため)", () => {
+    const card = buildWeeklyShareCard(weeklyDigest());
+
+    expect(card.streak).toBeNull();
+    expect(card.stats).toContainEqual({ label: "連続記録", value: "97", unit: "日" });
+  });
+});

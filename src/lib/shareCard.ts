@@ -54,6 +54,13 @@ export interface ShareCardModel {
   /** 主数値の横に置く明細(日次の筋トレ内訳)。無ければnull */
   details: ShareCardDetails | null;
   /**
+   * 見出し下の日付行に併記する連続記録日数(「連続122日記録中」)。無ければnull。
+   * **数値欄(stats)ではなくここに置く**(Issue #258) — 連続日数はその日の測定値ではなく
+   * 記録そのものの属性で、4枠しかない数値欄で摂取・PFC・水分・歩数と競争させると、
+   * 歩数が取り込まれた日にだけ押し出されて消えていたため
+   */
+  streak: string | null;
+  /**
    * 伏せる前のカードが体重の実数を含むかどうか。
    * 「体重の数値を隠す」トグルを出すかの判定に使う(hideWeightValueの値に関わらず同じ結果になる)
    */
@@ -79,7 +86,9 @@ export interface ShareCardOptions {
  * 1つも無ければ非表示」であって「主数値が無ければ非表示」ではない
  */
 export function hasShareCardContent(model: ShareCardModel): boolean {
-  return model.headline !== null || model.stats.length > 0 || model.details !== null;
+  // 連続日数も「載せられる数字」に数える(Issue #258) — 今日まだ記録していなくても
+  // 昨日までの連続は続いており、数値欄に置いていた頃はそれだけで導線が出ていたため
+  return model.headline !== null || model.stats.length > 0 || model.details !== null || model.streak !== null;
 }
 
 /** 1,850 のように3桁区切りにする(toLocaleStringはロケール依存のため使わない) */
@@ -255,6 +264,10 @@ export function buildWeeklyShareCard(digest: WeeklyDigest, options: ShareCardOpt
     stats: stats.slice(0, MAX_SHARE_CARD_STATS),
     // 週次は種目ごとの内訳を持たない(WeeklyDigest.workoutは日数・種目数・総セット数の集計のみ)
     details: null,
+    // **週次の連続日数は日付行に出さない**(Issue #258) — WeeklyDigestのcurrentStreakDaysは
+    // 「今日時点」の値で、その週の値ではない。過去の週のカードの見出しに置くと週の数字に見えるため、
+    // 日次と違って数値欄(上のstats)に置いたままにする
+    streak: null,
     hasWeightValue: weight.weekAvgKg !== null,
     fileDate: digest.period.start,
   };
@@ -342,9 +355,6 @@ export function buildDailyShareCard(src: DailyShareSource, options: ShareCardOpt
   if (src.steps !== null) {
     stats.push({ label: "歩数", value: formatInt(src.steps), unit: "歩" });
   }
-  if (src.streakDays > 0) {
-    stats.push({ label: "連続記録", value: String(src.streakDays), unit: "日" });
-  }
 
   return {
     kind: "daily",
@@ -353,6 +363,8 @@ export function buildDailyShareCard(src: DailyShareSource, options: ShareCardOpt
     headline,
     badge,
     stats: stats.slice(0, MAX_SHARE_CARD_STATS),
+    // 文言はホーム画面の連続日数表示に揃える(当日だけ「記録中」を付ける。HomePage.tsx)
+    streak: src.streakDays > 0 ? `連続${src.streakDays}日${isToday ? "記録中" : ""}` : null,
     // 筋トレは「◯種目」という数だけでは中身が伝わらないため、数値欄ではなく
     // 種目ごとの明細(重量×回数・セット数)として出す
     details: buildWorkoutDetails(src.workoutSets),

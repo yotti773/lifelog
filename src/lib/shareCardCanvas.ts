@@ -37,6 +37,7 @@ const REQUIRED_FONTS = [
   `700 36px ${fontRounded}`,
   `700 24px ${fontRounded}`,
   `700 21px ${fontRounded}`,
+  `700 20px ${fontRounded}`,
   `400 24px ${fontBody}`,
   `400 21px ${fontBody}`,
   `400 20px ${fontBody}`,
@@ -76,7 +77,7 @@ async function ensureFontsLoaded(): Promise<void> {
   if (typeof document === "undefined" || !("fonts" in document)) return;
   try {
     // 第2引数は「その字形が使えるか」の判定に使うサンプル。数字・単位・かなを混ぜて両フォントを起こす
-    await Promise.all(REQUIRED_FONTS.map((font) => document.fonts.load(font, "0123456789kgcal記録今週日")));
+    await Promise.all(REQUIRED_FONTS.map((font) => document.fonts.load(font, "0123456789kgcal記録今週日連続中")));
   } catch {
     // 読み込みに失敗しても描画自体は続ける(フォールバックのsans-serifで描かれる)
   }
@@ -130,6 +131,11 @@ const HEADLINE_VALUE_Y = 384;
 const STAT_LABEL_Y = 505;
 const STAT_VALUE_Y = 563;
 const STAT_SUB_Y = 595;
+
+/** 日付行に併記する連続記録のチップ(ホーム画面の連続日数と同じピル形。Issue #258) */
+const STREAK_CHIP_FONT_SIZE = 20;
+const STREAK_CHIP_HEIGHT = 36;
+const STREAK_CHIP_PAD_X = 16;
 
 /** 明細ブロック(筋トレの内訳)の左端。主数値の右の空き領域に置く */
 const DETAIL_LEFT = 636;
@@ -245,7 +251,28 @@ export async function drawShareCard(
 
   // 見出し(何の記録か)と期間
   drawText(ctx, model.title, CONTENT_LEFT, TITLE_Y, { font: `700 36px ${fontRounded}`, color: INK });
-  drawText(ctx, model.period, CONTENT_LEFT, PERIOD_Y, { font: `400 24px ${fontBody}`, color: SUB });
+  const periodWidth = drawText(ctx, model.period, CONTENT_LEFT, PERIOD_Y, {
+    font: `400 24px ${fontBody}`,
+    color: SUB,
+  });
+  // 連続記録は数値欄ではなく日付行にチップで併記する(Issue #258)。
+  // **色は前回比のバッジと分ける** — カード内でtealは「体重が減った」を表す唯一の色で、
+  // 同じtealのピルを2つ置くと連続日数も増減を表しているように読めるため、
+  // ここは中立のベージュにする。**常時表示なのでaccent(黄)も使わない**
+  if (model.streak !== null) {
+    const chipFont = `700 ${STREAK_CHIP_FONT_SIZE}px ${fontRounded}`;
+    ctx.font = chipFont;
+    const chipWidth = ctx.measureText(model.streak).width + STREAK_CHIP_PAD_X * 2;
+    const chipX = CONTENT_LEFT + periodWidth + 16;
+    const chipY = PERIOD_Y - 25;
+    ctx.fillStyle = tokens.beigeSoft;
+    roundRectPath(ctx, chipX, chipY, chipWidth, STREAK_CHIP_HEIGHT, STREAK_CHIP_HEIGHT / 2);
+    ctx.fill();
+    drawText(ctx, model.streak, chipX + STREAK_CHIP_PAD_X, chipY + STREAK_CHIP_HEIGHT / 2 + 7, {
+      font: chipFont,
+      color: SUB,
+    });
+  }
 
   // 署名(アプリアイコン + アプリ名)。見出しの右端に置き、フッターは持たない
   const icon = await iconPromise;

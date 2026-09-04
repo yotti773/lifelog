@@ -37,6 +37,7 @@ const REQUIRED_FONTS = [
   `700 36px ${fontRounded}`,
   `700 24px ${fontRounded}`,
   `700 21px ${fontRounded}`,
+  `700 20px ${fontRounded}`,
   `400 24px ${fontBody}`,
   `400 21px ${fontBody}`,
   `400 20px ${fontBody}`,
@@ -130,6 +131,11 @@ const HEADLINE_VALUE_Y = 384;
 const STAT_LABEL_Y = 505;
 const STAT_VALUE_Y = 563;
 const STAT_SUB_Y = 595;
+
+/** 日付行に併記する連続記録のチップ(ホーム画面の連続日数と同じピル形。Issue #258) */
+const STREAK_CHIP_FONT_SIZE = 20;
+const STREAK_CHIP_HEIGHT = 36;
+const STREAK_CHIP_PAD_X = 16;
 
 /** 明細ブロック(筋トレの内訳)の左端。主数値の右の空き領域に置く */
 const DETAIL_LEFT = 636;
@@ -249,11 +255,22 @@ export async function drawShareCard(
     font: `400 24px ${fontBody}`,
     color: SUB,
   });
-  // 連続記録は数値欄ではなく日付行に併記する(Issue #258)。**常時表示のためaccent(黄)は使わない**
+  // 連続記録は数値欄ではなく日付行にチップで併記する(Issue #258)。
+  // **色は前回比のバッジと分ける** — カード内でtealは「体重が減った」を表す唯一の色で、
+  // 同じtealのピルを2つ置くと連続日数も増減を表しているように読めるため、
+  // ここは中立のベージュにする。**常時表示なのでaccent(黄)も使わない**
   if (model.streak !== null) {
-    drawText(ctx, `・${model.streak}`, CONTENT_LEFT + periodWidth, PERIOD_Y, {
-      font: `400 24px ${fontBody}`,
-      color: tokens.faint,
+    const chipFont = `700 ${STREAK_CHIP_FONT_SIZE}px ${fontRounded}`;
+    ctx.font = chipFont;
+    const chipWidth = ctx.measureText(model.streak).width + STREAK_CHIP_PAD_X * 2;
+    const chipX = CONTENT_LEFT + periodWidth + 16;
+    const chipY = PERIOD_Y - 25;
+    ctx.fillStyle = tokens.beigeSoft;
+    roundRectPath(ctx, chipX, chipY, chipWidth, STREAK_CHIP_HEIGHT, STREAK_CHIP_HEIGHT / 2);
+    ctx.fill();
+    drawText(ctx, model.streak, chipX + STREAK_CHIP_PAD_X, chipY + STREAK_CHIP_HEIGHT / 2 + 7, {
+      font: chipFont,
+      color: SUB,
     });
   }
 
